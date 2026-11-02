@@ -1,69 +1,59 @@
 /**
- * DEMO VIDEO TEMPLATE (npm run demo:record). Drives a scripted flow, captions each step, and
- * saves a .webm to videos/. Replace the scenes with your app's story; keep it under ~2:50.
+ * DEMO VIDEO (npm run demo:record). The sample job, start to sent invoice, with captions.
+ * Keep it under ~2:50. Amounts come from the one constant in src/lib/say/sample.ts.
  */
 import { expect, test } from "@playwright/test";
 import { caption, DemoClock, highlight, titleCard } from "./captions";
+import { SAMPLE_AMOUNTS } from "../src/lib/say/sample";
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
-test("demo", async ({ page, request }) => {
+test("demo", async ({ page }) => {
   const clock = new DemoClock(170);
-  await request.post("/api/dev/reset");
 
   // Scene 1: the pitch
   await page.goto("/");
-  await titleCard(page, "PayPal Agent Kit", "AI agents that move money safely, with a human in the loop");
-  await caption(page, "Merchants lose hours settling partial shipments by hand.");
-  await page.mouse.wheel(0, 700);
-  await caption(page, "This agent does it with PayPal: every step is visible, capped and auditable.");
+  await titleCard(page, "Say-Voice", "Say the job. The invoice is out before you drive off.");
+  await caption(page, "Plumbers invoice late because the paperwork waits until night.");
+  await caption(page, "Say-Voice turns a few seconds of speech into a real PayPal invoice.");
   clock.check("pitch");
 
-  // Scene 2: buyer approves a hold
-  await page.goto("/example");
-  await caption(page, "A customer orders three items for $120 and pays with PayPal.", { wait: false });
-  // Sandbox (PAYPAL_MODE=sandbox) pays with PayPal's test card; the real button needs a buyer login.
-  const sandbox = (await (await request.get("/api/kit/status")).json()).paypal.mode === "sandbox";
-  const pay = page.getByTestId(sandbox ? "sandbox-test-card" : "simulate-paypal-approval");
-  await pay.waitFor();
-  await highlight(page, pay);
-  await pay.click();
-  if (!sandbox) {
-    await sleep(900);
-    await page.getByTestId("mock-approve").click();
-  }
-  await expect(page.getByTestId("authorization-panel")).toContainText("Created");
-  await caption(page, "PayPal authorizes a $120 hold. Nothing is charged yet.");
-  clock.check("authorized");
+  // Scene 2: speak the job
+  await page.goto("/jobs");
+  await caption(page, "Names always come from your contacts. Speech can't be trusted with them.", { wait: false });
+  await highlight(page, page.getByTestId("try-sample"));
+  await page.getByTestId("try-sample").click();
+  await page.waitForURL(/\/jobs\/job_/, { timeout: 90_000 });
+  await expect(page.getByTestId("invoice-line")).toHaveCount(2);
+  clock.check("heard");
 
-  // Scene 3: the agent settles it
-  await caption(page, "Only two items ship. We ask the settlement agent to handle it.", { wait: false });
-  await highlight(page, page.getByTestId("run-agent"));
-  await page.getByTestId("run-agent").click();
+  // Scene 3: the catch
+  const element = page.getByTestId("invoice-line").nth(1);
+  await caption(page, "The speaker said fifty. Speech to text heard fifteen.", { wait: false });
+  await highlight(page, page.getByTestId("transcript"));
+  await caption(page, "Your words sit beside every number, and the doubt is flagged on the item it's about.", { wait: false });
+  await highlight(page, element.getByTestId("line-flag"));
+  await caption(page, `The total would have been ${dollars(SAMPLE_AMOUNTS.heardTotalCents)}. One edit fixes it.`, { wait: false });
+  await element.getByTestId("line-price").fill((SAMPLE_AMOUNTS.spokenElementCents / 100).toFixed(2));
+  await expect(page.getByTestId("invoice-total")).toHaveText(dollars(SAMPLE_AMOUNTS.spokenTotalCents));
+  await highlight(page, page.getByTestId("invoice-total"));
+  await caption(page, "Totals are worked out by code, in cents. The AI never states them.");
+  clock.check("corrected");
+
+  // Scene 4: the gate
+  await page.getByTestId("send-invoice").click();
   const prompt = page.getByTestId("approval-prompt");
-  await expect(prompt).toBeVisible({ timeout: 90_000 });
-  await caption(page, "It wants to capture $80. That is above our $50 limit, so it waits for a human.");
+  await expect(prompt).toBeVisible({ timeout: 30_000 });
+  await caption(page, "Nothing goes out until you approve this exact amount.", { wait: false });
   await highlight(page, prompt.getByTestId("approve-button"));
   await prompt.getByTestId("approve-button").click();
-  await expect(page.getByTestId("authorization-panel")).toContainText("Voided", { timeout: 90_000 });
-  await caption(page, "Approved: $80 captured, and the remaining $40 hold released to the buyer.");
-  clock.check("settled");
+  await expect(page.getByTestId("result")).toBeVisible({ timeout: 60_000 });
+  clock.check("sent");
 
-  // Scene 4: proof
-  await page.getByText("PayPal ledger").scrollIntoViewIfNeeded();
-  await caption(page, "Every PayPal call, webhook and decision is recorded.");
+  // Scene 5: proof
+  await caption(page, "The invoice number and status are read back from PayPal.");
   await page.goto("/activity");
-  await caption(page, "The audit log is hash-chained, so any edit is detectable.");
-  await titleCard(page, "PayPal Agent Kit", "Built with PayPal Orders, Payments and Agent Toolkit + Claude", 2800);
+  await caption(page, "Every decision is on a hash-chained audit log.");
+  await titleCard(page, "Say-Voice", "Built with PayPal Invoicing, Claude and ElevenLabs Scribe", 2800);
   clock.check("end");
-});
-
-test.afterEach(async ({ page }, info) => {
-  const video = page.video();
-  await page.close();
-  if (video) {
-    const name = `videos/demo-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.webm`;
-    await video.saveAs(name);
-    console.log(`[demo] saved ${name} (${info.duration / 1000 | 0}s)`);
-  }
 });

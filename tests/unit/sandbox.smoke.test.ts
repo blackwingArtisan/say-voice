@@ -3,7 +3,7 @@
  * SANDBOX_SMOKE=1 (use `npm run test:sandbox`), so `npm test` never needs the network.
  *
  * Steps that need a human buyer login (approve -> authorize/capture) cannot run headless;
- * they are covered by the mock tests and by the example page with the real PayPal button.
+ * they are covered by the mock tests.
  */
 import fs from "node:fs";
 import path from "node:path";

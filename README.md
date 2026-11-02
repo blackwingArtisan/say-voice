@@ -1,20 +1,25 @@
 # Say-Voice
 
-> One sentence: who it helps and what the AI agent does with PayPal. <!-- TODO -->
+> Tradespeople say the job out loud in the van, check the numbers, and a PayPal invoice goes out before they drive off.
 
-**Live demo:** https://say-voice.onrender.com <!-- TODO: update after deploy --> · **Video (≤3 min):** <!-- TODO: YouTube link --> · **License:** MIT
+**License:** MIT
 
-![Screenshot](docs/screenshot.png) <!-- TODO: add a 1440×900 screenshot of the main flow -->
+![The confirm screen](docs/screenshot.png)
 
 ## The problem
 
-<!-- TODO: 3–5 sentences. Who has the problem, how often, what it costs them today (time, money, errors). Use a concrete example. -->
+A plumber finishes a job at two in the afternoon and writes the invoice at nine at night, from memory. Hours get rounded, parts get forgotten, and money comes in days later than it should. The work is done on site, but the paperwork waits for a desk. Dictating is quick, but speech to text can't be trusted with money: in testing, every tool heard "sixty an hour" as "16 hour", and a model stated a wrong total on 6 of 20 clips.
 
 ## What it does
 
-<!-- TODO: The user journey in 4–6 bullets, from the user's point of view. Name the moment the agent acts and the moment a human approves. -->
+- Pick the customer from your contacts. Names never come from speech.
+- Press record and say the job: hours, parts, prices, tax.
+- ElevenLabs Scribe v2 writes it down and Claude pulls out the line items.
+- Check the invoice. Your words sit beside every number, doubts are flagged on the item they're about, and a spoken amount with no line item gets a warning. Everything is editable.
+- Press send, then approve the exact amount. Nothing reaches the customer before that.
+- PayPal creates and sends the invoice. The result screen shows the real number and status, read back from PayPal.
 
-- …
+No mic? **Try a sample job** runs a real recorded job through the same screens, including a mishearing to catch.
 
 ## How PayPal is used
 
@@ -22,51 +27,43 @@ All PayPal calls go to the **sandbox** (`https://api-m.sandbox.paypal.com`); the
 
 | PayPal API | Endpoint(s) | Where and why |
 |---|---|---|
-| JS SDK v6 (buyer approval) | `web-sdk/v6/core`, `PayPalOneTimePaymentButton` | <!-- TODO --> |
-| Orders v2 | `POST /v2/checkout/orders`, `/authorize`, `/capture` | <!-- TODO --> |
-| Payments v2 | `/v2/payments/authorizations/{id}/capture`, `/void`, `/v2/payments/captures/{id}/refund` | <!-- TODO --> |
-| Payouts | `POST /v1/payments/payouts` | <!-- TODO or delete row --> |
-| Invoicing v2 | `/v2/invoicing/invoices`, `/send`, `/remind` | <!-- TODO or delete row --> |
-| Disputes | `/v1/customer/disputes`, `/accept-claim`, `/provide-evidence` | <!-- TODO or delete row --> |
-| Transaction Search | `GET /v1/reporting/transactions` | <!-- TODO or delete row --> |
-| Webhooks | `POST /v1/notifications/verify-webhook-signature` | Verified webhooks update the app's ledger and trigger <!-- TODO --> |
-| Vault v3 | `/v3/vault/setup-tokens`, `/payment-tokens` | <!-- TODO or delete row --> |
-| **PayPal Agent Toolkit** | `@paypal/agent-toolkit` 1.11 tools: <!-- TODO list the ones your agent uses --> | The agent's PayPal tools come from PayPal's Agent Toolkit (definitions, validation and sandbox execution), extended with guarded tools the toolkit lacks (<!-- TODO e.g. capture_authorization, void_authorization -->). |
+| Invoicing v2 | `POST /v2/invoicing/invoices`, `POST /v2/invoicing/invoices/{id}/send` | Creates the invoice from the checked job and sends it, after approval |
+| Invoicing v2 | `GET /v2/invoicing/invoices/{id}` | Reads the invoice back, so the result screen shows PayPal's number and status |
+| Webhooks | `POST /v1/notifications/verify-webhook-signature` | Verified invoice events show on the timeline when `PAYPAL_WEBHOOK_ID` is set |
 
-**Safety around money:** every money-moving agent call passes a guard. It enforces a per-action cap, a daily cap, a payee allowlist and idempotency (`PayPal-Request-Id`), and makes calls above <!-- TODO $50 --> wait for a human. Every decision goes to a hash-chained, append-only audit log.
+**Safety around money:** the send goes through a guard. It enforces a per-action cap, a daily cap, a payee allowlist and idempotency, and it waits for a person on every invoice, whatever the amount. Before sending, the app compares PayPal's own total with the approved total, and stops if they differ by a cent. Every decision goes to a hash-chained, append-only audit log.
 
 ## How AI is used
 
 | Where | Model | What it does |
 |---|---|---|
-| <!-- TODO e.g. Settlement agent --> | Claude Haiku 5.5 (`claude-haiku-5-5`) | Plans the task and calls the PayPal tools in a loop; explains each step on the timeline |
-| <!-- TODO e.g. Receipt reading --> | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | Vision: extracts structured data from photos |
-| <!-- TODO --> | | |
+| Speech to text | ElevenLabs Scribe v2 | Turns the recording into a transcript. The audio goes from the server to ElevenLabs and isn't stored here |
+| Job extraction | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | Reads the transcript into line items, quantities, prices and tax, and lists what it's unsure of |
 
-- **Agent loop**: Claude's tool use via the Anthropic TypeScript SDK (`@anthropic-ai/sdk`), with adaptive thinking and summarized reasoning shown on the timeline.
-- **Structured output**: zod schemas through the Messages API's structured outputs (`output_config.format`).
-- **Cost control**: a hard daily spend cap (worst case reserved before every call), per-IP rate limits, and Haiku by default.
-- **Mock mode**: without an API key the app runs a clearly labelled scripted agent, so the demo works anywhere.
+- **Code does the arithmetic**: money is integer cents, and line totals and the invoice total are computed in code, never stated by the AI. The rounding matches PayPal's, checked against real sandbox invoices.
+- **The extraction prompt is frozen**: it was tested on sealed clips the prompt had never seen, and a unit test pins its hash.
+- **Code checks the AI**: a separate parser finds the amounts in the transcript and warns when one has no line item.
+- **Due dates** come from code: the extraction doesn't return one, so "net 30" or "due in two weeks" is read from the transcript, and the default is 14 days.
+- **Cost control**: a hard daily spend cap (worst case reserved before every call) and per-IP rate limits.
+- **Mock mode**: without keys the app runs on clearly labelled fixtures for both speech and AI, so the whole flow works anywhere.
 
 **Built with AI.** This project was built with **Claude Code** (Anthropic's coding agent), which wrote the code under human direction. It started from a shared starter kit that Claude Code also wrote. The product idea, scope and review were human decisions.
 
 ## Architecture
 
 ```
-Browser (Next.js 16 / React 19, Tailwind, AG Grid)
-  │  PayPal JS SDK v6 button ─────────────► PayPal sandbox checkout (buyer approval)
+Browser (Next.js 16 / React 19, Tailwind)
+  │  MediaRecorder: microphone audio, uploaded when you stop
   │  SSE /api/events (live timeline)
   ▼
 Next.js route handlers (Node)
-  ├─ lib/paypal   typed PayPal client: sandbox REST (OAuth cache, PayPal-Request-Id, debug_id) or in-memory mock
-  ├─ lib/agent    Claude tool-use loop → Guard (caps, allowlist, approvals, idempotency, audit) → tools
-  │                 tools = PayPal Agent Toolkit 1.11 + guarded extensions
-  ├─ lib/ai       Claude Haiku 5.5 / Sonnet 5.5: structured output, vision, streaming; daily spend cap
-  ├─ webhooks     verify → ledger → handlers
-  └─ .data/       local JSON: ledger, audit log, AI spend (mock PayPal state in mock mode)
+  ├─ lib/say      speech, extraction, money, spoken-number checks, send flow
+  ├─ lib/agent    Guard: caps, allowlist, approvals, idempotency, audit
+  ├─ lib/paypal   typed PayPal client: sandbox REST or in-memory mock
+  ├─ lib/ai       Claude Sonnet 5.5 structured output; daily spend cap
+  ├─ webhooks     verify → ledger → timeline
+  └─ .data/       local JSON: jobs, ledger, audit log, AI spend
 ```
-
-<!-- TODO: add anything app-specific (other services, data sources). -->
 
 ## Run locally
 
@@ -74,36 +71,36 @@ Requirements: Node 24+ (developed on Node 26), npm.
 
 ```bash
 npm ci
-cp .env.example .env.local        # optional: values here override ../../.env.shared
-PAYPAL_MODE=mock npm run dev      # no credentials needed
-npm run seed                      # optional demo data
+cp .env.example .env.local                  # optional: values here override ../../.env.shared
+AI_MODE=mock PAYPAL_MODE=mock npm run dev   # no credentials needed
 ```
 
-Open http://localhost:3000. For the real sandbox set `PAYPAL_MODE=sandbox`, `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`. For real AI set `ANTHROPIC_API_KEY`.
+Open http://localhost:3000. For the real sandbox set `PAYPAL_MODE=sandbox`, `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`. For real AI set `ANTHROPIC_API_KEY` and `ELEVENLABS_API_KEY`. The microphone needs `localhost` or HTTPS.
 
-Checks: `npm run check` (lint, typecheck, unit tests, build), `npm run test:e2e`, `npm run test:sandbox`.
+Checks: `npm run check` (lint, typecheck, unit tests, build), `npm run test:e2e` (mock PayPal), `npm run test:e2e:sandbox` (sends real sandbox invoices). Set `E2E_BASE_URL` to run the sandbox flow against a deployed copy.
+
+The microphone test plays a computer-voice clip through Chromium's fake mic. macOS speech voices can't be redistributed, so the clip isn't in this repo: point `E2E_MIC_CLIP` at any spoken WAV, or the test skips and says why.
 
 ## Sandbox test accounts
 
-1. In the PayPal Developer Dashboard → **Testing Tools → Sandbox Accounts**, use the default Personal (buyer) and Business (seller) accounts or create new ones.
-2. Create a sandbox REST app under **Apps & Credentials → Sandbox** and copy its client ID and secret.
-3. At checkout, log in with the **Personal** sandbox account (password on the account's details page).
-4. Optional: add a webhook for `https://<your-deploy>/api/paypal/webhooks` and set `PAYPAL_WEBHOOK_ID`.
+Invoices go to fictional `example.com` contacts, so no buyer login is needed to send one. To open what the customer sees, use the link on the result screen. To set up your own:
 
-<!-- TODO: if judges should use a specific buyer account, give its email here (never a real account). -->
+1. In the PayPal Developer Dashboard → **Testing Tools → Sandbox Accounts**, use the default Business (seller) account.
+2. Create a sandbox REST app under **Apps & Credentials → Sandbox** and copy its client ID and secret.
+3. Optional: add a webhook for `https://<your-deploy>/api/paypal/webhooks` and set `PAYPAL_WEBHOOK_ID`.
 
 ## Deploy
 
-Render Blueprint (`render.yaml`): New → Blueprint → this repo, then enter the secrets in the dashboard.
+Render Blueprint (`render.yaml`): New → Blueprint → this repo, then enter the secrets in the dashboard, including `ELEVENLABS_API_KEY`. Render provides the HTTPS the microphone needs.
 
 ## Limitations
 
 - Sandbox only; no live payments are possible.
-- Buyer approval in sandbox needs a sandbox buyer login, so automated tests cover that step in mock mode.
+- US dollars, English speech, and one tax rate per invoice.
+- Sales tax is worked out per line, as PayPal does, so it can differ by a cent from tax on the whole sum.
+- Recording is capped at two minutes, and the audio is uploaded when you stop, not streamed.
+- Speech can still mishear a price. The confirm screen is what catches that, so a person has to read it.
 - Local JSON storage: data resets on redeploy (fine for a demo, not for production).
-- Sandbox Transaction Search needs the reporting feature enabled on the PayPal app, and data can lag up to 3 hours; the app keeps its own ledger.
-- The optional PayPal remote MCP connector is read-only and untested.
-- <!-- TODO: app-specific limitations -->
 
 ## License
 
