@@ -28,6 +28,9 @@ export async function payAsGuest(browser: Browser, payerUrl: string) {
   await checkout.locator("#billingState").selectOption("CA");
   await checkout.locator("#billingPostalCode").fill("95131");
   await checkout.locator("#phone").pressSequentially("4085551234", { delay: 15 });
+  // PayPal sometimes opens this form with account creation switched on, which asks for a password.
+  const createAccount = checkout.getByTestId("onboard-options-switch");
+  if ((await createAccount.count()) && (await createAccount.isChecked())) await createAccount.uncheck({ force: true });
   await checkout.getByRole("button", { name: "Pay now as guest" }).click();
 
   await expect(page.getByText("Payment successful")).toBeVisible({ timeout: 60_000 });
