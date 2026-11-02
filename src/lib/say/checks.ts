@@ -5,7 +5,8 @@
  * confidence told us nothing in testing.
  */
 import { lineCents, formatCents } from "./money";
-import { farFromUsual, soundAlike, type PriceEntry } from "./price-book";
+import { isPriceDoubt } from "./flags";
+import { farFromUsual, findEntry, itemKey, MIN_SAMPLES, soundAlike, usualCents, type PriceEntry } from "./price-book";
 import { findMissingAmounts, heardFor } from "./spoken";
 import type { JobFlag, JobLine } from "./types";
 
@@ -35,7 +36,28 @@ export interface CheckInput {
   book: PriceEntry[];
 }
 
-function farCheck(line: JobLine, book: PriceEntry[]): Check | null {
+const FLAT_WORDS = /\bflat\b|\blump\b|\ball in\b|\bfor the (whole )?job\b/i;
+const HOUR_WORDS = /\bhours?\b|\bhourly\b|\bhrs?\b/i;
+
+/**
+ * Flat-rate labor: one "Labor" line for the whole amount. The book's Labor price is an hourly rate,
+ * so comparing the two would be a false alarm, and the flat amount mustn't teach it either. One
+ * hour at a rate is not flat, so "an hour at sixteen" still gets checked.
+ */
+export function isFlatLabor(line: Pick<JobLine, "name" | "quantityMilli" | "unitCents">, transcript: string): boolean {
+  if (line.quantityMilli !== 1000 || itemKey(line.name) !== "labor") return false;
+  const said = heardFor(transcript, line) ?? transcript;
+  return FLAT_WORDS.test(said) || !HOUR_WORDS.test(said);
+}
+
+/** What this item usually costs, once the book has enough invoices to say. */
+function knownUsual(line: JobLine, book: PriceEntry[]): number | null {
+  const entry = findEntry(line.name, book);
+  return entry && entry.samples.length >= MIN_SAMPLES ? usualCents(entry.samples) : null;
+}
+
+function farCheck(line: JobLine, book: PriceEntry[], transcript: string): Check | null {
+  if (isFlatLabor(line, transcript)) return null;
   const far = farFromUsual(line, book);
   if (!far) return null;
   const alike = soundAlike(line.unitCents);
@@ -56,14 +78,18 @@ const unchanged = (row: JobLine, before: JobLine) => row.unitCents === before.un
 export function findChecks({ transcript, heardLines, flags, lines, taxRateMilli, book }: CheckInput): Check[] {
   const checks: Check[] = [];
   for (const line of lines) {
-    const far = farCheck(line, book);
+    const far = farCheck(line, book, transcript);
     if (far) checks.push(far);
   }
   flags.forEach((flag, i) => {
     const row = lines.find((line) => line.key === flag.lineKey);
     const before = heardLines.find((line) => line.key === flag.lineKey);
     if (row && before && !unchanged(row, before)) return; // the person changed the row it's about
-    checks.push({ id: `flag:${i}`, kind: "flag", lineKey: row?.key, text: flag.text });
+    const aboutPrice = row !== undefined && isPriceDoubt(flag.text, row);
+    // The AI's words differ from run to run. The book's check says it the same way every time.
+    if (aboutPrice && checks.some((check) => check.kind === "far" && check.lineKey === row.key)) return;
+    const usual = aboutPrice && !isFlatLabor(row, transcript) ? knownUsual(row, book) : null;
+    checks.push({ id: `flag:${i}`, kind: "flag", lineKey: row?.key, text: usual ? `${flag.text} Usually ${formatCents(usual)}.` : flag.text });
   });
   for (const before of heardLines) {
     const row = lines.find((line) => line.key === before.key);

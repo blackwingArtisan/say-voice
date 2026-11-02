@@ -3,13 +3,13 @@
  * `npm run test:e2e:sandbox` sends a real sandbox invoice and re-reads it straight from PayPal.
  * The job is the known trap: "fifty" heard as "fifteen". The confirm screen has to catch it.
  */
-import { expect, test, type APIRequestContext } from "@playwright/test";
-import { fixElementPrice, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, startSample } from "./flow";
+import { expect, test, type Page } from "@playwright/test";
+import { fixElementPrice, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, startSample, visitorHeaders } from "./flow";
 import { SAMPLE_AMOUNTS } from "../../src/lib/say/sample";
 import type { PriceEntry } from "../../src/lib/say/price-book";
 
-const priceCount = async (request: APIRequestContext) => {
-  const { prices } = (await (await request.get("/api/prices")).json()) as { prices: PriceEntry[] };
+const priceCount = async (page: Page) => {
+  const { prices } = (await (await page.request.get("/api/prices", { headers: await visitorHeaders(page) })).json()) as { prices: PriceEntry[] };
   return prices.find((entry) => entry.name === "Heating element")!.samples.length;
 };
 
@@ -17,16 +17,16 @@ test("sample job: catch the misheard price, fix it, approve, invoice sent", asyn
   const { live, paypal } = await kitStatus(request);
   test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
 
-  const before = await priceCount(request);
   await startSample(page);
+  const before = await priceCount(page);
 
   // Transcript beside every number, with the flag on the row it's about.
   await expect(page.getByTestId("transcript")).toContainText("make that fifteen dollars");
   await expect(page.getByTestId("invoice-line")).toHaveCount(2);
   const element = page.getByTestId("invoice-line").nth(1);
   await expect(element.getByTestId("line-name")).toHaveValue("Heating element");
-  await expect(element.getByTestId("line-flag")).toContainText("Heating element");
   await expect(element.getByTestId("line-heard")).toContainText("fifteen");
+  await expect(page.getByTestId("quantity-note")).toContainText("Read the quantities yourself");
   await expect(page.getByTestId("invoice-total")).toHaveText(money(SAMPLE_AMOUNTS.heardTotalCents));
   await expect(page.getByTestId("missing-amount")).toHaveCount(0);
   await expect(page.getByTestId("flags-panel")).toContainText("1 thing to check");
@@ -34,6 +34,8 @@ test("sample job: catch the misheard price, fix it, approve, invoice sent", asyn
   // The code's check names the usual price, and nothing can be sent until the person deals with it.
   await expect(element.getByTestId("line-usual")).toContainText("Usually $50.00");
   await expect(element.getByTestId("line-usual")).toContainText('"fifteen" sounds like "fifty"');
+  // One voice on the row: the AI's own doubt about this price would differ from run to run.
+  await expect(element.getByTestId("line-flag")).toHaveCount(0);
   await expect(page.getByTestId("send-invoice")).toHaveCount(0);
   await expect(page.getByTestId("next-check")).toContainText("1 thing to check first");
 
@@ -62,7 +64,7 @@ test("sample job: catch the misheard price, fix it, approve, invoice sent", asyn
   expect(done.heardLines.map((l) => l.unitCents)).toEqual([8000, SAMPLE_AMOUNTS.heardElementCents]);
 
   // The invoice went out, so its prices count as confirmed.
-  expect(await priceCount(request)).toBe(before + 1);
+  expect(await priceCount(page)).toBe(before + 1);
   await page.goto("/prices");
   const row = page.getByTestId("price-row").filter({ hasText: "Heating element" });
   await expect(row.getByTestId("price-usual")).toHaveText(money(SAMPLE_AMOUNTS.spokenElementCents));
@@ -93,7 +95,7 @@ test("a price the person keeps goes out, and the server won't skip the check", a
 
   // Declining changes nothing about what was settled.
   await expect(page.getByTestId("send-invoice")).toBeEnabled();
-  expect((await readJob(request, job.id)).acknowledged?.length).toBe(2);
+  expect((await readJob(request, job.id)).acknowledged?.length).toBe(1);
 });
 
 test("declining sends nothing, and the job stays editable", async ({ page, request }) => {
@@ -145,6 +147,24 @@ test("a spoken amount with no line item stops the send until the person decides"
   await expect(added.getByTestId("line-price")).toHaveValue("40.00");
   await added.getByTestId("line-name").fill("Disposal");
   await expect(warning).toHaveCount(0);
+});
+
+test("flat-rate labor isn't held against the hourly rate", async ({ page, request }) => {
+  const { live } = await kitStatus(request);
+  test.skip(live, "Mock extraction gives the same two lines every time, so this test edits them. Real extraction is proved in the live check.");
+  await paceAiCalls();
+
+  const job = await (await request.post("/api/jobs", { data: { source: "mic", today: "2026-11-01", customer: { name: "Tom Baker", email: "tom.baker@example.com" }, transcript: "Replaced the heating element, fifty dollars. Flat rate two hundred for labor.", speech: { mocked: true, model: "Speech mock" } } })).json();
+  await page.goto(`/jobs/${job.id}`);
+  const labor = page.getByTestId("invoice-line").first();
+  await labor.getByTestId("line-quantity").fill("1");
+  await labor.getByTestId("line-price").fill("200");
+  await expect(labor.getByTestId("line-total")).toHaveText("$200.00");
+  await expect(labor.getByTestId("line-usual")).toHaveCount(0);
+
+  // Hours on the row, so it's a rate after all, and $200 an hour is worth a look.
+  await labor.getByTestId("line-quantity").fill("2");
+  await expect(labor.getByTestId("line-usual")).toContainText("Usually $80.00");
 });
 
 test("adding an item the speaker didn't mention updates the total", async ({ page, request }) => {

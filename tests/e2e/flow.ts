@@ -24,6 +24,11 @@ export async function paceAiCalls(calls = 1) {
   lastAiCall = Date.now() + (calls - 1) * AI_CALL_GAP_MS;
 }
 
+/** The app scopes jobs and prices to the browser, so a call from outside it has to say whose. */
+export async function visitorHeaders(page: Page) {
+  return { "x-say-visitor": await page.evaluate(() => localStorage.getItem("say-visitor") ?? "") };
+}
+
 /** Starts the sample job and lands on its confirm screen. */
 export async function startSample(page: Page) {
   await paceAiCalls();

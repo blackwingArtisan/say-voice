@@ -56,7 +56,7 @@ export interface ExtractedJob {
   taxRateMilli: number;
   flags: JobFlag[];
   heardName: string;
-  ai: { mocked: boolean; model?: string; costUsd: number };
+  ai: { mocked: boolean; model?: string; costUsd: number; saved?: boolean };
 }
 
 /** Turns the model's numbers into whole cents and ties each doubt to its row. */
@@ -70,6 +70,9 @@ export function toJobFields(extraction: Extraction): Pick<ExtractedJob, "lines" 
   const flags = flagsToShow(extraction.uncertain, lines).map(({ text, line }) => ({ text, lineKey: line === null ? undefined : lines[line].key }));
   return { lines, taxRateMilli: percentToRateMilli(extraction.tax_rate), flags, heardName: extraction.customer.trim() };
 }
+
+/** The sample's stored reading, so the demo still runs when the AI budget is used up. */
+export const savedSampleReading = (): ExtractedJob => ({ ...toJobFields(SAMPLE_EXTRACTION), ai: { mocked: true, costUsd: 0, saved: true } });
 
 export async function extractJob(transcript: string): Promise<ExtractedJob> {
   const res = await generateObject({

@@ -2,11 +2,12 @@
 import { randomUUID } from "node:crypto";
 import { getApprovals } from "@/lib/agent/approvals";
 import { getRun } from "@/lib/agent/runs";
+import { AiBudgetExceededError, AiCreditError } from "@/lib/ai/errors";
 import { HttpError } from "@/lib/http";
 import { singleton } from "@/lib/singleton";
 import { collection } from "@/lib/store/collection";
 import { dueFromTranscript } from "./due";
-import { extractJob } from "./extract";
+import { extractJob, savedSampleReading } from "./extract";
 import { priceBook } from "./price-store";
 import { dayOf, whyNoReminder } from "./reminder-rules";
 import type { Job, JobCustomer, JobSource, JobView, PendingApproval, ReminderRun, SpeechMeta } from "./types";
@@ -16,8 +17,26 @@ const jobs = () => collection<Job>("jobs");
 /** Sends running in this process. A pending approval dies with the process. */
 export const activeSends = () => singleton("say:active-sends", () => new Set<string>());
 
-export async function createJob({ today, ...input }: { customer: JobCustomer; transcript: string; source: JobSource; speech?: SpeechMeta; today: string }): Promise<Job> {
-  const extracted = await extractJob(input.transcript);
+interface NewJob {
+  customer: JobCustomer;
+  transcript: string;
+  source: JobSource;
+  speech?: SpeechMeta;
+  today: string;
+  visitor?: string;
+}
+
+async function readJob({ source, transcript }: NewJob) {
+  try {
+    return await extractJob(transcript);
+  } catch (error) {
+    if (source === "sample" && (error instanceof AiBudgetExceededError || error instanceof AiCreditError)) return savedSampleReading();
+    throw error;
+  }
+}
+
+export async function createJob({ today, ...input }: NewJob): Promise<Job> {
+  const extracted = await readJob({ today, ...input });
   const due = dueFromTranscript(input.transcript, today);
   return jobs().upsert({
     id: `job_${randomUUID().slice(0, 8)}`,
@@ -57,8 +76,11 @@ function reminderRun({ reminderRunId: id, reminders }: Job): ReminderRun | null 
   const decided = getApprovals().list({ runId: id })[0]?.state;
   if (decided === "denied") return { state: "nothing_sent", reason: "You declined it." };
   if (decided === "expired") return { state: "nothing_sent", reason: "Nobody approved it in time." };
-  return { state: "nothing_sent", reason: run.error ?? (run.summary || "The agent stopped before proposing one.") };
+  return { state: "nothing_sent", reason: run.error ? agentFailure(run.error) : run.summary || "The agent stopped before proposing one." };
 }
+
+/** Run errors are raw API text, and that's no use to a person. */
+const agentFailure = (error: string) => (/spend cap|run out of credit/i.test(error) ? "The AI is out of credit for now, so try again later." : "The AI didn't finish, so try again.");
 
 export function viewJob(input: Job): JobView {
   let job = input;
@@ -66,12 +88,13 @@ export function viewJob(input: Job): JobView {
   if (job.status === "awaiting_approval" && !activeSends().has(job.id)) {
     job = saveJob({ ...job, status: "review", error: "The approval was lost when the server restarted. Press send again." });
   }
-  return { ...job, approval: pendingApproval(job), priceBook: priceBook(), reminderRun: reminderRun(job), noReminderBecause: whyNoReminder(job.invoice, job.reminders, dayOf(new Date())) };
+  return { ...job, approval: pendingApproval(job), priceBook: priceBook(job.visitor), reminderRun: reminderRun(job), noReminderBecause: whyNoReminder(job.invoice, job.reminders, dayOf(new Date())) };
 }
 
-export function listJobs(): JobView[] {
+export function listJobs(visitor?: string): JobView[] {
   return jobs()
     .list()
+    .filter((job) => job.visitor === visitor)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map(viewJob);
 }

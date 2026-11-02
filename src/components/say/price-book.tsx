@@ -38,7 +38,7 @@ export function PriceBook() {
 
   return (
     <>
-      <PageHeader title="Price book" description={`Built from invoices you sent. It's plain code, not AI: when a price is ${FAR_RATIO} times above or below the usual one, it stops the invoice until you've looked. An item needs ${MIN_SAMPLES} invoices first.`} />
+      <PageHeader title="Price book" description={`Starts with demo prices, then learns from the invoices you send from this browser. It's plain code, not AI: when a price is ${FAR_RATIO} times above or below the usual one, it stops the invoice until you've looked. An item needs ${MIN_SAMPLES} invoices first.`} />
       {error ? <EmptyState title="Could not load prices" description={error} /> : !prices ? <SkeletonCard /> : (
         <Card>
           <ul className="divide-y divide-zinc-100" data-testid="price-book">

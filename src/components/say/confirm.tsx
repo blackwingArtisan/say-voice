@@ -4,6 +4,7 @@ import { useMemo, type ReactNode } from "react";
 import { AlertTriangle, ArrowDown, Check as CheckIcon, Plus, Send, Trash2 } from "lucide-react";
 import { Button, Card, CardBody, CardHeader, Field, Input, MoneyInput } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
+import { isTestAddress, TEST_ADDRESS_RULE } from "@/lib/say/contacts";
 import { findChecks, openChecks, placesToCheck, type Check } from "@/lib/say/checks";
 import { computeTotals, formatCents, formatQuantity, formatRate, MAX_QUANTITY_MILLI, MAX_TAX_RATE_MILLI, MAX_UNIT_CENTS, parseDollars, parsePercent, parseQuantity } from "@/lib/say/money";
 import { findNumbers, heardFor } from "@/lib/say/spoken";
@@ -253,6 +254,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
           <Button variant="secondary" className={TAP} icon={<Plus className="size-4" />} disabled={sending} data-testid="add-line" onClick={() => addLine()}>
             Add an item
           </Button>
+          <p className="text-sm text-zinc-500" data-testid="quantity-note">Read the quantities yourself. The price book only knows prices, so a misheard quantity shows up here and nowhere else.</p>
         </CardBody>
       </Card>
 
@@ -261,7 +263,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
           <Field label="Customer" htmlFor="customer-name" hint={job.heardName && job.heardName.toLowerCase() !== draft.customer.name.trim().toLowerCase() ? <span data-testid="heard-name">Speech heard &ldquo;{job.heardName}&rdquo;. The invoice uses the name here, never that one.</span> : undefined}>
             <Input id="customer-name" value={draft.customer.name} disabled={sending} onChange={(e) => setDraft({ ...draft, customer: { ...draft.customer, name: e.target.value } })} data-testid="customer-name" />
           </Field>
-          <Field label="Customer email" htmlFor="customer-email">
+          <Field label="Customer email" htmlFor="customer-email" hint={draft.customer.email.includes("@") && !isTestAddress(draft.customer.email) ? <span data-testid="customer-email-note">{TEST_ADDRESS_RULE}</span> : undefined}>
             <Input id="customer-email" type="email" value={draft.customer.email} disabled={sending} onChange={(e) => setDraft({ ...draft, customer: { ...draft.customer, email: e.target.value } })} data-testid="customer-email" />
           </Field>
           <Field label="Due date" htmlFor="due-date" hint={job.dueSaid ? "From what you said." : "Nothing said, so 14 days out."}>

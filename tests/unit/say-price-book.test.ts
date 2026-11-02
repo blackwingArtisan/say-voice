@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isFlatLabor } from "@/lib/say/checks";
 import { farFromUsual, findEntry, itemKey, learned, MIN_SAMPLES, soundAlike, usualCents, type PriceEntry } from "@/lib/say/price-book";
 import { SEED_PRICES } from "@/lib/say/sample";
 
@@ -66,6 +67,26 @@ describe("a far-off price", () => {
 
   it("says nothing about items it doesn't know", () => {
     expect(far("Sump pump", 100)).toBeNull();
+  });
+});
+
+describe("flat-rate labor", () => {
+  const flat = (quantityMilli: number, unitCents: number, transcript: string, name = "Labor") => isFlatLabor({ name, quantityMilli, unitCents }, transcript);
+
+  it("is a labor line for one, with no hours said around it", () => {
+    expect(flat(1000, 20000, "Fixed the leak. Labor was two hundred.")).toBe(true);
+    expect(flat(1000, 20000, "Flat rate two hundred for labor.")).toBe(true);
+    expect(flat(1000, 20000, "Took two hours, two hundred flat.")).toBe(true);
+  });
+
+  it("isn't one hour at a rate, which is exactly where a misheard rate shows up", () => {
+    expect(flat(1000, 1600, "I was there an hour at sixteen an hour.")).toBe(false);
+    expect(flat(1000, 1600, "One hour of labor, sixteen.")).toBe(false);
+  });
+
+  it("isn't more than one, or anything but labor", () => {
+    expect(flat(2000, 20000, "Labor was two hundred.")).toBe(false);
+    expect(flat(1000, 20000, "Service call two hundred.", "Service call")).toBe(false);
   });
 });
 

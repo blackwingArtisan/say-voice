@@ -29,6 +29,14 @@ function namesPrice(flag: string, line: Pick<InvoiceLine, "unitCents">): boolean
   return new RegExp(`(^|[^\\d.])\\$?${dollars.replace(".", "\\.")}(\\.00)?(?![\\d])`).test(flag);
 }
 
+const QUANTITY_WORDS = /\b(quantity|quantities|count|how many|hours?|minutes?|units?)\b/i;
+const PRICE_WORDS = /\b(price|priced|pricing|cost|costs|low|high|cheap|expensive|amount|rate|dollars?)\b/i;
+
+/** A doubt about what this row costs, as opposed to how many there are. */
+export function isPriceDoubt(flag: string, line: Pick<InvoiceLine, "unitCents">): boolean {
+  return !QUANTITY_WORDS.test(flag) && (namesPrice(flag, line) || PRICE_WORDS.test(flag));
+}
+
 /** Names come from the picker, so a doubt about a heard name isn't a thing to check. */
 function isOnlyAboutName(link: FlagLink): boolean {
   return link.line === null && !/\d/.test(link.text) && /\b(customer|name|surname|spell\w*)\b/i.test(link.text);

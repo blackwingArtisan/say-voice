@@ -63,7 +63,10 @@ export interface Job {
   source: JobSource;
   transcript: string;
   speech?: SpeechMeta;
-  ai: { mocked: boolean; model?: string; costUsd: number };
+  /** saved: the AI budget ran out, so the sample used its stored reading. */
+  ai: { mocked: boolean; model?: string; costUsd: number; saved?: boolean };
+  /** The browser that made this job. Its jobs and prices are its own, not shared with every visitor. */
+  visitor?: string;
   customer: JobCustomer;
   /** What the speech said the name was. Shown only: the invoice never uses it. */
   heardName?: string;

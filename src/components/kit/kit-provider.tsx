@@ -5,6 +5,7 @@
  * /api/kit/status, and kitFetch() which adds the session header and throws ApiError on failure.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { newVisitorId, VISITOR_HEADER } from "@/lib/say/visitor";
 
 export interface KitStatus {
   app: { name: string; slug: string };
@@ -17,7 +18,7 @@ export interface KitStatus {
 export class ApiError extends Error {
   constructor(
     readonly status: number,
-    readonly body: { error?: { type?: string; name?: string; message?: string; issue?: string; debug_id?: string } },
+    readonly body: { error?: { type?: string; name?: string; message?: string; issue?: string; debug_id?: string; retry_after_seconds?: number } },
   ) {
     super(body.error?.issue ? `${body.error.message}` : (body.error?.message ?? `Request failed (${status})`));
     this.name = "ApiError";
@@ -49,8 +50,23 @@ function getSessionId(): string {
   }
 }
 
+/** Stays with the browser, so a person's jobs and prices are still theirs after a reload. */
+function getVisitorId(): string {
+  if (typeof window === "undefined") return "ssr";
+  try {
+    const existing = localStorage.getItem("say-visitor");
+    if (existing) return existing;
+    const id = newVisitorId();
+    localStorage.setItem("say-visitor", id);
+    return id;
+  } catch {
+    return newVisitorId();
+  }
+}
+
 export function KitProvider({ children }: { children: ReactNode }) {
   const [sessionId] = useState(getSessionId);
+  const [visitorId] = useState(getVisitorId);
   const [status, setStatus] = useState<KitStatus | null>(null);
 
   const kitFetch = useCallback(
@@ -59,7 +75,7 @@ export function KitProvider({ children }: { children: ReactNode }) {
       const res = await fetch(path, {
         ...rest,
         method: rest.method ?? (json !== undefined ? "POST" : "GET"),
-        headers: { "x-kit-session": sessionId, ...(json !== undefined ? { "Content-Type": "application/json" } : {}), ...headers },
+        headers: { "x-kit-session": sessionId, [VISITOR_HEADER]: visitorId, ...(json !== undefined ? { "Content-Type": "application/json" } : {}), ...headers },
         body: json !== undefined ? JSON.stringify(json) : rest.body,
       });
       const ct = res.headers.get("content-type") ?? "";
@@ -67,7 +83,7 @@ export function KitProvider({ children }: { children: ReactNode }) {
       if (!res.ok) throw new ApiError(res.status, typeof body === "object" ? body : { error: { message: String(body) } });
       return body as T;
     },
-    [sessionId],
+    [sessionId, visitorId],
   );
 
   const refreshStatus = useCallback(async () => {

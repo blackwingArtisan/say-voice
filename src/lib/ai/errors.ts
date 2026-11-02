@@ -20,6 +20,22 @@ export class AiBudgetExceededError extends Error {
   }
 }
 
+/** The Anthropic account itself has no credit left, as opposed to the app's own daily cap. */
+export class AiCreditError extends Error {
+  readonly status = 402;
+  constructor() {
+    super("The AI has run out of credit.");
+    this.name = "AiCreditError";
+  }
+}
+
+const OUT_OF_CREDIT = /credit balance|billing|insufficient.*(credit|funds)/i;
+
+export const isOutOfCredit = (error: unknown) => {
+  const { status, message } = (error ?? {}) as { status?: number; message?: string };
+  return status === 402 || ((status === 400 || status === 403) && OUT_OF_CREDIT.test(message ?? ""));
+};
+
 export class AiRefusalError extends Error {
   readonly status = 422;
   constructor(

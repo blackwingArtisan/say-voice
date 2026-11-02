@@ -17,6 +17,7 @@ import { Result } from "./result";
 
 function sourceLine(job: JobView): string {
   const reader = job.ai.mocked ? "AI mock" : (job.ai.model ?? "Claude");
+  if (job.source === "sample" && job.ai.saved) return "Sample job, recorded earlier. Today's AI budget is used up, so this is a saved Claude reading.";
   if (job.source === "sample") return `Sample job, recorded earlier. Read by ${reader}.`;
   return `Heard by ${job.speech?.model ?? "speech to text"}. Read by ${reader}.`;
 }
@@ -31,6 +32,7 @@ export function JobScreen() {
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const decision = useRef<HTMLDivElement>(null);
+  const reminder = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => kitFetch<JobView>(`/api/jobs/${id}`), [id, kitFetch]);
   const refresh = useCallback(() => load().then(setJob), [load]);
@@ -55,12 +57,18 @@ export function JobScreen() {
     return () => clearInterval(timer);
   }, [pollMs, refresh]);
 
-  // On a phone Send sits at the bottom of a long page and these appear at the top of it.
+  // On a phone Send sits at the bottom of a long page, and these appear at the top of it.
   const approvalId = job?.approval?.id;
   const isSent = job?.status === "sent";
+  const needsEyes = isSent ? "sent" : (approvalId ?? job?.error);
   useEffect(() => {
-    if (approvalId || isSent) decision.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [approvalId, isSent]);
+    if (needsEyes) decision.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [needsEyes]);
+
+  // A reminder is decided further down. The approval sits on its card, so the person stays on it.
+  useEffect(() => {
+    if (isSent && approvalId) reminder.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [isSent, approvalId]);
 
   // Webhooks arrive on a channel every job shares, so show only this job's. The approval card sits
   // next to the amount, so the timeline only reports the wait.
@@ -100,6 +108,7 @@ export function JobScreen() {
   }
 
   const sent = job.status === "sent" && job.invoice;
+  const approval = job.approval ? <ApprovalPrompt approvalId={job.approval.id} summary={job.approval.summary} reason={job.approval.note} amount={job.approval.amountValue ? { currency_code: "USD", value: job.approval.amountValue } : undefined} onDecided={() => void refresh()} /> : null;
   const title = !sent ? "Check the invoice" : isPaid(job.invoice) ? "Invoice paid" : "Invoice sent";
   return (
     <>
@@ -127,9 +136,14 @@ export function JobScreen() {
               <span>{job.error}</span>
             </p>
           ) : null}
-          {job.approval ? <ApprovalPrompt approvalId={job.approval.id} summary={job.approval.summary} reason={job.approval.note} amount={job.approval.amountValue ? { currency_code: "USD", value: job.approval.amountValue } : undefined} onDecided={() => void refresh()} /> : null}
+          {approval && !sent ? approval : null}
           {sent ? <Result job={job} invoice={job.invoice!} showLink={status?.paypal.mode === "sandbox"} /> : null}
-          {sent ? <ReminderCard job={job} busy={busy} onAsk={askForReminder} /> : null}
+          {sent ? (
+            <div ref={reminder} className="scroll-mt-20 space-y-6">
+              {approval}
+              <ReminderCard job={job} busy={busy} onAsk={askForReminder} />
+            </div>
+          ) : null}
           {sent ? null : <Confirm job={job} draft={draft} setDraft={setEdited} sending={job.status !== "review"} busy={busy} onSend={send} />}
         </div>
       </div>

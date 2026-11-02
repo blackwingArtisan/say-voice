@@ -1,21 +1,25 @@
-/** The price book on disk. Server only. Seeded once, then fed by every invoice that goes out. */
+/**
+ * The price book: the demo prices, plus what this browser's sent invoices taught it. Worked out
+ * from the jobs each time, so one visitor's prices can't change what another visitor sees, and a
+ * draft can't teach it anything. Server only.
+ */
 import { collection } from "@/lib/store/collection";
+import { isFlatLabor } from "./checks";
 import { itemKey, learned, type PriceEntry } from "./price-book";
 import { SEED_PRICES } from "./sample";
-import type { JobLine } from "./types";
+import type { Job } from "./types";
 
-const entries = () => collection<PriceEntry>("price-book");
+const SEEDED_ON = "2026-11-01T00:00:00.000Z";
 
-export function priceBook(): PriceEntry[] {
-  const store = entries();
-  if (!store.list().length) {
-    const now = new Date().toISOString();
-    store.replaceAll(SEED_PRICES.map(({ name, samples }) => ({ id: itemKey(name), name, samples, source: "seed", updatedAt: now })));
+export function priceBook(visitor?: string): PriceEntry[] {
+  const book = new Map<string, PriceEntry>(SEED_PRICES.map(({ name, samples }) => [itemKey(name), { id: itemKey(name), name, samples, source: "seed", updatedAt: SEEDED_ON }]));
+  const sent = collection<Job>("jobs")
+    .list()
+    .filter((job) => job.status === "sent" && job.visitor === visitor)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  for (const job of sent) {
+    const lines = job.lines.filter((line) => !isFlatLabor(line, job.transcript));
+    for (const entry of learned([...book.values()], lines, job.createdAt)) book.set(entry.id, entry);
   }
-  return store.list().sort((a, b) => a.name.localeCompare(b.name));
-}
-
-/** Only prices that went out on a real invoice count, so a draft can't teach it anything. */
-export function learnPrices(lines: Pick<JobLine, "name" | "unitCents">[]) {
-  learned(priceBook(), lines, new Date().toISOString()).forEach((entry) => entries().upsert(entry));
+  return [...book.values()].sort((a, b) => a.name.localeCompare(b.name));
 }

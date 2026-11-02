@@ -25,6 +25,11 @@ test.describe("the reminder agent", () => {
     await page.getByTestId("approve-button").click();
     await expect(page.getByTestId("reminder-sent")).toContainText(sent.invoice!.number, { timeout: 30_000 });
     expect(await auditedActions(request, "send_payment_reminder", runId)).toEqual(expect.arrayContaining(["approval.requested", "approval.approved", "tool.executed"]));
+
+    // The page stays on the reminder after the job settles, and doesn't jump back to the top.
+    await page.waitForTimeout(1500);
+    await expect(page.getByTestId("reminder-sent")).toBeInViewport({ ratio: 1 });
+    await expect(page.getByTestId("result-headline")).not.toBeInViewport();
     await page.screenshot({ path: "screenshots/reminder-sent-phone.png", fullPage: true });
   });
 

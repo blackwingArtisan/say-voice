@@ -8,15 +8,17 @@ import { appConfig } from "@/app.config";
 import { sendJobInvoice } from "@/agents/tools/send-job-invoice";
 import { runTool, type ToolCallResult } from "@/lib/agent/execute";
 import { Guard } from "@/lib/agent/guard";
+import { getEnv } from "@/lib/env";
 import { withContext } from "@/lib/events/bus";
 import { HttpError } from "@/lib/http";
 import { toMinor } from "@/lib/money";
 import { getPayPal } from "@/lib/paypal";
 import type { PayPalApi } from "@/lib/paypal/api";
 import { findChecks, openChecks, placesToCheck } from "./checks";
+import { TEST_ADDRESS_REFUSED } from "./contacts";
 import { activeSends, requireJob, saveJob } from "./jobs";
 import { computeTotals, formatCents } from "./money";
-import { learnPrices, priceBook } from "./price-store";
+import { priceBook } from "./price-store";
 import type { Job, JobCustomer, JobLine, SentInvoice } from "./types";
 
 export interface CheckedJob {
@@ -30,7 +32,9 @@ export interface CheckedJob {
 
 function failureReason(result: ToolCallResult): string {
   const outcome = result.outcome;
-  if (outcome?.status === "denied") return outcome.code === "APPROVAL_DENIED" ? "You declined, so nothing was sent." : outcome.reason;
+  if (outcome?.status === "denied" && outcome.code === "APPROVAL_DENIED") return "You declined, so nothing was sent.";
+  if (outcome?.status === "denied" && outcome.code === "COUNTERPARTY_NOT_ALLOWED") return getEnv().paypalMode === "sandbox" ? `${TEST_ADDRESS_REFUSED} The next screen has a link to what the customer sees.` : TEST_ADDRESS_REFUSED;
+  if (outcome?.status === "denied") return outcome.reason;
   if (outcome?.status === "failed") return (outcome.error as Error)?.message ?? "PayPal call failed.";
   return result.content;
 }
@@ -84,7 +88,6 @@ async function send(id: string, channel: string) {
   const { invoice_id } = result.output as { invoice_id: string };
   const invoice = await readInvoice(invoice_id, totalCents);
   saveJob({ ...requireJob(id), status: "sent", error: undefined, invoice });
-  learnPrices(job.lines);
 }
 
 function start(id: string, channel: string, runId: string) {
@@ -99,7 +102,7 @@ export function requestSend(id: string, checked: CheckedJob, channel: string): {
   const job = requireJob(id);
   if (activeSends().has(id)) throw new HttpError(409, "This job is already being sent.", "conflict");
   if (job.status !== "review") throw new HttpError(409, `A job in status ${job.status} can't be sent.`, "conflict");
-  const open = openChecks(findChecks({ ...job, ...checked, book: priceBook() }), checked.acknowledged);
+  const open = openChecks(findChecks({ ...job, ...checked, book: priceBook(job.visitor) }), checked.acknowledged);
   if (open.length) throw new HttpError(409, `${placesToCheck(open)} still to check before this can go: ${open[0].text}`, "checks_open");
   const runId = `send_${randomUUID().slice(0, 12)}`;
   const saved = saveJob({ ...job, ...checked, status: "awaiting_approval", runId, error: undefined });

@@ -4,25 +4,24 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, Sparkles, UserPlus } from "lucide-react";
-import { useKit } from "@/components/kit/kit-provider";
+import { ApiError, useKit } from "@/components/kit/kit-provider";
 import { PageHeader } from "@/components/shell/app-shell";
 import { useToast } from "@/components/toast";
 import { Button, Card, CardBody, CardHeader, Field, Input, StatusPill } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
-import type { Contact } from "@/lib/say/contacts";
+import { isTestAddress, TEST_ADDRESS_RULE, type Contact } from "@/lib/say/contacts";
 import { localDay } from "@/lib/say/due";
 import { computeTotals, formatCents } from "@/lib/say/money";
+import { explainSample, explainTake, RESTORED, type Refusal, type TakeProblem } from "@/lib/say/take-problem";
 import type { JobCustomer, JobView } from "@/lib/say/types";
+import { KeptTake } from "./kept-take";
 import { Recorder } from "./recorder";
+import { clearTake, loadTake, saveTake, type Heard, type Take } from "./take-store";
 
 const OTHER = "other";
 
-interface Heard {
-  transcript: string;
-  mocked: boolean;
-  durationSec?: number;
-  audioBytes: number;
-}
+/** A failed fetch has no status at all: no signal, usually. */
+const refusalFrom = (e: unknown): Refusal => (e instanceof ApiError ? { status: e.status, type: e.body.error?.type, message: e.message, retryAfter: e.body.error?.retry_after_seconds } : { type: "network" });
 
 function ContactRow({ selected, onClick, title, subtitle, testId }: { selected: boolean; onClick: () => void; title: string; subtitle: string; testId: string }) {
   return (
@@ -63,6 +62,21 @@ export function NewJob() {
   const [typedEmail, setTypedEmail] = useState("");
   const [phase, setPhase] = useState<"ready" | "hearing" | "reading">("ready");
   const [heard, setHeard] = useState<string | null>(null);
+  const [take, setTake] = useState<Take | null>(null);
+  const [problem, setProblem] = useState<TakeProblem | null>(null);
+
+  // A take that never became a job is still here after a reload or a trip to another page.
+  useEffect(() => {
+    let current = true;
+    void loadTake().then((saved) => {
+      if (!current || !saved) return;
+      setTake((now) => now ?? saved);
+      setProblem((now) => now ?? RESTORED);
+    });
+    return () => {
+      current = false;
+    };
+  }, []);
 
   useEffect(() => {
     kitFetch<{ contacts: Contact[] }>("/api/contacts")
@@ -83,26 +97,45 @@ export function NewJob() {
   const contact = contacts.find((c) => c.id === picked);
   const customer: JobCustomer | null = contact ? { name: contact.name, email: contact.email } : picked === OTHER && typedName.trim() && /.+@.+\..+/.test(typedEmail) ? { name: typedName.trim(), email: typedEmail.trim() } : null;
 
-  function fail(title: string, e: unknown) {
-    toast({ title, description: (e as Error).message, variant: "error", durationMs: 7000 });
-    setPhase("ready");
-    setHeard(null);
-  }
-
-  async function readAudio(audio: Blob) {
-    if (!customer) return;
-    setPhase("hearing");
+  async function readTake(start: Take) {
+    let current = start;
+    setProblem(null);
+    setPhase(current.heard ? "reading" : "hearing");
+    setHeard(current.heard?.transcript ?? null);
     try {
-      const speech = await kitFetch<Heard>("/api/speech", { method: "POST", body: audio, headers: { "Content-Type": audio.type } });
-      setHeard(speech.transcript);
-      setPhase("reading");
+      if (!current.heard) {
+        const speech = await kitFetch<Heard>("/api/speech", { method: "POST", body: current.audio, headers: { "Content-Type": current.audio.type } });
+        current = { ...current, heard: speech };
+        setTake(current);
+        void saveTake(current);
+        setHeard(speech.transcript);
+        setPhase("reading");
+      }
+      const speech = current.heard!;
       const job = await kitFetch<JobView>("/api/jobs", {
-        json: { source: "mic", today: localDay(), customer, transcript: speech.transcript, speech: { mocked: speech.mocked, model: speech.mocked ? "Speech mock" : (status?.speech.model ?? ""), durationSec: speech.durationSec } },
+        json: { source: "mic", today: localDay(), customer: current.customer, transcript: speech.transcript, speech: { mocked: speech.mocked, model: speech.mocked ? "Speech mock" : (status?.speech.model ?? ""), durationSec: speech.durationSec } },
       });
+      void clearTake();
       router.push(`/jobs/${job.id}`);
     } catch (e) {
-      fail("That recording didn't work", e);
+      setProblem(explainTake(refusalFrom(e)));
+      setPhase("ready");
+      setHeard(null);
     }
+  }
+
+  function readAudio(audio: Blob) {
+    if (!customer) return;
+    const recorded = { audio, customer };
+    setTake(recorded);
+    void saveTake(recorded); // before the upload, so nothing that happens to it can lose the take
+    void readTake(recorded);
+  }
+
+  function discardTake() {
+    void clearTake();
+    setTake(null);
+    setProblem(null);
   }
 
   async function trySample() {
@@ -111,7 +144,8 @@ export function NewJob() {
       const job = await kitFetch<JobView>("/api/jobs", { json: { source: "sample", today: localDay() } });
       router.push(`/jobs/${job.id}`);
     } catch (e) {
-      fail("The sample job didn't start", e);
+      toast({ title: "The sample job didn't start", description: explainSample(refusalFrom(e)), variant: "error", durationMs: 7000 });
+      setPhase("ready");
     }
   }
 
@@ -136,7 +170,7 @@ export function NewJob() {
                 <Field label="Name" htmlFor="typed-name">
                   <Input id="typed-name" value={typedName} onChange={(e) => setTypedName(e.target.value)} placeholder="Full name" />
                 </Field>
-                <Field label="Email" htmlFor="typed-email">
+                <Field label="Email" htmlFor="typed-email" hint={customer && !isTestAddress(customer.email) ? <span data-testid="typed-email-note">{TEST_ADDRESS_RULE} Use something like name@example.com.</span> : undefined}>
                   <Input id="typed-email" type="email" value={typedEmail} onChange={(e) => setTypedEmail(e.target.value)} placeholder="name@example.com" />
                 </Field>
               </div>
@@ -156,6 +190,8 @@ export function NewJob() {
                   </p>
                   {heard ? <p className="rounded-lg bg-zinc-50 px-3 py-2 text-sm leading-relaxed text-zinc-600">{heard}</p> : null}
                 </div>
+              ) : take && problem ? (
+                <KeptTake take={take} problem={problem} onRetry={() => void readTake(take)} onDiscard={discardTake} />
               ) : (
                 <>
                   <Recorder disabled={!customer} onRecorded={readAudio} onError={(message) => toast({ title: "No recording", description: message, variant: "warning", durationMs: 7000 })} />
@@ -179,7 +215,7 @@ export function NewJob() {
       </div>
       {jobs.length ? (
         <Card className="mt-6">
-          <CardHeader title="Recent jobs" />
+          <CardHeader title="Your recent jobs" />
           <ul className="divide-y divide-zinc-100">
             {jobs.slice(0, 8).map((job) => (
               <JobRow key={job.id} job={job} />

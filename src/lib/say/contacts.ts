@@ -17,4 +17,11 @@ export const CONTACTS: Contact[] = [
   { id: "wei-zhang", name: "Wei Zhang", email: "wei.zhang@example.com", note: "Yearly furnace visit" },
 ];
 
+/** The Guard's payee allowlist, for the screens. A unit test keeps the two in step. */
+export const isTestAddress = (email: string) => /@((personal|business)\.)?example\.com$/i.test(email.trim());
+
+export const TEST_ADDRESS_RULE = "This is a test site, so invoices can only go to made-up addresses ending in @example.com.";
+
+export const TEST_ADDRESS_REFUSED = `${TEST_ADDRESS_RULE} Nothing was sent. Change the customer email to something like name@example.com, then send again.`;
+
 export const contactById = (id: string) => CONTACTS.find((c) => c.id === id);

@@ -10,6 +10,20 @@ const base: CheckInput = { transcript: SAMPLE_TRANSCRIPT, heardLines: sample.lin
 const element = sample.lines[1];
 const withPrice = (unitCents: number) => sample.lines.map((line) => (line.key === element.key ? { ...line, unitCents } : line));
 
+describe("flat-rate labor", () => {
+  const labor = (unitCents: number, quantityMilli = 1000) => [{ key: "l", name: "Labor", quantityMilli, unitCents }];
+
+  it("isn't compared with the hourly rate", () => {
+    const lines = labor(25000);
+    expect(findChecks({ ...base, transcript: "Flat rate two fifty for labor.", heardLines: lines, lines, flags: [] }).filter((check) => check.kind === "far")).toEqual([]);
+  });
+
+  it("still catches one hour at a misheard rate", () => {
+    const lines = labor(1600);
+    expect(findChecks({ ...base, transcript: "One hour at sixteen an hour.", heardLines: lines, lines, flags: [] })[0]).toMatchObject({ kind: "far", usualCents: 8000 });
+  });
+});
+
 describe("the sample job, where fifty was heard as fifteen", () => {
   it("is stopped by code even when the AI flagged nothing", () => {
     const checks = findChecks({ ...base, flags: [] });
@@ -19,10 +33,32 @@ describe("the sample job, where fifty was heard as fifteen", () => {
     expect(checks[0].text).toContain('"fifteen" sounds like "fifty"');
   });
 
-  it("puts the code's check and the AI's on the same row, which counts once", () => {
-    const open = openChecks(findChecks(base), []);
+  it("says it the same way whatever words the AI used", () => {
+    const canned = findChecks(base);
+    const real = findChecks({ ...base, flags: [{ text: "$15 seems low for a heating element", lineKey: element.key }] });
+    const noWords = findChecks({ ...base, flags: [{ text: "The heating element price seems low", lineKey: element.key }] });
+    expect(canned.map((check) => check.kind)).toEqual(["far"]);
+    expect(real).toEqual(canned);
+    expect(noWords).toEqual(canned);
+  });
+
+  it("keeps a doubt about something other than the price, which counts once with it", () => {
+    const open = openChecks(findChecks({ ...base, flags: [{ text: "Not sure how many heating elements were fitted", lineKey: element.key }] }), []);
     expect(open.map((check) => check.kind).sort()).toEqual(["far", "flag"]);
     expect(placesToCheck(open)).toBe(1);
+  });
+
+  it("names the usual price on a doubt the book wouldn't stop on its own", () => {
+    const lines = withPrice(4000);
+    const [check] = findChecks({ ...base, transcript: "Heating element, forty dollars.", heardLines: lines, lines, flags: [{ text: "$40 seems low for a heating element", lineKey: element.key }] });
+    expect(check).toMatchObject({ kind: "flag" });
+    expect(check.text).toBe("$40 seems low for a heating element Usually $50.00.");
+  });
+
+  it("leaves a doubt alone when the book doesn't know the item", () => {
+    const lines = [{ ...element, name: "Sump pump" }];
+    const [check] = findChecks({ ...base, heardLines: lines, lines, transcript: "Sump pump, fifteen dollars.", flags: [{ text: "$15 seems low for a sump pump", lineKey: element.key }] });
+    expect(check.text).toBe("$15 seems low for a sump pump");
   });
 
   it("is clear once the price is corrected", () => {

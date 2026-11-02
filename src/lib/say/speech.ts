@@ -31,6 +31,11 @@ export const isSpeechLive = () => isAiLive() && Boolean(apiKey());
 
 const EXTENSIONS: Record<string, string> = { "audio/webm": "webm", "audio/mp4": "mp4", "audio/ogg": "ogg", "audio/wav": "wav", "audio/mpeg": "mp3" };
 
+/** ElevenLabs says "no credit" with a 401 or 402 and a status word in the body. */
+const OUT_OF_CREDIT = /quota_exceeded|payment_required|payment_issue|paid_plan_required|insufficient/i;
+
+export const isSpeechOutOfCredit = (status: number, body: string) => status === 402 || ((status === 401 || status === 403 || status === 429) && OUT_OF_CREDIT.test(body));
+
 interface ScribeResponse {
   text?: string;
   words?: { end?: number }[];
@@ -52,7 +57,10 @@ export async function transcribe(audio: ArrayBuffer, contentType: string): Promi
 
   try {
     const res = await fetch(SCRIBE_URL, { method: "POST", headers: { "xi-api-key": apiKey()! }, body: form, signal: AbortSignal.timeout(90_000) });
-    if (!res.ok) throw new HttpError(502, `Speech to text failed (${res.status}). Try again, or use the sample job.`, "speech_failed");
+    if (!res.ok) {
+      if (isSpeechOutOfCredit(res.status, await res.text().catch(() => ""))) throw new HttpError(402, "Speech to text has run out of credit.", "speech_credit");
+      throw new HttpError(502, `Speech to text failed (${res.status}). Try again, or use the sample job.`, "speech_failed");
+    }
     const body = (await res.json()) as ScribeResponse;
     const durationSec = body.words?.reduce((end, word) => Math.max(end, word.end ?? 0), 0);
     const cost = durationSec ? ((durationSec / 3600) * USD_PER_HOUR).toFixed(4) : null;

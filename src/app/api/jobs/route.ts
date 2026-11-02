@@ -3,6 +3,7 @@ import { HttpError, readJson, route } from "@/lib/http";
 import { contactById } from "@/lib/say/contacts";
 import { createJob, listJobs, viewJob } from "@/lib/say/jobs";
 import { SAMPLE_CONTACT_ID, SAMPLE_TRANSCRIPT } from "@/lib/say/sample";
+import { visitorOf } from "@/lib/say/visitor";
 
 const Customer = z.object({ name: z.string().trim().min(1).max(140), email: z.string().trim().email() });
 
@@ -19,16 +20,17 @@ const Body = z.discriminatedUnion("source", [
   }),
 ]);
 
-export const GET = route(async () => ({ jobs: listJobs() }));
+export const GET = route(async (req) => ({ jobs: listJobs(visitorOf(req)) }));
 
 /** Reads the transcript into a job. Costs one Claude call unless AI is in mock mode. */
 export const POST = route(
   async (req) => {
     const body = await readJson(req, Body);
-    if (body.source === "mic") return viewJob(await createJob(body));
+    const visitor = visitorOf(req);
+    if (body.source === "mic") return viewJob(await createJob({ ...body, visitor }));
     const contact = contactById(SAMPLE_CONTACT_ID);
     if (!contact) throw new HttpError(500, "The sample customer is missing.");
-    return viewJob(await createJob({ source: "sample", today: body.today, transcript: SAMPLE_TRANSCRIPT, customer: { name: contact.name, email: contact.email } }));
+    return viewJob(await createJob({ source: "sample", visitor, today: body.today, transcript: SAMPLE_TRANSCRIPT, customer: { name: contact.name, email: contact.email } }));
   },
   { rateLimit: "ai" },
 );
