@@ -15,9 +15,14 @@ A plumber finishes a job at two in the afternoon and writes the invoice at nine 
 - Pick the customer from your contacts. Names never come from speech.
 - Press record and say the job: hours, parts, prices, tax.
 - ElevenLabs Scribe v2 writes it down and Claude pulls out the line items.
-- Check the invoice. Your words sit beside every number, doubts are flagged on the item they're about, and a spoken amount with no line item gets a warning. Everything is editable.
+- Check the invoice. Your words sit beside every number, and everything is editable.
+- The app holds the send until each worry is settled: a price far from what that item usually costs (fifty heard as fifteen shows "Usually $50.00"), a doubt the AI flagged, or a spoken amount with no line item. Each takes one tap.
 - Press send, then approve the exact amount. Nothing reaches the customer before that.
 - PayPal creates and sends the invoice. The result screen shows the real number and status, read back from PayPal.
+- If it's unpaid, an agent drafts a reminder from what PayPal says is owed. You read the words and approve them before PayPal sends it.
+- When the customer pays, the job turns paid by itself, from PayPal's webhook.
+
+The **Prices** page is the price book: seeded with demo items, then learned from the invoices that went out.
 
 No mic? **Try a sample job** runs a real recorded job through the same screens, including a mishearing to catch.
 
@@ -28,10 +33,11 @@ All PayPal calls go to the **sandbox** (`https://api-m.sandbox.paypal.com`); the
 | PayPal API | Endpoint(s) | Where and why |
 |---|---|---|
 | Invoicing v2 | `POST /v2/invoicing/invoices`, `POST /v2/invoicing/invoices/{id}/send` | Creates the invoice from the checked job and sends it, after approval |
-| Invoicing v2 | `GET /v2/invoicing/invoices/{id}` | Reads the invoice back, so the result screen shows PayPal's number and status |
-| Webhooks | `POST /v1/notifications/verify-webhook-signature` | Verified invoice events show on the timeline when `PAYPAL_WEBHOOK_ID` is set |
+| Invoicing v2 | `GET /v2/invoicing/invoices/{id}` | Reads the invoice back, so the screen shows PayPal's number, status, amount due and payment |
+| Invoicing v2 | `POST /v2/invoicing/invoices/{id}/remind` | Sends the reminder the person approved |
+| Webhooks | `POST /v1/notifications/verify-webhook-signature` | Verifies PayPal's events. `INVOICING.INVOICE.PAID`, `REFUNDED` and `CANCELLED` update the job when `PAYPAL_WEBHOOK_ID` is set. The event only says something changed, so the status comes from a fresh read |
 
-**Safety around money:** the send goes through a guard. It enforces a per-action cap, a daily cap, a payee allowlist and idempotency, and it waits for a person on every invoice, whatever the amount. Before sending, the app compares PayPal's own total with the approved total, and stops if they differ by a cent. Every decision goes to a hash-chained, append-only audit log.
+**Safety around money:** the send and the reminder go through a guard. It enforces a per-action cap, a daily cap, a payee allowlist and idempotency, and it waits for a person every time, whatever the amount. Before sending, the app compares PayPal's own total with the approved total, and stops if they differ by a cent. The server works out the open checks again, so skipping the screen gets a refusal. Every decision goes to a hash-chained, append-only audit log.
 
 ## How AI is used
 
@@ -39,10 +45,12 @@ All PayPal calls go to the **sandbox** (`https://api-m.sandbox.paypal.com`); the
 |---|---|---|
 | Speech to text | ElevenLabs Scribe v2 | Turns the recording into a transcript. The audio goes from the server to ElevenLabs and isn't stored here |
 | Job extraction | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | Reads the transcript into line items, quantities, prices and tax, and lists what it's unsure of |
+| Reminder agent | Claude Haiku 5.5 (`claude-haiku-5-5`) | Reads the unpaid invoice from PayPal and writes the note the customer would get |
 
 - **Code does the arithmetic**: money is integer cents, and line totals and the invoice total are computed in code, never stated by the AI. The rounding matches PayPal's, checked against real sandbox invoices.
 - **The extraction prompt is frozen**: it was tested on sealed clips the prompt had never seen, and a unit test pins its hash.
-- **Code checks the AI**: a separate parser finds the amounts in the transcript and warns when one has no line item.
+- **Code checks the AI**: a separate parser finds the amounts in the transcript and warns when one has no line item, and the price book compares each price with what that item usually costs.
+- **The agent can't talk its way past a limit**: code refuses a reminder for a paid invoice, a note with any figure other than what's owed, a note with a link, and a third reminder in a day. The check runs before the approval card and again after it, in case the customer paid in between. One proposal a run, so a no ends it.
 - **Due dates** come from code: the extraction doesn't return one, so "net 30" or "due in two weeks" is read from the transcript, and the default is 14 days.
 - **Cost control**: a hard daily spend cap (worst case reserved before every call) and per-IP rate limits.
 - **Mock mode**: without keys the app runs on clearly labelled fixtures for both speech and AI, so the whole flow works anywhere.
@@ -57,11 +65,12 @@ Browser (Next.js 16 / React 19, Tailwind)
   │  SSE /api/events (live timeline)
   ▼
 Next.js route handlers (Node)
-  ├─ lib/say      speech, extraction, money, spoken-number checks, send flow
+  ├─ lib/say      speech, extraction, money, price book, checks, send, reminders, paid status
+  ├─ agents       the reminder agent and its tools
   ├─ lib/agent    Guard: caps, allowlist, approvals, idempotency, audit
   ├─ lib/paypal   typed PayPal client: sandbox REST or in-memory mock
-  ├─ lib/ai       Claude Sonnet 5.5 structured output; daily spend cap
-  ├─ webhooks     verify → ledger → timeline
+  ├─ lib/ai       Claude structured output and agent loop; daily spend cap
+  ├─ webhooks     verify → ledger → timeline → job paid
   └─ .data/       local JSON: jobs, ledger, audit log, AI spend
 ```
 
@@ -83,7 +92,7 @@ The microphone test plays a computer-voice clip through Chromium's fake mic. mac
 
 ## Sandbox test accounts
 
-Invoices go to fictional `example.com` contacts, so no buyer login is needed to send one. To open what the customer sees, use the link on the result screen. To set up your own:
+Invoices go to fictional `example.com` contacts, so no buyer login is needed to send one. To open what the customer sees, use the link on the result screen. To pay one, press **Debit or Credit Card** there and pay as a guest with PayPal's test card `4111 1111 1111 1111`, any future date, any CVV. On a deployed copy the job turns paid within a few minutes. PayPal can't reach `localhost`, so a local copy finds out when you ask for a reminder. To set up your own:
 
 1. In the PayPal Developer Dashboard → **Testing Tools → Sandbox Accounts**, use the default Business (seller) account.
 2. Create a sandbox REST app under **Apps & Credentials → Sandbox** and copy its client ID and secret.
@@ -100,6 +109,8 @@ Render Blueprint (`render.yaml`): New → Blueprint → this repo, then enter th
 - Sales tax is worked out per line, as PayPal does, so it can differ by a cent from tax on the whole sum.
 - Recording is capped at two minutes, and the audio is uploaded when you stop, not streamed.
 - Speech can still mishear a price. The confirm screen is what catches that, so a person has to read it.
+- The price book needs two invoices for an item before it speaks up, and it checks prices, not quantities. A misheard quantity only gets caught by an AI flag or by reading it.
+- The price book and job list are shared by everyone using a deployed copy.
 - Local JSON storage: data resets on redeploy (fine for a demo, not for production).
 
 ## License

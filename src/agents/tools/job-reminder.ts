@@ -77,7 +77,8 @@ export const sendPaymentReminder = defineTool({
   execute: async (input, ctx: ToolContext) => {
     const { job, invoice } = await clearedToRemind(input, ctx.paypal);
     await ctx.paypal.invoicing.remind(invoice.id, { subject: `Reminder: invoice ${invoice.number}`, note: input.note, send_to_recipient: true });
-    saveJob({ ...job, invoice: { ...invoice, paidEventId: job.invoice?.paidEventId }, reminders: [...(job.reminders ?? []), { sentAt: new Date().toISOString(), note: input.note, runId: ctx.runId }] });
+    const latest = requireJob(job.id);
+    saveJob({ ...latest, invoice: { ...invoice, paidEventId: latest.invoice?.paidEventId }, reminders: [...(latest.reminders ?? []), { sentAt: new Date().toISOString(), note: input.note, runId: ctx.runId }] });
     return { reminded: true, invoice_number: invoice.number, amount_due: formatCents(invoice.dueCents) };
   },
 });

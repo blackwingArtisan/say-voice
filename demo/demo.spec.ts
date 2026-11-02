@@ -31,10 +31,10 @@ test("demo", async ({ page }) => {
   const element = page.getByTestId("invoice-line").nth(1);
   await caption(page, "The speaker said fifty. Speech to text heard fifteen.", { wait: false });
   await highlight(page, page.getByTestId("transcript"));
-  await caption(page, "Your words sit beside every number, and the doubt is flagged on the item it's about.", { wait: false });
-  await highlight(page, element.getByTestId("line-flag"));
-  await caption(page, `The total would have been ${dollars(SAMPLE_AMOUNTS.heardTotalCents)}. One edit fixes it.`, { wait: false });
-  await element.getByTestId("line-price").fill((SAMPLE_AMOUNTS.spokenElementCents / 100).toFixed(2));
+  await caption(page, "Plain code knows this part usually costs fifty, and it stops the invoice.", { wait: false });
+  await highlight(page, element.getByTestId("line-usual"));
+  await caption(page, `The total would have been ${dollars(SAMPLE_AMOUNTS.heardTotalCents)}. One tap fixes it.`, { wait: false });
+  await element.getByTestId("use-usual").click();
   await expect(page.getByTestId("invoice-total")).toHaveText(dollars(SAMPLE_AMOUNTS.spokenTotalCents));
   await highlight(page, page.getByTestId("invoice-total"));
   await caption(page, "Totals are worked out by code, in cents. The AI never states them.");
@@ -50,8 +50,18 @@ test("demo", async ({ page }) => {
   await expect(page.getByTestId("result")).toBeVisible({ timeout: 60_000 });
   clock.check("sent");
 
-  // Scene 5: proof
+  // Scene 5: chasing it
   await caption(page, "The invoice number and status are read back from PayPal.");
+  await page.getByTestId("ask-reminder").click();
+  const reminder = page.getByTestId("approval-prompt");
+  await expect(reminder).toBeVisible({ timeout: 30_000 });
+  await caption(page, "Unpaid? An agent writes the reminder, and it waits for your approval too.", { wait: false });
+  await highlight(page, reminder.getByTestId("approve-button"));
+  await reminder.getByTestId("approve-button").click();
+  await expect(page.getByTestId("reminder-sent")).toBeVisible({ timeout: 30_000 });
+  clock.check("reminded");
+
+  // Scene 6: proof
   await page.goto("/activity");
   await caption(page, "Every decision is on a hash-chained audit log.");
   await titleCard(page, "Say-Voice", "Built with PayPal Invoicing, Claude and ElevenLabs Scribe", 2800);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, Sparkles, UserPlus } from "lucide-react";
@@ -73,6 +73,13 @@ export function NewJob() {
       .catch(() => undefined);
   }, [kitFetch, toast]);
 
+  // On a phone the recorder sits below the contact list, and that's the next thing to reach.
+  const recorder = useRef<HTMLDivElement>(null);
+  function pick(id: string) {
+    setPicked(id);
+    recorder.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
   const contact = contacts.find((c) => c.id === picked);
   const customer: JobCustomer | null = contact ? { name: contact.name, email: contact.email } : picked === OTHER && typedName.trim() && /.+@.+\..+/.test(typedEmail) ? { name: typedName.trim(), email: typedEmail.trim() } : null;
 
@@ -118,7 +125,7 @@ export function NewJob() {
           <CardBody className="space-y-2">
             <div className="grid gap-2 sm:grid-cols-2">
               {contacts.map((c) => (
-                <ContactRow key={c.id} selected={picked === c.id} onClick={() => setPicked(c.id)} title={c.name} subtitle={c.email} testId={`contact-${c.id}`} />
+                <ContactRow key={c.id} selected={picked === c.id} onClick={() => pick(c.id)} title={c.name} subtitle={c.email} testId={`contact-${c.id}`} />
               ))}
             </div>
             <button type="button" onClick={() => setPicked(OTHER)} aria-pressed={picked === OTHER} data-testid="contact-other" className={cn("flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition", picked === OTHER ? "border-brand bg-brand-50 ring-1 ring-brand" : "border-dashed border-zinc-300 text-zinc-600 hover:bg-zinc-50")}>
@@ -138,7 +145,7 @@ export function NewJob() {
         </Card>
 
         <div className="space-y-6">
-          <Card>
+          <Card ref={recorder}>
             <CardHeader title="2. Say the job" description="Hours, parts, prices, tax. Talk it through like you would to the office." />
             <CardBody className="space-y-3">
               {working ? (

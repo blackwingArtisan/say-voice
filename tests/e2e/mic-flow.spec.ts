@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { hasMicClip, MIC_CLIP } from "./fake-mic";
-import { jobId, kitStatus, paceAiCalls, readJob, sendAndVerify, settleChecks, totalOnScreen } from "./flow";
+import { auditedActions, jobId, kitStatus, paceAiCalls, proposeReminder, readJob, sendAndVerify, settleChecks, totalOnScreen } from "./flow";
 
 /** Decodes the take with ffmpeg, so a silent or empty recording can't pass. A live recording has no duration header. */
 function measure(file: string): { seconds: number; peakDb: number } {
@@ -79,5 +79,16 @@ test("records with the real microphone path, then reaches a sent invoice", async
   if (!speechLive) expect(usual.join()).toContain("Usually $50.00");
   await expect(page.getByTestId("send-invoice")).toHaveCount(job.flags.length || usual.length ? 0 : 1);
   await settleChecks(page);
-  await sendAndVerify(page, request, await totalOnScreen(page), "mic");
+  const done = await sendAndVerify(page, request, await totalOnScreen(page), "mic");
+
+  // The invoice is unpaid, so the agent can chase it. On a live run this is Claude writing to PayPal.
+  const prompt = await proposeReminder(page);
+  await expect(prompt).toContainText(done.invoice!.number);
+  const proposed = await readJob(request, done.id);
+  console.log(`Reminder agent proposed: ${proposed.approval?.note}`);
+  expect(proposed.reminders ?? []).toEqual([]);
+  await page.getByTestId("approve-button").click();
+  await expect(page.getByTestId("reminder-sent")).toContainText(done.invoice!.number, { timeout: 30_000 });
+  expect(await auditedActions(request, "send_payment_reminder", proposed.reminderRunId)).toEqual(expect.arrayContaining(["approval.requested", "approval.approved", "tool.executed"]));
+  await page.screenshot({ path: `screenshots/mic-reminder-${live ? "live-ai" : "mock-ai"}.png`, fullPage: true });
 });

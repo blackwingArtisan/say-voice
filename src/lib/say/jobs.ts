@@ -57,7 +57,7 @@ function reminderRun({ reminderRunId: id, reminders }: Job): ReminderRun | null 
   const decided = getApprovals().list({ runId: id })[0]?.state;
   if (decided === "denied") return { state: "nothing_sent", reason: "You declined it." };
   if (decided === "expired") return { state: "nothing_sent", reason: "Nobody approved it in time." };
-  return { state: "nothing_sent", reason: run.error ?? run.summary };
+  return { state: "nothing_sent", reason: run.error ?? (run.summary || "The agent stopped before proposing one.") };
 }
 
 export function viewJob(input: Job): JobView {

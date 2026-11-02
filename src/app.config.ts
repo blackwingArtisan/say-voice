@@ -35,7 +35,7 @@ export const appConfig = {
     features: [
       { title: "You check every number", body: "The words you said sit beside each price, and anything doubtful is flagged by name. Nothing goes out on its own." },
       { title: "It knows your usual prices", body: "Fifty misheard as fifteen is caught by plain code, which stops the invoice and shows what that part usually costs." },
-      { title: "A real PayPal invoice", body: "The customer gets a PayPal invoice they can pay right away, and the app shows the number and status PayPal reports." },
+      { title: "A real PayPal invoice", body: "The customer gets a PayPal invoice they can pay right away. The job turns paid by itself, and if it doesn't, an agent drafts a reminder for you to approve." },
     ],
   },
 
