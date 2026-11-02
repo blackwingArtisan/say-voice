@@ -22,6 +22,14 @@ export interface Take {
 const STORE = "takes";
 const KEY = "current";
 
+/** One at a time, in order, so a late save can't bring back a take that was just cleared. */
+let queue: Promise<unknown> = Promise.resolve();
+const inTurn = <T,>(work: () => Promise<T>): Promise<T> => {
+  const next = queue.then(work, work);
+  queue = next.catch(() => undefined);
+  return next;
+};
+
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open("say-voice", 1);
@@ -44,14 +52,15 @@ async function withStore<T>(mode: IDBTransactionMode, act: (store: IDBObjectStor
   }
 }
 
-export async function saveTake({ audio, ...rest }: Take) {
-  try {
-    const bytes = await audio.arrayBuffer();
-    await withStore("readwrite", (store) => store.put({ ...rest, bytes, type: audio.type }, KEY));
-  } catch {
-    /* the page still has it */
-  }
-}
+export const saveTake = ({ audio, ...rest }: Take) =>
+  inTurn(async () => {
+    try {
+      const bytes = await audio.arrayBuffer();
+      await withStore("readwrite", (store) => store.put({ ...rest, bytes, type: audio.type }, KEY));
+    } catch {
+      /* the page still has it */
+    }
+  });
 
 export async function loadTake(): Promise<Take | null> {
   try {
@@ -64,10 +73,11 @@ export async function loadTake(): Promise<Take | null> {
   }
 }
 
-export async function clearTake() {
-  try {
-    await withStore("readwrite", (store) => store.delete(KEY));
-  } catch {
-    /* nothing to clear */
-  }
-}
+export const clearTake = () =>
+  inTurn(async () => {
+    try {
+      await withStore("readwrite", (store) => store.delete(KEY));
+    } catch {
+      /* nothing to clear */
+    }
+  });
