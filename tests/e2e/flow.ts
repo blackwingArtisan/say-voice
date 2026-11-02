@@ -63,6 +63,22 @@ export async function sentSample(page: Page, request: APIRequestContext) {
   return readJob(request, jobId(page));
 }
 
+/** Asks the agent for a reminder and waits for its proposal. Returns the words the customer would read. */
+export async function proposeReminder(page: Page) {
+  await paceAiCalls();
+  await page.getByTestId("ask-reminder").click();
+  const prompt = page.getByTestId("approval-prompt");
+  await expect(prompt).toBeVisible({ timeout: 60_000 });
+  return prompt;
+}
+
+/** What the audit log recorded for one tool, read from the app. */
+export async function auditedActions(request: APIRequestContext, tool: string, runId?: string) {
+  const audit = await (await request.get("/api/audit")).json();
+  expect(audit.integrity.ok).toBe(true);
+  return audit.entries.filter((e: { tool?: string; runId?: string }) => e.tool === tool && (!runId || e.runId === runId)).map((e: { action: string }) => e.action) as string[];
+}
+
 export const jobId = (page: Page) => new URL(page.url()).pathname.split("/").pop()!;
 
 export async function readJob(request: APIRequestContext, id: string): Promise<JobView> {
@@ -95,10 +111,7 @@ export async function sendAndVerify(page: Page, request: APIRequestContext, tota
   expect(done.status).toBe("sent");
   await expect(page.getByTestId("invoice-number")).toHaveText(done.invoice!.number);
 
-  const audit = await (await request.get("/api/audit")).json();
-  expect(audit.integrity.ok).toBe(true);
-  const actions = audit.entries.filter((e: { tool?: string }) => e.tool === "send_job_invoice").map((e: { action: string }) => e.action);
-  expect(actions).toEqual(expect.arrayContaining(["approval.requested", "approval.approved", "tool.executed"]));
+  expect(await auditedActions(request, "send_job_invoice")).toEqual(expect.arrayContaining(["approval.requested", "approval.approved", "tool.executed"]));
 
   if (sandbox) {
     // Straight from PayPal, not through the app.

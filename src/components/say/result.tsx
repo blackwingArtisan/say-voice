@@ -3,9 +3,20 @@
 import { CheckCircle2, ExternalLink } from "lucide-react";
 import { ButtonLink, Card, CardBody, StatusPill } from "@/components/ui";
 import { computeTotals, formatCents, formatQuantity } from "@/lib/say/money";
-import type { JobView, SentInvoice } from "@/lib/say/types";
+import { isPaid, type JobView, type SentInvoice } from "@/lib/say/types";
 
 const longDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+function PaidBanner({ invoice, customer }: { invoice: SentInvoice; customer: string }) {
+  const byHand = invoice.status === "MARKED_AS_PAID";
+  return (
+    <div className="rounded-xl bg-emerald-50 px-4 py-3 text-emerald-900" data-testid="paid-banner">
+      <p className="text-lg font-semibold">{byHand ? "Marked as paid" : `Paid: ${formatCents(invoice.paidCents ?? invoice.totalCents)} from ${customer}`}</p>
+      <p className="mt-0.5 text-sm">{byHand ? "Someone recorded this by hand. No money came through PayPal." : "PayPal says the money came in."}</p>
+      {invoice.paymentId ? <p className="mt-1 break-all font-mono text-xs" data-testid="payment-id">{invoice.paymentId}</p> : null}
+    </div>
+  );
+}
 
 export function Result({ job, invoice, showLink }: { job: JobView; invoice: SentInvoice; showLink: boolean }) {
   const totals = computeTotals(job.lines, job.taxRateMilli);
@@ -23,6 +34,7 @@ export function Result({ job, invoice, showLink }: { job: JobView; invoice: Sent
             </p>
           </div>
         </div>
+        {isPaid(invoice) ? <PaidBanner invoice={invoice} customer={job.customer.name} /> : null}
         <dl className="grid gap-4 sm:grid-cols-4">
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Invoice number</dt>

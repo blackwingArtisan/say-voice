@@ -10,8 +10,9 @@ import { useTimeline } from "@/components/kit/use-timeline";
 import { PageHeader } from "@/components/shell/app-shell";
 import { useToast } from "@/components/toast";
 import { Card, CardBody, CardHeader, EmptyState, SkeletonCard } from "@/components/ui";
-import type { JobView } from "@/lib/say/types";
+import { isPaid, type JobView } from "@/lib/say/types";
 import { checkedJob, Confirm, draftFrom, Transcript, type Draft } from "./confirm";
+import { ReminderCard } from "./reminder";
 import { Result } from "./result";
 
 function sourceLine(job: JobView): string {
@@ -44,12 +45,15 @@ export function JobScreen() {
   useEffect(() => void refreshStatus(), [refreshStatus]);
 
   // The invoice goes out in the background once the person approves, so follow it until it stops.
-  const waiting = job?.status === "awaiting_approval";
+  // After that, keep an eye out: the customer can pay at any moment.
+  const working = job?.status === "awaiting_approval" || job?.reminderRun?.state === "working";
+  const unpaid = job?.status === "sent" && !isPaid(job.invoice);
+  const pollMs = working ? 700 : unpaid ? 4000 : 0;
   useEffect(() => {
-    if (!waiting) return;
-    const timer = setInterval(() => void refresh().catch(() => undefined), 700);
+    if (!pollMs) return;
+    const timer = setInterval(() => void refresh().catch(() => undefined), pollMs);
     return () => clearInterval(timer);
-  }, [waiting, refresh]);
+  }, [pollMs, refresh]);
 
   // On a phone Send sits at the bottom of a long page and these appear at the top of it.
   const approvalId = job?.approval?.id;
@@ -84,10 +88,22 @@ export function JobScreen() {
     }
   }
 
+  async function askForReminder() {
+    setBusy(true);
+    try {
+      setJob(await kitFetch<JobView>(`/api/jobs/${id}/remind`, { json: {} }));
+    } catch (e) {
+      toast({ title: "Could not draft a reminder", description: (e as Error).message, variant: "error", durationMs: 8000 });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const sent = job.status === "sent" && job.invoice;
+  const title = !sent ? "Check the invoice" : isPaid(job.invoice) ? "Invoice paid" : "Invoice sent";
   return (
     <>
-      <PageHeader title={sent ? "Invoice sent" : "Check the invoice"} description={sent ? undefined : "Your words sit beside every number. Nothing goes out until you approve it."} />
+      <PageHeader title={title} description={sent ? undefined : "Your words sit beside every number. Nothing goes out until you approve it."} />
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         {/* On a phone the items come straight after the words, and the timeline goes to the bottom. */}
         <div className="contents lg:sticky lg:top-6 lg:block lg:space-y-6">
@@ -111,8 +127,10 @@ export function JobScreen() {
               <span>{job.error}</span>
             </p>
           ) : null}
-          {job.approval ? <ApprovalPrompt approvalId={job.approval.id} summary={job.approval.summary} amount={job.approval.amountValue ? { currency_code: "USD", value: job.approval.amountValue } : undefined} onDecided={() => void refresh()} /> : null}
-          {sent ? <Result job={job} invoice={job.invoice!} showLink={status?.paypal.mode === "sandbox"} /> : <Confirm job={job} draft={draft} setDraft={setEdited} sending={job.status !== "review"} busy={busy} onSend={send} />}
+          {job.approval ? <ApprovalPrompt approvalId={job.approval.id} summary={job.approval.summary} reason={job.approval.note} amount={job.approval.amountValue ? { currency_code: "USD", value: job.approval.amountValue } : undefined} onDecided={() => void refresh()} /> : null}
+          {sent ? <Result job={job} invoice={job.invoice!} showLink={status?.paypal.mode === "sandbox"} /> : null}
+          {sent ? <ReminderCard job={job} busy={busy} onAsk={askForReminder} /> : null}
+          {sent ? null : <Confirm job={job} draft={draft} setDraft={setEdited} sending={job.status !== "review"} busy={busy} onSend={send} />}
         </div>
       </div>
     </>

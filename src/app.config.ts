@@ -44,7 +44,7 @@ export const appConfig = {
     approvalThreshold: "0",
     maxPerAction: "5000.00",
     maxPerDay: "20000.00",
-    requireApprovalFor: ["send_job_invoice", "accept_dispute_claim"],
+    requireApprovalFor: ["send_job_invoice", "send_payment_reminder", "accept_dispute_claim"],
   } satisfies Partial<GuardPolicy>,
 };
 

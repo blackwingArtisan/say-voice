@@ -12,6 +12,7 @@ import { withContext } from "@/lib/events/bus";
 import { HttpError } from "@/lib/http";
 import { toMinor } from "@/lib/money";
 import { getPayPal } from "@/lib/paypal";
+import type { PayPalApi } from "@/lib/paypal/api";
 import { findChecks, openChecks, placesToCheck } from "./checks";
 import { activeSends, requireJob, saveJob } from "./jobs";
 import { computeTotals, formatCents } from "./money";
@@ -35,18 +36,25 @@ function failureReason(result: ToolCallResult): string {
 }
 
 /** The record of a sent invoice comes from PayPal, and it has to match what was approved. */
-export async function readInvoice(invoiceId: string, approvedCents: number): Promise<SentInvoice> {
-  const invoice = await getPayPal().invoicing.get(invoiceId);
+export async function readInvoice(invoiceId: string, approvedCents: number, paypal: PayPalApi = getPayPal()): Promise<SentInvoice> {
+  const invoice = await paypal.invoicing.get(invoiceId);
   const totalCents = toMinor(invoice.amount.value, "USD");
   if (totalCents !== approvedCents) throw new Error(`PayPal shows ${formatCents(totalCents)}, not the approved ${formatCents(approvedCents)}.`);
+  const paid = invoice.payments?.paid_amount;
+  const payment = invoice.payments?.transactions?.at(-1);
   return {
     id: invoice.id,
     number: invoice.detail.invoice_number,
     status: invoice.status,
     totalCents,
+    dueCents: invoice.due_amount ? toMinor(invoice.due_amount.value, "USD") : totalCents,
     dueDate: invoice.detail.payment_term?.due_date,
     payerUrl: invoice.detail.metadata?.recipient_view_url,
     readAt: new Date().toISOString(),
+    paidCents: paid ? toMinor(paid.value, "USD") : undefined,
+    paymentId: payment?.payment_id,
+    paymentType: payment?.type,
+    paidAt: payment?.payment_date,
   };
 }
 

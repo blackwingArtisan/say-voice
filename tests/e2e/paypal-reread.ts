@@ -10,6 +10,7 @@ export interface PayPalInvoice {
   detail: { invoice_number: string; currency_code: string; payment_term?: { term_type: string; due_date?: string } };
   primary_recipients: { billing_info: { email_address: string } }[];
   items: { name: string; quantity: string; unit_amount: { value: string } }[];
+  payments?: { paid_amount: { value: string }; transactions: { payment_id: string; type: string }[] };
 }
 
 async function token(): Promise<string> {

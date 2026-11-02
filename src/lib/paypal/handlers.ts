@@ -8,6 +8,11 @@
  *     await markOrderPaid(capture.supplementary_data?.related_ids.order_id);
  *   });
  */
+import { syncInvoice } from "@/lib/say/paid";
 import { onWebhook } from "./webhooks";
 
-void onWebhook;
+for (const type of ["INVOICING.INVOICE.PAID", "INVOICING.INVOICE.REFUNDED", "INVOICING.INVOICE.CANCELLED"] as const) {
+  onWebhook(type, async (event) => {
+    await syncInvoice(event.resource.invoice.id, event.id);
+  });
+}

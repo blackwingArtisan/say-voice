@@ -26,9 +26,28 @@ export interface SentInvoice {
   /** All re-read from PayPal after sending, never taken from what we asked for. */
   status: string;
   totalCents: number;
+  /** What's still owed. Zero once it's paid. */
+  dueCents: number;
   dueDate?: string;
   payerUrl?: string;
   readAt: string;
+  /** PayPal's record of the payment, once there is one. */
+  paidCents?: number;
+  paymentId?: string;
+  paymentType?: string;
+  paidAt?: string;
+  /** The verified webhook event that told us. */
+  paidEventId?: string;
+}
+
+/** MARKED_AS_PAID means someone recorded it by hand, so the screen says so. */
+export const isPaidStatus = (status: string) => status === "PAID" || status === "MARKED_AS_PAID";
+export const isPaid = (invoice?: SentInvoice) => !!invoice && isPaidStatus(invoice.status);
+
+export interface SentReminder {
+  sentAt: string;
+  note: string;
+  runId: string;
 }
 
 export interface SpeechMeta {
@@ -60,6 +79,8 @@ export interface Job {
   runId?: string;
   error?: string;
   invoice?: SentInvoice;
+  reminders?: SentReminder[];
+  reminderRunId?: string;
 }
 
 export interface PendingApproval {
@@ -67,9 +88,21 @@ export interface PendingApproval {
   summary: string;
   reason?: string;
   amountValue?: string;
+  /** The words a reminder would say, so the person reads them before approving. */
+  note?: string;
+}
+
+/** Where the last reminder got to. */
+export interface ReminderRun {
+  state: "working" | "sent" | "nothing_sent";
+  /** Why nothing went out. */
+  reason?: string;
 }
 
 export interface JobView extends Job {
   approval: PendingApproval | null;
   priceBook: PriceEntry[];
+  reminderRun: ReminderRun | null;
+  /** Why no reminder can go right now. Null when one can. */
+  noReminderBecause: string | null;
 }
