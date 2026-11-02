@@ -4,7 +4,7 @@
  * The job is the known trap: "fifty" heard as "fifteen". The confirm screen has to catch it.
  */
 import { expect, test, type Page } from "@playwright/test";
-import { fixElementPrice, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, startSample, visitorHeaders } from "./flow";
+import { checkCount, fixElementPrice, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, settleAiNotes, startSample, visitorHeaders } from "./flow";
 import { SAMPLE_AMOUNTS } from "../../src/lib/say/sample";
 import type { PriceEntry } from "../../src/lib/say/price-book";
 
@@ -29,7 +29,7 @@ test("sample job: catch the misheard price, fix it, approve, invoice sent", asyn
   await expect(page.getByTestId("quantity-note")).toContainText("Read the quantities yourself");
   await expect(page.getByTestId("invoice-total")).toHaveText(money(SAMPLE_AMOUNTS.heardTotalCents));
   await expect(page.getByTestId("missing-amount")).toHaveCount(0);
-  await expect(page.getByTestId("flags-panel")).toContainText("1 thing to check");
+  await expect(page.getByTestId("flags-panel")).toContainText(checkCount);
 
   // The code's check names the usual price, and nothing can be sent until the person deals with it.
   await expect(element.getByTestId("line-usual")).toContainText("Usually $50.00");
@@ -37,7 +37,7 @@ test("sample job: catch the misheard price, fix it, approve, invoice sent", asyn
   // One voice on the row: the AI's own doubt about this price would differ from run to run.
   await expect(element.getByTestId("line-flag")).toHaveCount(0);
   await expect(page.getByTestId("send-invoice")).toHaveCount(0);
-  await expect(page.getByTestId("next-check")).toContainText("1 thing to check first");
+  await expect(page.getByTestId("next-check")).toContainText(checkCount);
 
   // Nothing about a date was said, so it's 14 days from the person's own day, not the server's.
   const expectedDue = await page.evaluate(() => {
@@ -87,6 +87,7 @@ test("a price the person keeps goes out, and the server won't skip the check", a
 
   // Keeping it is allowed. The choice is the person's, and the screen says so.
   await page.getByTestId("invoice-line").nth(1).getByTestId("keep-line").click();
+  await settleAiNotes(page);
   await expect(page.getByTestId("next-check")).toHaveCount(0);
   await page.getByTestId("send-invoice").click();
   await expect(page.getByTestId("approval-prompt")).toContainText(money(SAMPLE_AMOUNTS.heardTotalCents));
@@ -95,7 +96,7 @@ test("a price the person keeps goes out, and the server won't skip the check", a
 
   // Declining changes nothing about what was settled.
   await expect(page.getByTestId("send-invoice")).toBeEnabled();
-  expect((await readJob(request, job.id)).acknowledged?.length).toBe(1);
+  expect((await readJob(request, job.id)).acknowledged?.some((id) => id.startsWith("far:"))).toBe(true);
 });
 
 test("declining sends nothing, and the job stays editable", async ({ page, request }) => {
@@ -204,6 +205,7 @@ test("works at phone width", async ({ page, request }) => {
   await expect(page.getByTestId("invoice-total")).toBeVisible();
   await fits();
   await page.screenshot({ path: "screenshots/confirm-phone.png", fullPage: true });
+  await settleAiNotes(page);
 
   // One hand: the next step is always under the thumb, and it leads to whatever needs a look.
   await expect(page.getByTestId("next-check")).toBeInViewport();

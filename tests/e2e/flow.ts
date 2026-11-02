@@ -49,18 +49,29 @@ export async function fixElementPrice(page: Page) {
   const element = page.getByTestId("invoice-line").nth(1);
   await element.getByTestId("use-usual").click();
   await expect(element.getByTestId("line-price")).toHaveValue("50.00");
+  await settleAiNotes(page);
+}
+
+async function pressAll(page: Page, testId: string) {
+  while (await page.getByTestId(testId).count()) {
+    const before = await page.getByTestId(testId).count();
+    await page.getByTestId(testId).first().click();
+    await expect(page.getByTestId(testId)).toHaveCount(before - 1);
+  }
 }
 
 /** Takes the price book's fix where it has one, and lets everything else stand. */
 export async function settleChecks(page: Page) {
-  for (const testId of ["use-usual", "keep-line", "settle-flag", "not-a-charge"]) {
-    while (await page.getByTestId(testId).count()) {
-      const before = await page.getByTestId(testId).count();
-      await page.getByTestId(testId).first().click();
-      await expect(page.getByTestId(testId)).toHaveCount(before - 1);
-    }
-  }
+  for (const testId of ["use-usual", "keep-line", "settle-flag", "not-a-charge"]) await pressAll(page, testId);
 }
+
+/** Real AI adds notes of its own, different each run, and a person clears them with Looks right. Mock has none, so a stray one there still fails. */
+export async function settleAiNotes(page: Page) {
+  if (process.env.E2E_BASE_URL) await pressAll(page, "settle-flag");
+}
+
+/** The sample's one price check, plus whatever notes the AI added this run. */
+export const checkCount = process.env.E2E_BASE_URL ? /\d+ things? to check/ : /1 thing to check/;
 
 export const totalOnScreen = async (page: Page) => Math.round(Number((await page.getByTestId("invoice-total").innerText()).replace(/[$,]/g, "")) * 100);
 
