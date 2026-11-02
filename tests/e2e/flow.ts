@@ -29,10 +29,16 @@ export async function visitorHeaders(page: Page) {
   return { "x-say-visitor": await page.evaluate(() => localStorage.getItem("say-visitor") ?? "") };
 }
 
+/** Contacts load from an effect, so seeing one means the page is live. A tap before that does nothing, on any React page. */
+export async function openNewJob(page: Page) {
+  await page.goto("/jobs");
+  await expect(page.getByTestId(/^contact-(?!other)/).first()).toBeVisible();
+}
+
 /** Starts the sample job and lands on its confirm screen. */
 export async function startSample(page: Page) {
   await paceAiCalls();
-  await page.goto("/jobs");
+  await openNewJob(page);
   await page.getByTestId("try-sample").click();
   await page.waitForURL(/\/jobs\/job_/);
   await expect(page.getByTestId("invoice-line").first()).toBeVisible();
