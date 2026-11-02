@@ -1,10 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
+import { fakeMicProject } from "./tests/e2e/fake-mic";
 
 /**
  * End-to-end tests (npm run test:e2e). Starts the dev server in PayPal MOCK mode with its own
- * data dir. AI is mocked unless E2E_AI_MODE=live (then real Claude, tiny spend).
+ * data dir. AI is mocked unless E2E_AI_MODE=live (then real Claude and ElevenLabs, tiny spend).
+ * A second project drives the real recorder with Chromium's fake microphone.
  */
-const PORT = Number(process.env.E2E_PORT ?? 3100);
+const PORT = Number(process.env.E2E_PORT ?? 3110);
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -18,9 +20,10 @@ export default defineConfig({
     viewport: { width: 1440, height: 1000 },
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 1000 } } }],
+  projects: [{ name: "chromium", testIgnore: "mic-flow.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 1000 } } }, fakeMicProject],
   webServer: {
-    command: `npx next dev --port ${PORT}`,
+    // A stale dev cache makes `next dev` reload forever after a source edit, so each run starts clean.
+    command: `rm -rf .next-e2e/dev && npx next dev --port ${PORT}`,
     url: `http://localhost:${PORT}/api/kit/status`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

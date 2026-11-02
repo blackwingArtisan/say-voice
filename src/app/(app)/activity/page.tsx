@@ -74,7 +74,7 @@ export default function ActivityPage() {
             rows={audit?.entries}
             getRowId={(r) => String(r.seq)}
             height={420}
-            emptyMessage="No agent activity yet. Run the example flow."
+            emptyMessage="Nothing yet. Send an invoice from Jobs and every step shows up here."
             columns={[
               col.text<AuditEntry>("seq", "#", { maxWidth: 80 }),
               col.date<AuditEntry>("ts", "Time"),
@@ -107,7 +107,7 @@ export default function ActivityPage() {
               ]}
             />
           ) : (
-            <EmptyState icon={<Webhook className="size-5" />} title="Sandbox webhooks" description={status?.paypal.webhookConfigured ? "PAYPAL_WEBHOOK_ID is set; verified events show on the dashboard timeline." : "PAYPAL_WEBHOOK_ID is not set yet, so incoming webhooks are rejected (503)."} />
+            <EmptyState icon={<Webhook className="size-5" />} title="Sandbox webhooks" description={status?.paypal.webhookConfigured ? "PAYPAL_WEBHOOK_ID is set; verified events show on the timeline." : "PAYPAL_WEBHOOK_ID is not set yet, so incoming webhooks are rejected (503)."} />
           )}
         </CardBody>
       </Card>

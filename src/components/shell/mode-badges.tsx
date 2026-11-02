@@ -1,6 +1,6 @@
 "use client";
 
-import { FlaskConical, Landmark, Sparkles } from "lucide-react";
+import { FlaskConical, Landmark, Mic, Sparkles } from "lucide-react";
 import { useKit } from "../kit/kit-provider";
 import { cn } from "../ui/cn";
 
@@ -8,7 +8,7 @@ import { cn } from "../ui/cn";
 export function ModeBadges({ className, vertical }: { className?: string; vertical?: boolean }) {
   const { status } = useKit();
   if (!status) return null;
-  const { paypal, ai } = status;
+  const { paypal, ai, speech } = status;
   const pct = ai.budget.capUsd ? Math.min(100, (ai.budget.spentUsd / ai.budget.capUsd) * 100) : 0;
   return (
     <div className={cn("flex gap-2 text-xs", vertical ? "flex-col" : "flex-wrap items-center", className)} data-testid="mode-badges">
@@ -18,7 +18,11 @@ export function ModeBadges({ className, vertical }: { className?: string; vertic
       </span>
       <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium ring-1 ring-inset", ai.mode === "live" ? "bg-violet-50 text-violet-700 ring-violet-200" : "bg-zinc-100 text-zinc-700 ring-zinc-200")}>
         <Sparkles className="size-3.5" />
-        {ai.mode === "live" ? ai.models.default : "AI mock"}
+        {ai.mode === "live" ? ai.models.smart : "AI mock"}
+      </span>
+      <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium ring-1 ring-inset", speech.mode === "live" ? "bg-violet-50 text-violet-700 ring-violet-200" : "bg-zinc-100 text-zinc-700 ring-zinc-200")}>
+        <Mic className="size-3.5" />
+        {speech.mode === "live" ? speech.model : "Speech mock"}
       </span>
       {ai.mode === "live" ? (
         <span className="inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1 text-zinc-600 ring-1 ring-inset ring-zinc-200" title="Today's AI spend vs. AI_DAILY_CAP_USD">
