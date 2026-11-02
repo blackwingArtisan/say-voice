@@ -43,7 +43,8 @@ test("a second sent invoice shows up on the same visitor's list", async ({ page,
   test.skip((await kitStatus(request)).live, "Mock only: the live check spends on the one mic clip");
   await sentSample(page, request);
   await sentSample(page, request);
-  await page.goto("/jobs");
+  await page.getByTestId("next-job").click(); // no reload, so the list has to catch up by itself
   await expect(page.getByTestId("job-row")).toHaveCount(2);
+  await expect(page.getByTestId("try-sample")).toBeEnabled();
   await page.screenshot({ path: "screenshots/visitor-jobs.png", fullPage: true });
 });

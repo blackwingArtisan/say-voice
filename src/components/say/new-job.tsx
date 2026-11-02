@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, Sparkles, UserPlus } from "lucide-react";
@@ -65,6 +65,16 @@ export function NewJob() {
   const [take, setTake] = useState<Take | null>(null);
   const [problem, setProblem] = useState<TakeProblem | null>(null);
 
+  // Next keeps this page alive behind the job page, so a finished job has to leave it ready for the next one.
+  const onLeave = useRef<(() => void) | null>(null);
+  useLayoutEffect(
+    () => () => {
+      onLeave.current?.();
+      onLeave.current = null;
+    },
+    [],
+  );
+
   // A take that never became a job is still here after a reload or a trip to another page.
   useEffect(() => {
     let current = true;
@@ -116,6 +126,14 @@ export function NewJob() {
         json: { source: "mic", today: localDay(), customer: current.customer, transcript: speech.transcript, speech: { mocked: speech.mocked, model: speech.mocked ? "Speech mock" : (status?.speech.model ?? ""), durationSec: speech.durationSec } },
       });
       void clearTake();
+      onLeave.current = () => {
+        setPhase("ready");
+        setHeard(null);
+        setTake(null);
+        setPicked(null);
+        setTypedName("");
+        setTypedEmail("");
+      };
       router.push(`/jobs/${job.id}`);
     } catch (e) {
       setProblem(explainTake(refusalFrom(e)));
@@ -142,6 +160,7 @@ export function NewJob() {
     setPhase("reading");
     try {
       const job = await kitFetch<JobView>("/api/jobs", { json: { source: "sample", today: localDay() } });
+      onLeave.current = () => setPhase("ready");
       router.push(`/jobs/${job.id}`);
     } catch (e) {
       toast({ title: "The sample job didn't start", description: explainSample(refusalFrom(e)), variant: "error", durationMs: 7000 });

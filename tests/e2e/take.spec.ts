@@ -101,6 +101,34 @@ test("a take with nothing in it asks for a new one", async ({ page }) => {
   await expect(page.getByTestId("record-start")).toBeEnabled();
 });
 
+// Next hides this page instead of closing it, so these two come back the way a person does.
+test("a take that became a job leaves a clean page for the next one", async ({ page }) => {
+  await recordTake(page);
+  await page.waitForURL(/\/jobs\/job_/, { timeout: 30_000 });
+  await page.goBack();
+  await expect(page.getByTestId("record-start")).toBeDisabled();
+  await expect(page.getByTestId("contact-tom-baker")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByTestId("try-sample")).toBeEnabled();
+  await expect(page.getByTestId("kept-take")).toHaveCount(0);
+  await expect(page.getByTestId("job-row")).toHaveCount(1);
+});
+
+test("a kept take is still there after a look at the sample job", async ({ page }) => {
+  await refuse(page, "**/api/speech", 402, "speech_credit", "Speech to text has run out of credit.");
+  await recordTake(page);
+  await expectKept(page, "Speech to text is out of credit");
+
+  await page.getByTestId("try-sample").click();
+  await page.waitForURL(/\/jobs\/job_/, { timeout: 30_000 });
+  await page.goBack();
+  await expectKept(page, "Speech to text is out of credit");
+
+  await page.unroute("**/api/speech");
+  await page.getByTestId("retry-take").click();
+  await page.waitForURL(/\/jobs\/job_/, { timeout: 30_000 });
+  await expect(page.getByTestId("customer-name")).toHaveValue("Tom Baker");
+});
+
 test("someone's real email is refused by the Guard, with what to do about it", async ({ page, request }, info) => {
   await page.getByTestId("contact-other").click();
   await page.locator("#typed-name").fill("Jo Judge");
