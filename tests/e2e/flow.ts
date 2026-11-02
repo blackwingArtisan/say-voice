@@ -1,5 +1,5 @@
 /** The part both flows share: from the confirm screen through the gate to PayPal's own record. */
-import { expect, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { readInvoiceFromPayPal } from "./paypal-reread";
 import type { JobView } from "../../src/lib/say/types";
 
@@ -52,22 +52,27 @@ export async function fixElementPrice(page: Page) {
   await settleAiNotes(page);
 }
 
-async function pressAll(page: Page, testId: string) {
-  while (await page.getByTestId(testId).count()) {
-    const before = await page.getByTestId(testId).count();
-    await page.getByTestId(testId).first().click();
-    await expect(page.getByTestId(testId)).toHaveCount(before - 1);
+async function pressAll(buttons: Locator) {
+  while (await buttons.count()) {
+    const before = await buttons.count();
+    await buttons.first().click();
+    await expect(buttons).toHaveCount(before - 1);
   }
 }
 
 /** Takes the price book's fix where it has one, and lets everything else stand. */
 export async function settleChecks(page: Page) {
-  for (const testId of ["use-usual", "keep-line", "settle-flag", "not-a-charge"]) await pressAll(page, testId);
+  for (const testId of ["use-usual", "keep-line", "settle-flag", "not-a-charge"]) await pressAll(page.getByTestId(testId));
 }
 
-/** Real AI adds notes of its own, different each run, and a person clears them with Looks right. Mock has none, so a stray one there still fails. */
+/**
+ * Real AI adds notes of its own, different each run, and a person clears them. Mock has none, so a stray one there still fails.
+ * A note about no row has Looks right. One on the Labor row has Keep. The element row's Keep stays the test's own business.
+ */
 export async function settleAiNotes(page: Page) {
-  if (process.env.E2E_BASE_URL) await pressAll(page, "settle-flag");
+  if (!process.env.E2E_BASE_URL) return;
+  await pressAll(page.getByTestId("settle-flag"));
+  await pressAll(page.getByTestId("invoice-line").first().getByTestId("keep-line"));
 }
 
 /** The sample's one price check, plus whatever notes the AI added this run. */
