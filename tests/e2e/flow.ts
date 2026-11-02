@@ -10,6 +10,9 @@ export async function kitStatus(request: APIRequestContext) {
   return { sandbox: status.paypal.mode === "sandbox", live: status.ai.mode === "live", paypal: status.paypal.mode as string, speechLive: status.speech.mode === "live" };
 }
 
+/** A local live run spends on the one mic clip only. A deployed copy is always live, and the sample flow has to run there. */
+export const keepToOneCall = (live: boolean) => live && !process.env.E2E_BASE_URL;
+
 export const jobId = (page: Page) => new URL(page.url()).pathname.split("/").pop()!;
 
 export async function readJob(request: APIRequestContext, id: string): Promise<JobView> {
@@ -58,6 +61,6 @@ export async function sendAndVerify(page: Page, request: APIRequestContext, tota
     expect(invoice.detail.payment_term?.due_date).toBe(done.dueDate);
     console.log(`PayPal re-read: invoice ${invoice.id} number ${invoice.detail.invoice_number} ${invoice.status} ${invoice.amount.currency_code} ${invoice.amount.value} due ${invoice.detail.payment_term?.due_date} items ${JSON.stringify(invoice.items.map((i) => [i.name, i.quantity, i.unit_amount.value]))}`);
   }
-  console.log(`Job ${id}: speech=${done.speech?.model ?? "sample"} ai mocked=${done.ai.mocked} model=${done.ai.model ?? "none"} cost=$${done.ai.costUsd.toFixed(4)}`);
+  console.log(`Job ${id}: speech=${done.speech?.model ?? "sample"} heard=${done.speech?.durationSec ?? 0}s ai mocked=${done.ai.mocked} model=${done.ai.model ?? "none"} cost=$${done.ai.costUsd.toFixed(4)}`);
   return done;
 }

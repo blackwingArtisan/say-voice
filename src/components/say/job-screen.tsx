@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { CircleAlert } from "lucide-react";
 import { ApprovalPrompt } from "@/components/agent/approval-prompt";
@@ -22,13 +22,14 @@ function sourceLine(job: JobView): string {
 
 export function JobScreen() {
   const { id } = useParams<{ id: string }>();
-  const { kitFetch, status } = useKit();
+  const { kitFetch, status, refreshStatus } = useKit();
   const { toast } = useToast();
   const { steps } = useTimeline();
   const [job, setJob] = useState<JobView | null>(null);
   const [edited, setEdited] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const decision = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => kitFetch<JobView>(`/api/jobs/${id}`), [id, kitFetch]);
   const refresh = useCallback(() => load().then(setJob), [load]);
@@ -39,6 +40,9 @@ export function JobScreen() {
       .catch((e: Error) => setLoadError(e.message));
   }, [load]);
 
+  // The job was just read, so the sidebar's spend is out of date.
+  useEffect(() => void refreshStatus(), [refreshStatus]);
+
   // The invoice goes out in the background once the person approves, so follow it until it stops.
   const waiting = job?.status === "awaiting_approval";
   useEffect(() => {
@@ -47,8 +51,20 @@ export function JobScreen() {
     return () => clearInterval(timer);
   }, [waiting, refresh]);
 
-  // The approval card sits next to the amount, so the timeline only reports the wait.
-  const timelineSteps = useMemo(() => steps.filter((s) => s.channel !== "global" || s.kind === "webhook").map((s) => (s.approval?.state === "pending" ? { ...s, approval: undefined } : s)), [steps]);
+  // On a phone Send sits at the bottom of a long page and these appear at the top of it.
+  const approvalId = job?.approval?.id;
+  const isSent = job?.status === "sent";
+  useEffect(() => {
+    if (approvalId || isSent) decision.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [approvalId, isSent]);
+
+  // Webhooks arrive on a channel every job shares, so show only this job's. The approval card sits
+  // next to the amount, so the timeline only reports the wait.
+  const invoiceId = job?.invoice?.id;
+  const timelineSteps = useMemo(() => {
+    const ours = (s: (typeof steps)[number]) => s.channel !== "global" || (s.kind === "webhook" && invoiceId !== undefined && JSON.stringify(s.data ?? null).includes(invoiceId));
+    return steps.filter(ours).map((s) => (s.approval?.state === "pending" ? { ...s, approval: undefined } : s));
+  }, [steps, invoiceId]);
 
   if (loadError) return <EmptyState title="Job not found" description={loadError} />;
   if (!job) return <SkeletonCard />;
@@ -72,7 +88,7 @@ export function JobScreen() {
   return (
     <>
       <PageHeader title={sent ? "Invoice sent" : "Check the invoice"} description={sent ? undefined : "Your words sit beside every number. Nothing goes out until you approve it."} />
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <div className="space-y-6 lg:sticky lg:top-6">
           <Card>
             <CardHeader title="What you said" description={sourceLine(job)} />
@@ -87,7 +103,7 @@ export function JobScreen() {
             </CardBody>
           </Card>
         </div>
-        <div className="space-y-6">
+        <div ref={decision} className="scroll-mt-20 space-y-6">
           {job.error ? (
             <p data-testid="job-error" className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
               <CircleAlert className="mt-0.5 size-4 shrink-0" />

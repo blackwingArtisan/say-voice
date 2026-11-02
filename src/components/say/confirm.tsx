@@ -119,7 +119,7 @@ function ItemRow({ line, original, flags, heard, lineTotal, disabled, onChange, 
       {changedPrice ? <p className="text-sm font-medium text-emerald-700" data-testid="line-changed">You changed this from {formatCents(original.unitCents)}.</p> : null}
       {flags.map((flag) => (
         <RowFlag key={flag.text} testId="line-flag">
-          <strong className="font-semibold">{label}: </strong>
+          {flag.text.toLowerCase().includes(label.toLowerCase()) ? null : <strong className="font-semibold">{label}: </strong>}
           {flag.text}
         </RowFlag>
       ))}
@@ -141,17 +141,24 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
     const original = job.lines.find((l) => l.key === line.key);
     return original && !heardFor(job.transcript, original);
   }).length;
-  const toCheck = job.flags.length + missing.length + unheard;
+  // A flagged row the person changed is dealt with. The flag stays on the row, it just stops counting.
+  const open = job.flags.filter((flag) => {
+    const row = draft.lines.find((line) => line.key === flag.lineKey);
+    const before = job.lines.find((line) => line.key === flag.lineKey);
+    return !row || !before || (parseDollars(row.price) === before.unitCents && parseQuantity(row.quantity) === before.quantityMilli);
+  }).length;
+  const toCheck = open + missing.length + unheard;
 
   const updateLine = (key: string, patch: Partial<EditLine>) => setDraft({ ...draft, lines: draft.lines.map((line) => (line.key === key ? { ...line, ...patch } : line)) });
 
   return (
     <div className="space-y-6">
-      {toCheck || jobFlags.length ? (
+      {toCheck ? (
         <div className="space-y-2" data-testid="flags-panel">
           <p className="flex items-center gap-2 text-[15px] font-semibold text-amber-900">
             <AlertTriangle className="size-5 text-amber-600" /> {toCheck === 1 ? "1 thing to check before you send" : `${toCheck} things to check before you send`}
           </p>
+          {open > jobFlags.length ? <p className="text-sm text-amber-900">Look for the marked items below.</p> : null}
           {missing.map((amount) => (
             <RowFlag key={amount.cents} testId="missing-amount">
               You said <strong className="font-semibold">{formatCents(amount.cents)}</strong> (&ldquo;{amount.excerpt}&rdquo;) but no line item has that amount.

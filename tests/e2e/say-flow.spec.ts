@@ -4,12 +4,12 @@
  * The job is the known trap: "fifty" heard as "fifteen". The confirm screen has to catch it.
  */
 import { expect, test } from "@playwright/test";
-import { kitStatus, money, readJob, jobId, sendAndVerify } from "./flow";
+import { keepToOneCall, kitStatus, money, readJob, jobId, sendAndVerify } from "./flow";
 import { SAMPLE_AMOUNTS } from "../../src/lib/say/sample";
 
 test("sample job: catch the misheard price, fix it, approve, invoice sent", async ({ page, request }) => {
   const { live, paypal } = await kitStatus(request);
-  test.skip(live, "Keeps a live run to the one mic clip");
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
 
   await page.goto("/jobs");
   await page.getByTestId("try-sample").click();
@@ -24,6 +24,7 @@ test("sample job: catch the misheard price, fix it, approve, invoice sent", asyn
   await expect(element.getByTestId("line-heard")).toContainText("fifteen");
   await expect(page.getByTestId("invoice-total")).toHaveText(money(SAMPLE_AMOUNTS.heardTotalCents));
   await expect(page.getByTestId("missing-amount")).toHaveCount(0);
+  await expect(page.getByTestId("flags-panel")).toContainText("1 thing to check");
 
   // Nothing about a date was said, so it's 14 days from the person's own day, not the server's.
   const expectedDue = await page.evaluate(() => {
@@ -40,7 +41,8 @@ test("sample job: catch the misheard price, fix it, approve, invoice sent", asyn
   await expect(element.getByTestId("line-changed")).toContainText(money(SAMPLE_AMOUNTS.heardElementCents));
   // Corrected, so the $15 no longer counts as an amount with no line item.
   await expect(page.getByTestId("missing-amount")).toHaveCount(0);
-  await expect(page.getByTestId("flags-panel")).toContainText("1 thing to check");
+  await expect(page.getByTestId("flags-panel")).toHaveCount(0);
+  await expect(element.getByTestId("line-flag")).toBeVisible();
   await page.screenshot({ path: `screenshots/confirm-${paypal}.png`, fullPage: true });
 
   const done = await sendAndVerify(page, request, SAMPLE_AMOUNTS.spokenTotalCents, "sample");
@@ -50,7 +52,7 @@ test("sample job: catch the misheard price, fix it, approve, invoice sent", asyn
 
 test("declining sends nothing, and the job stays editable", async ({ page, request }) => {
   const { live } = await kitStatus(request);
-  test.skip(live, "Keeps a live run to the one mic clip");
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
 
   await page.goto("/jobs");
   await page.getByTestId("try-sample").click();
@@ -67,7 +69,7 @@ test("declining sends nothing, and the job stays editable", async ({ page, reque
 
 test("deleting a spoken item warns about the amount left over", async ({ page, request }) => {
   const { live } = await kitStatus(request);
-  test.skip(live, "Keeps a live run to the one mic clip");
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
 
   await page.goto("/jobs");
   await page.getByTestId("try-sample").click();
@@ -79,7 +81,7 @@ test("deleting a spoken item warns about the amount left over", async ({ page, r
 
 test("adding an item the speaker didn't mention updates the total", async ({ page, request }) => {
   const { live } = await kitStatus(request);
-  test.skip(live, "Keeps a live run to the one mic clip");
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
 
   await page.goto("/jobs");
   await page.getByTestId("try-sample").click();
@@ -91,4 +93,38 @@ test("adding an item the speaker didn't mention updates the total", async ({ pag
   await expect(page.getByTestId("invoice-total")).toHaveText(money(SAMPLE_AMOUNTS.heardTotalCents + 1250));
   await page.getByTestId("tax-rate").fill("10");
   await expect(page.getByTestId("tax-total")).toHaveText("$8.75");
+});
+
+test("works at phone width", async ({ page, request }) => {
+  const { live } = await kitStatus(request);
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  // No sideways page scroll. Clipped text inside a card is fine, so the page decides, and the list only names the cause.
+  // Polled so a settled page is what's measured.
+  const tooWide = () =>
+    page.evaluate(() => {
+      if (document.documentElement.scrollWidth <= window.innerWidth) return [];
+      return [...document.querySelectorAll("body *")].filter((el) => el.getBoundingClientRect().right > window.innerWidth + 0.5).map((el) => `${el.tagName} ${(el.textContent ?? "").slice(0, 40)}`);
+    });
+  const fits = () => expect.poll(tooWide).toEqual([]);
+  await page.goto("/jobs");
+  await expect(page.getByTestId("try-sample")).toBeVisible();
+  await fits();
+  await page.getByTestId("try-sample").click();
+  await page.waitForURL(/\/jobs\/job_/);
+  await expect(page.getByTestId("invoice-total")).toBeVisible();
+  await fits();
+  await page.screenshot({ path: "screenshots/confirm-phone.png", fullPage: true });
+  // Earlier tests sent invoices. Their webhooks belong to those jobs, not this one.
+  await expect(page.getByTestId("timeline-step").filter({ hasText: "INVOICING." })).toHaveCount(0);
+
+  // The result carries this job's own webhook, with its long unbroken id, in mock mode.
+  // Send is at the bottom of a long page, so the prompt and the result must come to the person.
+  await page.getByTestId("send-invoice").click();
+  await expect(page.getByTestId("approve-button")).toBeInViewport({ timeout: 30_000 });
+  await page.getByTestId("approve-button").click();
+  await expect(page.getByTestId("result-headline")).toBeInViewport({ timeout: 60_000 });
+  await fits();
+  await page.screenshot({ path: "screenshots/result-phone.png", fullPage: true });
 });
