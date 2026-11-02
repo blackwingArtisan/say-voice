@@ -10,6 +10,7 @@ export interface KitStatus {
   app: { name: string; slug: string };
   paypal: { mode: "mock" | "sandbox"; clientId: string | null; buyerEmail: string; webhookConfigured: boolean; testCard: boolean };
   ai: { mode: "live" | "mock"; models: { default: string; smart: string }; budget: { capUsd: number; spentUsd: number; remainingUsd: number; calls: number } };
+  speech: { mode: "live" | "mock"; model: string };
   policy: { currency: string; approvalThreshold: string; maxPerAction: string; maxPerDay: string };
 }
 

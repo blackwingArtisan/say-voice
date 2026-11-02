@@ -1,9 +1,7 @@
 /**
- * APP-OWNED: the agents this app exposes at POST /api/agent/runs { agentId }.
+ * APP-OWNED: the agents this app exposes at POST /api/agent/runs { agentId }. Say-Voice has none
+ * yet: the invoice send runs behind the Guard from src/lib/say/send.ts.
  */
 import type { AgentDefinition } from "@/lib/agent/define";
-import { settlementAgent } from "./settlement";
 
-export const AGENTS: Record<string, AgentDefinition> = {
-  [settlementAgent.id]: settlementAgent,
-};
+export const AGENTS: Record<string, AgentDefinition> = {};

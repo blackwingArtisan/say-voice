@@ -6,7 +6,7 @@ services:
     runtime: node
     plan: free # free instances sleep when idle; the first request after a nap takes ~1 min
     buildCommand: npm ci && npm run build
-    startCommand: npm run seed:sandbox; npm start -- -H 0.0.0.0 # the disk is wiped on deploy; a rerun only reads. `;` so a failed seed still boots
+    startCommand: npm start -- -H 0.0.0.0 # no seed: this app shows only invoices it sent. The disk is wiped on deploy.
     healthCheckPath: /api/kit/status
     autoDeploy: true
     envVars:
@@ -14,8 +14,6 @@ services:
         value: "24" # what ran on Render; .node-version says 26
       - key: PAYPAL_MODE
         value: sandbox # or mock (no credentials needed). Anything else refuses to start.
-      - key: DEMO_TEST_CARD
-        value: "1" # judges have no sandbox buyer login; adds "Pay with sandbox test card"
       - key: PAYPAL_CLIENT_ID
         sync: false
       - key: PAYPAL_CLIENT_SECRET
@@ -28,6 +26,8 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false # speech to text. The microphone needs HTTPS, which Render provides.
       - key: AI_DAILY_CAP_USD
         value: "2"
       - key: AI_RATE_LIMIT_PER_MINUTE
