@@ -31,3 +31,14 @@ export const SAMPLE_AMOUNTS = {
   heardTotalCents: 7_500,
   spokenTotalCents: 11_000,
 };
+
+/** What the demo tradesperson usually charges, so the price book has something to say on day one. */
+export const SEED_PRICES: { name: string; samples: number[] }[] = [
+  { name: "Labor", samples: [7500, 8000, 8000, 8500, 9000] },
+  { name: "Heating element", samples: [4500, 5000, 5000, 5200, 5500] },
+  { name: "Service call", samples: [8500, 9500, 9500, 9500, 11000] },
+  { name: "Wax ring", samples: [1200, 1200, 1400] },
+  { name: "Thermostat", samples: [6000, 6500, 7000] },
+  { name: "Disposal fee", samples: [2500, 2500, 3000] },
+  { name: "Faucet cartridge", samples: [3200, 3500, 3800] },
+];

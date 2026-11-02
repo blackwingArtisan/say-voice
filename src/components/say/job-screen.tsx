@@ -89,21 +89,22 @@ export function JobScreen() {
     <>
       <PageHeader title={sent ? "Invoice sent" : "Check the invoice"} description={sent ? undefined : "Your words sit beside every number. Nothing goes out until you approve it."} />
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <div className="space-y-6 lg:sticky lg:top-6">
-          <Card>
+        {/* On a phone the items come straight after the words, and the timeline goes to the bottom. */}
+        <div className="contents lg:sticky lg:top-6 lg:block lg:space-y-6">
+          <Card className="order-1">
             <CardHeader title="What you said" description={sourceLine(job)} />
             <CardBody>
               <Transcript text={job.transcript} />
             </CardBody>
           </Card>
-          <Card>
+          <Card className="order-3">
             <CardHeader title="What happened" />
             <CardBody>
               <ToolCallTimeline steps={timelineSteps} className="max-h-[360px]" />
             </CardBody>
           </Card>
         </div>
-        <div ref={decision} className="scroll-mt-20 space-y-6">
+        <div ref={decision} className="order-2 min-w-0 scroll-mt-20 space-y-6">
           {job.error ? (
             <p data-testid="job-error" className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
               <CircleAlert className="mt-0.5 size-4 shrink-0" />

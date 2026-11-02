@@ -156,6 +156,14 @@ function excerptAround(transcript: string, start: number, end: number, wordsEach
   return `${before.length > wordsEachSide ? "…" : ""}${left ? `${left} ` : ""}${transcript.slice(start, end)}${glue}${right}${after.length > wordsEachSide ? "…" : ""}`.trim();
 }
 
+/** The sentence a number sits in, which usually holds the quantity too, or a window when it runs on. */
+function sentenceAround(transcript: string, start: number, end: number): string {
+  const opened = Math.max(transcript.lastIndexOf(".", start - 1), transcript.lastIndexOf("?", start - 1), transcript.lastIndexOf("!", start - 1)) + 1;
+  const closed = transcript.slice(end).search(/[.?!](\s|$)/);
+  const sentence = transcript.slice(opened, closed === -1 ? transcript.length : end + closed + 1).trim();
+  return sentence.split(/\s+/).length <= 18 ? sentence : excerptAround(transcript, start, end, 7);
+}
+
 /** The words the app heard around a line's price, or null when that price wasn't said. */
 export function heardFor(transcript: string, line: Pick<InvoiceLine, "unitCents" | "quantityMilli">): string | null {
   const mentions = findNumbers(transcript);
@@ -163,7 +171,7 @@ export function heardFor(transcript: string, line: Pick<InvoiceLine, "unitCents"
   const wanted = [line.unitCents, lineCents(line)];
   // Prefer the last match: a price that was corrected is said again further on.
   const hit = wanted.map((cents) => mentions.filter((m) => m.isAmount && matches(m, cents)).pop() ?? mentions.filter((m) => matches(m, cents)).pop()).find(Boolean);
-  return hit ? excerptAround(transcript, hit.start, hit.end) : null;
+  return hit ? sentenceAround(transcript, hit.start, hit.end) : null;
 }
 
 /** Spoken dollar amounts that no line item, tax amount or total accounts for. */

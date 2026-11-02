@@ -2,10 +2,10 @@ import type { ComponentProps, ReactNode } from "react";
 import { cn } from "./cn";
 
 const field =
-  "w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900 shadow-sm placeholder:text-zinc-400 transition focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-brand-100 disabled:bg-zinc-50 disabled:text-zinc-500";
+  "w-full rounded-lg border border-zinc-200 bg-white px-3 text-base sm:text-sm text-zinc-900 shadow-sm placeholder:text-zinc-400 transition focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-brand-100 disabled:bg-zinc-50 disabled:text-zinc-500";
 
 export function Input({ className, ...props }: ComponentProps<"input">) {
-  return <input className={cn(field, "h-10", className)} {...props} />;
+  return <input className={cn(field, "h-11 sm:h-10", className)} {...props} />;
 }
 
 export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
@@ -13,7 +13,7 @@ export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
 }
 
 export function Select({ className, ...props }: ComponentProps<"select">) {
-  return <select className={cn(field, "h-10 pr-8", className)} {...props} />;
+  return <select className={cn(field, "h-11 sm:h-10 pr-8", className)} {...props} />;
 }
 
 export function Label({ className, ...props }: ComponentProps<"label">) {

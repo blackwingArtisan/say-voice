@@ -8,8 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { hasMicClip, MIC_CLIP } from "./fake-mic";
-import { jobId, kitStatus, readJob, sendAndVerify } from "./flow";
-import { computeTotals } from "../../src/lib/say/money";
+import { jobId, kitStatus, paceAiCalls, readJob, sendAndVerify, settleChecks, totalOnScreen } from "./flow";
 
 /** Decodes the take with ffmpeg, so a silent or empty recording can't pass. A live recording has no duration header. */
 function measure(file: string): { seconds: number; peakDb: number } {
@@ -36,6 +35,7 @@ test("records with the real microphone path, then reaches a sent invoice", async
   test.skip(!hasMicClip, `No computer-voice clip at ${MIC_CLIP}. It can't be committed; set E2E_MIC_CLIP.`);
   const { live, speechLive } = await kitStatus(request);
 
+  await paceAiCalls(2); // the upload and the job
   await keepUpload(page);
   await page.goto("/jobs");
   await expect(page.getByTestId("record-start")).toBeDisabled();
@@ -73,5 +73,11 @@ test("records with the real microphone path, then reaches a sent invoice", async
   console.log(`Extracted: ${JSON.stringify({ lines: job.lines, taxRateMilli: job.taxRateMilli, dueDate: job.dueDate, flags: job.flags })}`);
   await page.screenshot({ path: `screenshots/mic-confirm-${live ? "live-ai" : "mock-ai"}.png`, fullPage: true });
 
-  await sendAndVerify(page, request, computeTotals(job.lines, job.taxRateMilli).totalCents, "mic");
+  // Whatever came through, it has to be dealt with before it can go.
+  const usual = await page.getByTestId("line-usual").allInnerTexts();
+  console.log(`Price book said: ${JSON.stringify(usual)}`);
+  if (!speechLive) expect(usual.join()).toContain("Usually $50.00");
+  await expect(page.getByTestId("send-invoice")).toHaveCount(job.flags.length || usual.length ? 0 : 1);
+  await settleChecks(page);
+  await sendAndVerify(page, request, await totalOnScreen(page), "mic");
 });

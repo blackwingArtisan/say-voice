@@ -58,10 +58,10 @@ export function ApprovalPrompt({
         {amount ? <MoneyBadge amount={amount} direction="neutral" size="lg" /> : null}
       </div>
       <div className="mt-3 flex justify-end gap-2">
-        <Button variant="secondary" size="sm" icon={<X className="size-4" />} loading={busy === "denied"} disabled={!!busy} onClick={() => decide("denied")}>
+        <Button variant="secondary" size="lg" className="flex-1 sm:flex-none" icon={<X className="size-4" />} loading={busy === "denied"} disabled={!!busy} onClick={() => decide("denied")} data-testid="decline-button">
           Decline
         </Button>
-        <Button variant="success" size="sm" icon={<Check className="size-4" />} loading={busy === "approved"} disabled={!!busy} onClick={() => decide("approved")} data-testid="approve-button">
+        <Button variant="success" size="lg" className="flex-1 sm:flex-none" icon={<Check className="size-4" />} loading={busy === "approved"} disabled={!!busy} onClick={() => decide("approved")} data-testid="approve-button">
           Approve
         </Button>
       </div>

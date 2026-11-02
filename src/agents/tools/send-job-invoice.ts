@@ -20,6 +20,7 @@ export const SendInvoiceInput = z.object({
   tax_rate_milli: z.number().int().min(0),
   due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   total_cents: z.number().int().positive(),
+  kept_checks: z.array(z.string()).optional().describe("Checks the person let stand, kept here for the audit log"),
   idempotency_key: z.string().describe("Same key: never invoiced twice"),
 });
 export type SendInvoiceInput = z.infer<typeof SendInvoiceInput>;

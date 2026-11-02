@@ -2,8 +2,8 @@
  * The extraction step. InvoiceSchema, SYSTEM, the user prompt wording, model and maxTokens are
  * FROZEN from spikes/invoice/stt/beefed/extract.ts and tested on sealed sets (TK-43). Changing
  * any of them voids those results, so a unit test pins the prompt's sha256 (e22c8bb0...).
- * `customer` and `total` stay in the schema because the prompt was tested with them, but the app
- * ignores both: names come from the picker and totals come from code.
+ * `customer` and `total` stay in the schema because the prompt was tested with them, but neither
+ * reaches an invoice: names come from the picker, totals from code. The heard name is only shown.
  */
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -55,11 +55,12 @@ export interface ExtractedJob {
   lines: JobLine[];
   taxRateMilli: number;
   flags: JobFlag[];
+  heardName: string;
   ai: { mocked: boolean; model?: string; costUsd: number };
 }
 
 /** Turns the model's numbers into whole cents and ties each doubt to its row. */
-export function toJobFields(extraction: Extraction): Pick<ExtractedJob, "lines" | "taxRateMilli" | "flags"> {
+export function toJobFields(extraction: Extraction): Pick<ExtractedJob, "lines" | "taxRateMilli" | "flags" | "heardName"> {
   const lines: JobLine[] = extraction.line_items.map((item) => ({
     key: randomUUID().slice(0, 8),
     name: item.name.trim(),
@@ -67,7 +68,7 @@ export function toJobFields(extraction: Extraction): Pick<ExtractedJob, "lines" 
     unitCents: dollarsToCents(item.unit_price),
   }));
   const flags = flagsToShow(extraction.uncertain, lines).map(({ text, line }) => ({ text, lineKey: line === null ? undefined : lines[line].key }));
-  return { lines, taxRateMilli: percentToRateMilli(extraction.tax_rate), flags };
+  return { lines, taxRateMilli: percentToRateMilli(extraction.tax_rate), flags, heardName: extraction.customer.trim() };
 }
 
 export async function extractJob(transcript: string): Promise<ExtractedJob> {

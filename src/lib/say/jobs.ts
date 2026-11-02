@@ -6,6 +6,7 @@ import { singleton } from "@/lib/singleton";
 import { collection } from "@/lib/store/collection";
 import { dueFromTranscript } from "./due";
 import { extractJob } from "./extract";
+import { priceBook } from "./price-store";
 import type { Job, JobCustomer, JobSource, JobView, PendingApproval, SpeechMeta } from "./types";
 
 const jobs = () => collection<Job>("jobs");
@@ -22,6 +23,7 @@ export async function createJob({ today, ...input }: { customer: JobCustomer; tr
     status: "review",
     ...input,
     ...extracted,
+    heardLines: extracted.lines,
     dueDate: due.date,
     dueSaid: due.said,
   });
@@ -46,7 +48,7 @@ export function viewJob(input: Job): JobView {
   if (job.status === "awaiting_approval" && !activeSends().has(job.id)) {
     job = saveJob({ ...job, status: "review", error: "The approval was lost when the server restarted. Press send again." });
   }
-  return { ...job, approval: pendingApproval(job) };
+  return { ...job, approval: pendingApproval(job), priceBook: priceBook() };
 }
 
 export function listJobs(): JobView[] {

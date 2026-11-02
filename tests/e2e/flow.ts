@@ -10,8 +10,58 @@ export async function kitStatus(request: APIRequestContext) {
   return { sandbox: status.paypal.mode === "sandbox", live: status.ai.mode === "live", paypal: status.paypal.mode as string, speechLive: status.speech.mode === "live" };
 }
 
-/** A local live run spends on the one mic clip only. A deployed copy is always live, and the sample flow has to run there. */
+/** A local live run spends on the one mic clip only. A deployed copy always runs the sample flow. */
 export const keepToOneCall = (live: boolean) => live && !process.env.E2E_BASE_URL;
+
+/** The hosted app allows 6 AI requests a minute per address. A job, a reminder and a speech upload count as one each. */
+const AI_CALL_GAP_MS = 11_000;
+let lastAiCall = 0;
+
+export async function paceAiCalls(calls = 1) {
+  if (!process.env.E2E_BASE_URL) return;
+  const wait = lastAiCall + AI_CALL_GAP_MS - Date.now();
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  lastAiCall = Date.now() + (calls - 1) * AI_CALL_GAP_MS;
+}
+
+/** Starts the sample job and lands on its confirm screen. */
+export async function startSample(page: Page) {
+  await paceAiCalls();
+  await page.goto("/jobs");
+  await page.getByTestId("try-sample").click();
+  await page.waitForURL(/\/jobs\/job_/);
+  await expect(page.getByTestId("invoice-line").first()).toBeVisible();
+}
+
+/** Fifty heard as fifteen: takes the price book's one-tap fix, so the job is clear to send. */
+export async function fixElementPrice(page: Page) {
+  const element = page.getByTestId("invoice-line").nth(1);
+  await element.getByTestId("use-usual").click();
+  await expect(element.getByTestId("line-price")).toHaveValue("50.00");
+}
+
+/** Takes the price book's fix where it has one, and lets everything else stand. */
+export async function settleChecks(page: Page) {
+  for (const testId of ["use-usual", "keep-line", "settle-flag", "not-a-charge"]) {
+    while (await page.getByTestId(testId).count()) {
+      const before = await page.getByTestId(testId).count();
+      await page.getByTestId(testId).first().click();
+      await expect(page.getByTestId(testId)).toHaveCount(before - 1);
+    }
+  }
+}
+
+export const totalOnScreen = async (page: Page) => Math.round(Number((await page.getByTestId("invoice-total").innerText()).replace(/[$,]/g, "")) * 100);
+
+/** Sets a job on its way and returns once PayPal has it, for tests about what comes after. */
+export async function sentSample(page: Page, request: APIRequestContext) {
+  await startSample(page);
+  await fixElementPrice(page);
+  await page.getByTestId("send-invoice").click();
+  await page.getByTestId("approve-button").click();
+  await expect(page.getByTestId("result")).toBeVisible({ timeout: 60_000 });
+  return readJob(request, jobId(page));
+}
 
 export const jobId = (page: Page) => new URL(page.url()).pathname.split("/").pop()!;
 

@@ -12,8 +12,10 @@ import { withContext } from "@/lib/events/bus";
 import { HttpError } from "@/lib/http";
 import { toMinor } from "@/lib/money";
 import { getPayPal } from "@/lib/paypal";
+import { findChecks, openChecks, placesToCheck } from "./checks";
 import { activeSends, requireJob, saveJob } from "./jobs";
 import { computeTotals, formatCents } from "./money";
+import { learnPrices, priceBook } from "./price-store";
 import type { Job, JobCustomer, JobLine, SentInvoice } from "./types";
 
 export interface CheckedJob {
@@ -21,6 +23,8 @@ export interface CheckedJob {
   lines: JobLine[];
   taxRateMilli: number;
   dueDate: string;
+  /** The checks the person looked at and let stand. */
+  acknowledged: string[];
 }
 
 function failureReason(result: ToolCallResult): string {
@@ -63,13 +67,16 @@ async function send(id: string, channel: string) {
       tax_rate_milli: job.taxRateMilli,
       due_date: job.dueDate,
       total_cents: totalCents,
+      kept_checks: job.acknowledged ?? [],
       idempotency_key: job.id,
     },
     ctx,
   );
   if (result.isError) return backToReview(id, failureReason(result));
   const { invoice_id } = result.output as { invoice_id: string };
-  saveJob({ ...requireJob(id), status: "sent", error: undefined, invoice: await readInvoice(invoice_id, totalCents) });
+  const invoice = await readInvoice(invoice_id, totalCents);
+  saveJob({ ...requireJob(id), status: "sent", error: undefined, invoice });
+  learnPrices(job.lines);
 }
 
 function start(id: string, channel: string, runId: string) {
@@ -84,6 +91,8 @@ export function requestSend(id: string, checked: CheckedJob, channel: string): {
   const job = requireJob(id);
   if (activeSends().has(id)) throw new HttpError(409, "This job is already being sent.", "conflict");
   if (job.status !== "review") throw new HttpError(409, `A job in status ${job.status} can't be sent.`, "conflict");
+  const open = openChecks(findChecks({ ...job, ...checked, book: priceBook() }), checked.acknowledged);
+  if (open.length) throw new HttpError(409, `${placesToCheck(open)} still to check before this can go: ${open[0].text}`, "checks_open");
   const runId = `send_${randomUUID().slice(0, 12)}`;
   const saved = saveJob({ ...job, ...checked, status: "awaiting_approval", runId, error: undefined });
   return { job: saved, finished: start(id, channel, runId) };

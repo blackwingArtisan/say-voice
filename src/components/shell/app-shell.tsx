@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useState, type ReactNode } from "react";
-import { Activity, Menu, Mic, X, type LucideIcon } from "lucide-react";
+import { Activity, Menu, Mic, Tags, X, type LucideIcon } from "lucide-react";
 import { appConfig } from "@/app.config";
 import { cn } from "../ui/cn";
 import { AppLogo } from "./app-logo";
 import { ModeBadges } from "./mode-badges";
 
-const ICONS: Record<string, LucideIcon> = { "/jobs": Mic, "/activity": Activity };
+const ICONS: Record<string, LucideIcon> = { "/jobs": Mic, "/prices": Tags, "/activity": Activity };
 
 /** usePathname() suspends on dynamic routes, so callers wrap this in <Suspense>. */
 function Nav({ onNavigate }: { onNavigate?: () => void }) {

@@ -23,7 +23,7 @@ export default defineConfig({
   projects: [{ name: "chromium", testIgnore: "mic-flow.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 1000 } } }, fakeMicProject],
   webServer: {
     // A stale dev cache makes `next dev` reload forever after a source edit, so each run starts clean.
-    command: `rm -rf .next-e2e/dev && npx next dev --port ${PORT}`,
+    command: `rm -rf .next-e2e/dev .data-e2e && npx next dev --port ${PORT}`,
     url: `http://localhost:${PORT}/api/kit/status`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
@@ -33,6 +33,7 @@ export default defineConfig({
       KIT_DATA_DIR: ".data-e2e",
       MOCK_PAYPAL_LATENCY_MS: "60-160",
       NEXT_DIST_DIR: ".next-e2e",
+      AI_RATE_LIMIT_PER_MINUTE: "60", // the suite makes more jobs in a minute than a person does
     },
   },
 });

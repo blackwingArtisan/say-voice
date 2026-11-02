@@ -17,9 +17,10 @@ const Body = z.object({
   lines: z.array(Line).min(1).max(50),
   taxRateMilli: z.number().int().min(0).max(MAX_TAX_RATE_MILLI),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  acknowledged: z.array(z.string().max(80)).max(100).default([]),
 });
 
-/** Saves the person's edits and asks for approval. Totals are recomputed on the server. */
+/** Saves the person's edits and asks for approval. Totals and open checks are worked out again here. */
 export const POST = route<RouteContext<"/api/jobs/[id]/send">>(async (req, ctx) => {
   const checked = await readJson(req, Body);
   return viewJob(requestSend((await ctx.params).id, checked, getContext().channel).job);
