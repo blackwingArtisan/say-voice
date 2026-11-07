@@ -2,25 +2,29 @@
 
 import { useMemo, type ReactNode } from "react";
 import { AlertTriangle, ArrowDown, Check as CheckIcon, Plus, Send, Trash2 } from "lucide-react";
-import { Button, Card, CardBody, CardHeader, Field, Input, MoneyInput } from "@/components/ui";
+import { Button, Card, CardBody, CardHeader, Field, Input, MoneyInput, Textarea } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 import { isTestAddress, TEST_ADDRESS_RULE } from "@/lib/say/contacts";
-import { findChecks, openChecks, placesToCheck, type Check } from "@/lib/say/checks";
+import { canSettle, findChecks, openChecks, placesToCheck, type Check } from "@/lib/say/checks";
 import { computeTotals, formatCents, formatQuantity, formatRate, MAX_QUANTITY_MILLI, MAX_TAX_RATE_MILLI, MAX_UNIT_CENTS, parseDollars, parsePercent, parseQuantity } from "@/lib/say/money";
 import { findNumbers, heardFor } from "@/lib/say/spoken";
-import type { JobCustomer, JobLine, JobView } from "@/lib/say/types";
+import type { JobCustomer, JobDetails, JobLine, JobView } from "@/lib/say/types";
+import { MAX_DESCRIPTION, MAX_SITE, MAX_SUMMARY } from "@/lib/say/wording";
 
 export interface EditLine {
   key: string;
   name: string;
   quantity: string;
   price: string;
+  description: string;
+  taxed: boolean;
 }
 
 export interface Draft {
   customer: JobCustomer;
   lines: EditLine[];
   taxPercent: string;
+  details: JobDetails;
   dueDate: string;
   /** Checks the person has looked at and let stand. */
   acknowledged: string[];
@@ -29,8 +33,9 @@ export interface Draft {
 export function draftFrom(job: JobView): Draft {
   return {
     customer: job.customer,
-    lines: job.lines.map((line) => ({ key: line.key, name: line.name, quantity: formatQuantity(line.quantityMilli), price: (line.unitCents / 100).toFixed(2) })),
+    lines: job.lines.map((line) => ({ key: line.key, name: line.name, quantity: formatQuantity(line.quantityMilli), price: (line.unitCents / 100).toFixed(2), description: line.description ?? "", taxed: line.taxed !== false })),
     taxPercent: formatRate(job.taxRateMilli),
+    details: job.details ?? { summary: "", site: "", serviceDate: "" },
     dueDate: job.dueDate,
     acknowledged: job.acknowledged ?? [],
   };
@@ -40,7 +45,7 @@ function parseLine(line: EditLine): (JobLine & { valid: boolean }) {
   const quantityMilli = parseQuantity(line.quantity) ?? 0;
   const unitCents = parseDollars(line.price) ?? 0;
   const valid = line.name.trim().length > 0 && quantityMilli > 0 && quantityMilli <= MAX_QUANTITY_MILLI && unitCents > 0 && unitCents <= MAX_UNIT_CENTS;
-  return { key: line.key, name: line.name.trim(), quantityMilli, unitCents, valid };
+  return { key: line.key, name: line.name.trim(), quantityMilli, unitCents, description: line.description.trim(), taxed: line.taxed, valid };
 }
 
 /** The job as the server should receive it, or null while something on the screen isn't valid. */
@@ -49,7 +54,8 @@ export function checkedJob(draft: Draft) {
   const taxRateMilli = parsePercent(draft.taxPercent);
   if (!lines.length || lines.some((l) => !l.valid) || taxRateMilli === null || taxRateMilli > MAX_TAX_RATE_MILLI || !draft.dueDate) return null;
   if (!draft.customer.name.trim() || !draft.customer.email.trim()) return null;
-  return { customer: draft.customer, lines: lines.map(({ key, name, quantityMilli, unitCents }) => ({ key, name, quantityMilli, unitCents })), taxRateMilli, dueDate: draft.dueDate, acknowledged: draft.acknowledged };
+  const details = { summary: draft.details.summary.trim(), site: draft.details.site.trim(), serviceDate: draft.details.serviceDate };
+  return { customer: draft.customer, lines: lines.map(({ key, name, quantityMilli, unitCents, description, taxed }) => ({ key, name, quantityMilli, unitCents, description, taxed })), taxRateMilli, details, dueDate: draft.dueDate, acknowledged: draft.acknowledged };
 }
 
 /** The transcript with every number marked, so a mishearing stands out against the rows. */
@@ -90,22 +96,25 @@ function RowFlag({ children, testId, tone = "amber" }: { children: ReactNode; te
 /** Tall enough for a thumb, in a van. */
 const TAP = "h-11";
 
-function ItemRow({ line, heardLine, checks, open, heard, lineTotal, disabled, onChange, onRemove, onSettle }: {
+function ItemRow({ line, heardLine, checks, open, heard, lineTotal, lineTax, disabled, onChange, onRemove, onSettle, onSettleWords }: {
   line: EditLine;
   heardLine?: JobLine;
   checks: Check[];
   open: boolean;
   heard: string | null;
   lineTotal: number | null;
+  lineTax: number;
   disabled: boolean;
   onChange: (patch: Partial<EditLine>) => void;
   onRemove: () => void;
   onSettle: () => void;
+  onSettleWords: () => void;
 }) {
   const parsedCents = parseDollars(line.price);
   const changedPrice = heardLine && parsedCents !== null && parsedCents !== heardLine.unitCents;
   const label = line.name || "this item";
   const far = checks.find((check) => check.kind === "far");
+  const settleable = checks.some((check) => canSettle(check) && check.kind !== "words");
   const applyPrice = (cents: number) => onChange({ price: (cents / 100).toFixed(2) });
   return (
     <li id={`line-${line.key}`} data-testid="invoice-line" className={cn("scroll-mt-20 space-y-2 rounded-xl border p-3", open ? "border-amber-400 bg-amber-50/40" : "border-zinc-200")}>
@@ -120,6 +129,22 @@ function ItemRow({ line, heardLine, checks, open, heard, lineTotal, disabled, on
           {lineTotal === null ? "--" : formatCents(lineTotal)}
         </span>
       </div>
+      <Textarea
+        aria-label={`Description for ${label}`}
+        placeholder="What this covers, for the customer"
+        rows={2}
+        maxLength={MAX_DESCRIPTION}
+        value={line.description}
+        disabled={disabled}
+        onChange={(e) => onChange({ description: e.target.value })}
+        data-testid="line-description"
+        className="min-h-0 text-[15px]"
+      />
+      <label className="flex min-h-11 items-center gap-2 text-sm text-zinc-700">
+        <input type="checkbox" className="size-5 accent-zinc-900" checked={line.taxed} disabled={disabled} onChange={(e) => onChange({ taxed: e.target.checked })} data-testid="line-taxed" />
+        Taxed
+        {line.taxed && lineTax ? <span className="font-mono tabular-nums text-zinc-500" data-testid="line-tax">+{formatCents(lineTax)} tax</span> : null}
+      </label>
       {heard ? (
         <p className="text-sm text-zinc-600" data-testid="line-heard">
           <span className="font-medium text-zinc-500">Heard: </span>&ldquo;{heard}&rdquo;
@@ -134,6 +159,19 @@ function ItemRow({ line, heardLine, checks, open, heard, lineTotal, disabled, on
             <strong className="font-semibold">{label}: </strong>
             {check.text}
           </RowFlag>
+        ) : check.kind === "vague" ? (
+          <RowFlag key={check.id} testId="line-vague">
+            {check.text}
+          </RowFlag>
+        ) : check.kind === "words" ? (
+          <div key={check.id} className="space-y-2">
+            <RowFlag testId="line-words">{check.text}</RowFlag>
+            {disabled ? null : (
+              <Button variant="secondary" className={cn(TAP, "w-full")} icon={<CheckIcon className="size-4" />} onClick={onSettleWords} data-testid="keep-description">
+                Description looks right
+              </Button>
+            )}
+          </div>
         ) : (
           <RowFlag key={check.id} testId={check.kind === "unheard" ? "line-unheard" : "line-flag"}>
             {check.text.toLowerCase().includes(label.toLowerCase()) ? null : <strong className="font-semibold">{label}: </strong>}
@@ -141,7 +179,7 @@ function ItemRow({ line, heardLine, checks, open, heard, lineTotal, disabled, on
           </RowFlag>
         ),
       )}
-      {open && !disabled ? (
+      {open && settleable && !disabled ? (
         <div className="flex flex-wrap gap-2">
           {far?.usualCents ? (
             <Button className={cn(TAP, "flex-1")} onClick={() => applyPrice(far.usualCents!)} data-testid="use-usual">
@@ -167,15 +205,24 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
   const taxRateMilli = parsePercent(draft.taxPercent) ?? 0;
   const totals = computeTotals(parsed, taxRateMilli);
   const checked = checkedJob(draft);
-  const checks = findChecks({ transcript: job.transcript, heardLines: job.heardLines, flags: job.flags, lines: parsed.filter((line) => line.valid), taxRateMilli, book: job.priceBook });
+  const checks = findChecks({ transcript: job.transcript, heardLines: job.heardLines, flags: job.flags, lines: parsed.filter((line) => line.valid), taxRateMilli, book: job.priceBook, details: draft.details, aiWording: job.aiWording });
   const open = openChecks(checks, draft.acknowledged);
   const toCheck = placesToCheck(open);
   const jobChecks = checks.filter((check) => !check.lineKey);
   const openJobChecks = open.filter((check) => !check.lineKey);
 
+  const updateDetails = (patch: Partial<JobDetails>) => setDraft({ ...draft, details: { ...draft.details, ...patch } });
+  const setRate = (rateMilli: number) => setDraft({ ...draft, taxPercent: formatRate(rateMilli) });
+  const noTax = (id: string) => setDraft({ ...draft, taxPercent: "0", acknowledged: [...new Set([...draft.acknowledged, id])] });
+  const otherRate = () => {
+    const input = document.getElementById("tax-rate") as HTMLInputElement | null;
+    input?.scrollIntoView({ behavior: "smooth", block: "center" });
+    input?.focus();
+    input?.select();
+  };
   const updateLine = (key: string, patch: Partial<EditLine>) => setDraft({ ...draft, lines: draft.lines.map((line) => (line.key === key ? { ...line, ...patch } : line)) });
   const settle = (ids: string[]) => setDraft({ ...draft, acknowledged: [...new Set([...draft.acknowledged, ...ids])] });
-  const addLine = (price = "") => setDraft({ ...draft, lines: [...draft.lines, { key: `new-${Date.now().toString(36)}`, name: "", quantity: "1", price }] });
+  const addLine = (price = "") => setDraft({ ...draft, lines: [...draft.lines, { key: `new-${Date.now().toString(36)}`, name: "", quantity: "1", price, description: "", taxed: true }] });
 
   function goToNextCheck() {
     const first = open[0];
@@ -192,7 +239,26 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
           </p>
           {toCheck > openJobChecks.length ? <p className="text-sm text-amber-900">Look for the marked items below.</p> : null}
           {openJobChecks.map((check) =>
-            check.kind === "missing" ? (
+            check.kind === "tax" ? (
+              <div key={check.id} className="space-y-2" data-testid="tax-check">
+                <RowFlag>{check.text}</RowFlag>
+                {sending ? null : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {check.choices?.map((choice) => (
+                      <Button key={choice.rateMilli} className={cn(TAP, "h-auto min-h-11 whitespace-normal")} onClick={() => setRate(choice.rateMilli)} data-testid="tax-choice">
+                        {choice.label}
+                      </Button>
+                    ))}
+                    <Button variant="secondary" className={TAP} onClick={otherRate} data-testid="tax-other">
+                      Other rate
+                    </Button>
+                    <Button variant="secondary" className={TAP} onClick={() => noTax(check.id)} data-testid="no-tax">
+                      No tax
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : check.kind === "missing" ? (
               <div key={check.id} className="space-y-2" data-testid="missing-amount">
                 <RowFlag>
                   You said <strong className="font-semibold">{formatCents(check.cents!)}</strong> (&ldquo;{check.excerpt}&rdquo;) but no line item has that amount.
@@ -226,6 +292,21 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
       ) : null}
 
       <Card>
+        <CardHeader title="What the customer reads" description="What the job was, where and when. It goes at the top of the PayPal invoice." />
+        <CardBody className="grid gap-4 sm:grid-cols-2">
+          <Field label="Job summary" htmlFor="job-summary" className="sm:col-span-2">
+            <Input id="job-summary" maxLength={MAX_SUMMARY} placeholder="What the job was" value={draft.details.summary} disabled={sending} onChange={(e) => updateDetails({ summary: e.target.value })} data-testid="job-summary" />
+          </Field>
+          <Field label="Job site" htmlFor="job-site">
+            <Input id="job-site" maxLength={MAX_SITE} placeholder="Street address" value={draft.details.site} disabled={sending} onChange={(e) => updateDetails({ site: e.target.value })} data-testid="job-site" />
+          </Field>
+          <Field label="Date of service" htmlFor="service-date" hint={job.details?.serviceDate ? "From what you said." : "Nothing said, so none. Add one if you like."}>
+            <Input id="service-date" type="date" value={draft.details.serviceDate} disabled={sending} onChange={(e) => updateDetails({ serviceDate: e.target.value })} data-testid="service-date" />
+          </Field>
+        </CardBody>
+      </Card>
+
+      <Card>
         <CardHeader title="Line items" description="Every number is yours to change. Totals are worked out by code, not by the AI." />
         <CardBody className="space-y-3">
           <ul className="space-y-3">
@@ -243,10 +324,12 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
                   open={openOnRow.length > 0}
                   heard={heardFor(job.transcript, heardLine ?? { quantityMilli: row.quantityMilli, unitCents: row.unitCents })}
                   lineTotal={row.valid ? totals.lines[i].lineCents : null}
+                  lineTax={row.valid ? totals.lines[i].taxCents : 0}
                   disabled={sending}
                   onChange={(patch) => updateLine(line.key, patch)}
                   onRemove={() => setDraft({ ...draft, lines: draft.lines.filter((l) => l.key !== line.key) })}
-                  onSettle={() => settle(openOnRow.map((check) => check.id))}
+                  onSettle={() => settle(openOnRow.filter(canSettle).map((check) => check.id))}
+                  onSettleWords={() => settle(openOnRow.filter((check) => check.kind === "words").map((check) => check.id))}
                 />
               );
             })}
@@ -269,7 +352,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
           <Field label="Due date" htmlFor="due-date" hint={job.dueSaid ? "From what you said." : "Nothing said, so 14 days out."}>
             <Input id="due-date" type="date" value={draft.dueDate} disabled={sending} onChange={(e) => setDraft({ ...draft, dueDate: e.target.value })} data-testid="due-date" />
           </Field>
-          <Field label="Sales tax %" htmlFor="tax-rate">
+          <Field label="Sales tax %" htmlFor="tax-rate" hint="On the lines marked Taxed.">
             <Input id="tax-rate" inputMode="decimal" value={draft.taxPercent} disabled={sending} onChange={(e) => setDraft({ ...draft, taxPercent: e.target.value })} data-testid="tax-rate" className="font-mono tabular-nums" />
           </Field>
         </CardBody>

@@ -19,12 +19,13 @@ import { TEST_ADDRESS_REFUSED } from "./contacts";
 import { activeSends, requireJob, saveJob } from "./jobs";
 import { computeTotals, formatCents } from "./money";
 import { priceBook } from "./price-store";
-import type { Job, JobCustomer, JobLine, SentInvoice } from "./types";
+import type { Job, JobCustomer, JobDetails, JobLine, SentInvoice } from "./types";
 
 export interface CheckedJob {
   customer: JobCustomer;
   lines: JobLine[];
   taxRateMilli: number;
+  details: JobDetails;
   dueDate: string;
   /** The checks the person looked at and let stand. */
   acknowledged: string[];
@@ -54,6 +55,8 @@ export async function readInvoice(invoiceId: string, approvedCents: number, payp
     dueCents: invoice.due_amount ? toMinor(invoice.due_amount.value, "USD") : totalCents,
     dueDate: invoice.detail.payment_term?.due_date,
     payerUrl: invoice.detail.metadata?.recipient_view_url,
+    note: invoice.detail.note,
+    taxCents: invoice.amount.breakdown?.tax_total ? toMinor(invoice.amount.breakdown.tax_total.value, "USD") : 0,
     readAt: new Date().toISOString(),
     paidCents: paid ? toMinor(paid.value, "USD") : undefined,
     paymentId: payment?.payment_id,
@@ -75,8 +78,11 @@ async function send(id: string, channel: string) {
     {
       customer_name: job.customer.name,
       customer_email: job.customer.email,
-      lines: job.lines.map(({ name, quantityMilli, unitCents }) => ({ name, quantityMilli, unitCents })),
+      lines: job.lines.map(({ name, quantityMilli, unitCents, description, taxed }) => ({ name, quantityMilli, unitCents, description: description || undefined, taxed })),
       tax_rate_milli: job.taxRateMilli,
+      job_summary: job.details?.summary || undefined,
+      job_site: job.details?.site || undefined,
+      service_date: job.details?.serviceDate || undefined,
       due_date: job.dueDate,
       total_cents: totalCents,
       kept_checks: job.acknowledged ?? [],

@@ -5,13 +5,15 @@ import { itemKey, type PriceEntry } from "@/lib/say/price-book";
 import { SAMPLE_AMOUNTS, SAMPLE_EXTRACTION, SAMPLE_TRANSCRIPT, SEED_PRICES } from "@/lib/say/sample";
 
 const book: PriceEntry[] = SEED_PRICES.map(({ name, samples }) => ({ id: itemKey(name), name, samples, source: "seed", updatedAt: "now" }));
-const sample = toJobFields(SAMPLE_EXTRACTION);
+// Described, so the vague-line check stays out of these price tests. It has its own tests.
+const fields = toJobFields(SAMPLE_EXTRACTION);
+const sample = { ...fields, lines: fields.lines.map((line) => ({ ...line, description: "As said" })) };
 const base: CheckInput = { transcript: SAMPLE_TRANSCRIPT, heardLines: sample.lines, flags: sample.flags, lines: sample.lines, taxRateMilli: 0, book };
 const element = sample.lines[1];
 const withPrice = (unitCents: number) => sample.lines.map((line) => (line.key === element.key ? { ...line, unitCents } : line));
 
 describe("flat-rate labor", () => {
-  const labor = (unitCents: number, quantityMilli = 1000) => [{ key: "l", name: "Labor", quantityMilli, unitCents }];
+  const labor = (unitCents: number, quantityMilli = 1000) => [{ key: "l", name: "Labor", quantityMilli, unitCents, description: "As said" }];
 
   it("isn't compared with the hourly rate", () => {
     const lines = labor(25000);
@@ -78,7 +80,7 @@ describe("the sample job, where fifty was heard as fifteen", () => {
 });
 
 describe("sixty heard as sixteen", () => {
-  const lines = [{ key: "a", name: "Labor", quantityMilli: 2000, unitCents: 1600 }];
+  const lines = [{ key: "a", name: "Labor", quantityMilli: 2000, unitCents: 1600, description: "As said" }];
   it("offers the sound-alike as well as the usual price", () => {
     const [check] = findChecks({ ...base, transcript: "Two hours at 16 hour.", heardLines: lines, lines, flags: [] });
     expect(check).toMatchObject({ kind: "far", usualCents: 8000, alikeCents: 6000 });

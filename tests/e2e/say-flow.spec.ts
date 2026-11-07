@@ -5,7 +5,7 @@
  */
 import { expect, test, type Page } from "@playwright/test";
 import { checkCount, fixElementPrice, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, settleAiNotes, startSample, visitorHeaders } from "./flow";
-import { SAMPLE_AMOUNTS } from "../../src/lib/say/sample";
+import { PLUS_TAX_AMOUNTS, PLUS_TAX_TRANSCRIPT, SAMPLE_AMOUNTS } from "../../src/lib/say/sample";
 import type { PriceEntry } from "../../src/lib/say/price-book";
 
 const priceCount = async (page: Page) => {
@@ -27,6 +27,10 @@ test("sample job: catch the misheard price, fix it, approve, invoice sent", asyn
   await expect(element.getByTestId("line-name")).toHaveValue("Heating element");
   await expect(element.getByTestId("line-heard")).toContainText("fifteen");
   await expect(page.getByTestId("quantity-note")).toContainText("Read the quantities yourself");
+  // A clear invoice: what the job was, and what each line covers. Nothing generic goes out bare.
+  await expect(page.getByTestId("job-summary")).not.toHaveValue("");
+  for (const line of await page.getByTestId("invoice-line").all()) await expect(line.getByTestId("line-description")).not.toHaveValue("");
+  await expect(page.getByTestId("line-vague")).toHaveCount(0);
   await expect(page.getByTestId("invoice-total")).toHaveText(money(SAMPLE_AMOUNTS.heardTotalCents));
   await expect(page.getByTestId("missing-amount")).toHaveCount(0);
   await expect(page.getByTestId("flags-panel")).toContainText(checkCount);
@@ -227,4 +231,77 @@ test("works at phone width", async ({ page, request }) => {
   await expect(page.getByTestId("result-headline")).toBeInViewport({ timeout: 60_000 });
   await fits();
   await page.screenshot({ path: "screenshots/result-phone.png", fullPage: true });
+});
+
+test("a clear invoice: what, where and when, a description per line, and tax on the one item it was said for", async ({ page, request }) => {
+  const { live, sandbox } = await kitStatus(request);
+  test.skip(live, "The tax job's words and lines are mock fixtures. Real AI runs on the held-out jobs instead.");
+  await paceAiCalls();
+
+  await page.goto("/jobs");
+  const today = await page.evaluate(() => new Date().toLocaleDateString("en-CA"));
+  const job = await (await request.post("/api/jobs", { data: { source: "mic", today, customer: { name: "Tom Baker", email: "tom.baker@example.com" }, transcript: PLUS_TAX_TRANSCRIPT, speech: { mocked: true, model: "Speech mock" } } })).json();
+  await page.goto(`/jobs/${job.id}`);
+
+  // The description step's words, every one of them editable.
+  await expect(page.getByTestId("job-summary")).toHaveValue("Washer drain pump swapped");
+  await expect(page.getByTestId("job-site")).toHaveValue("12 Oak Lane");
+  await expect(page.getByTestId("service-date")).toHaveValue(`${today.slice(0, 4)}-10-30`);
+  const [pump, labor] = await page.getByTestId("invoice-line").all();
+  await expect(pump.getByTestId("line-description")).toHaveValue("Drain pump for the washer");
+  await expect(labor.getByTestId("line-description")).toHaveValue("Swapped the drain pump on the washer, an hour and a half");
+
+  // "Plus tax" came after the pump, so only the pump is taxed. No rate was said, so the send waits for one.
+  await expect(pump.getByTestId("line-taxed")).toBeChecked();
+  await expect(labor.getByTestId("line-taxed")).not.toBeChecked();
+  const taxCheck = page.getByTestId("tax-check");
+  await expect(taxCheck).toContainText("Iowa");
+  await expect(taxCheck).toContainText("Check your local rate");
+  await expect(taxCheck.getByTestId("tax-choice")).toHaveText(["6% state", "7% state + local option"]);
+  await expect(page.getByTestId("send-invoice")).toHaveCount(0);
+  await expect(page.getByTestId("tax-total")).toHaveText("$0.00");
+  // On a phone too: no sideways scroll, and the rate buttons are big enough for a thumb.
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  for (const box of await taxCheck.getByRole("button").all()) expect((await box.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await page.screenshot({ path: `screenshots/confirm-tax-${page.viewportSize()!.width}.png`, fullPage: true });
+
+  // Other rate goes to the box. A tap sets a rate, and code works out the totals.
+  await taxCheck.getByTestId("tax-other").click();
+  await expect(page.getByTestId("tax-rate")).toBeFocused();
+  await taxCheck.getByTestId("tax-choice").filter({ hasText: "6% state" }).click();
+  await expect(page.getByTestId("tax-total")).toHaveText(money(PLUS_TAX_AMOUNTS.tax6Cents));
+  await expect(page.getByTestId("invoice-total")).toHaveText(money(PLUS_TAX_AMOUNTS.total6Cents));
+  await expect(page.getByTestId("tax-check")).toHaveCount(0);
+  await page.getByTestId("tax-rate").fill("7");
+  await expect(pump.getByTestId("line-tax")).toHaveText(`+${money(PLUS_TAX_AMOUNTS.tax7Cents)} tax`);
+  await expect(page.getByTestId("invoice-total")).toHaveText(money(PLUS_TAX_AMOUNTS.total7Cents));
+
+  // A bare "Labor" tells the customer nothing: it holds the send, a tap can't wave it through, and words clear it.
+  await labor.getByTestId("line-description").fill("");
+  await expect(labor.getByTestId("line-vague")).toBeVisible();
+  await expect(labor.getByTestId("keep-line")).toHaveCount(0);
+  await expect(page.getByTestId("send-invoice")).toHaveCount(0);
+  const refused = await request.post(`/api/jobs/${job.id}/send`, { data: { customer: job.customer, lines: job.lines.map((l: object) => ({ ...l, description: "" })), taxRateMilli: 7000, details: job.details, dueDate: job.dueDate, acknowledged: ["vague:" + job.lines[1].key, "tax:rate"] } });
+  expect(refused.status()).toBe(409);
+  await labor.getByTestId("line-description").fill("Swapped the drain pump, an hour and a half, tested it");
+  await expect(labor.getByTestId("line-vague")).toHaveCount(0);
+  // Words the person types are theirs, so "tested" isn't held against them.
+  await expect(page.getByTestId("line-words")).toHaveCount(0);
+  await page.getByTestId("job-summary").fill("Washer drain pump swapped and tested");
+
+  const done = await sendAndVerify(page, request, PLUS_TAX_AMOUNTS.total7Cents, "plus-tax");
+  expect(done.details).toEqual({ summary: "Washer drain pump swapped and tested", site: "12 Oak Lane", serviceDate: `${today.slice(0, 4)}-10-30` });
+  expect(done.lines.map((l) => [l.description, l.taxed])).toEqual([["Drain pump for the washer", true], ["Swapped the drain pump, an hour and a half, tested it", false]]);
+  expect(done.invoice!.taxCents).toBe(PLUS_TAX_AMOUNTS.tax7Cents);
+  await expect(page.getByTestId("result-description")).toHaveText(done.lines.map((l) => l.description!));
+
+  if (sandbox) {
+    // Once, on PayPal's own page: what the customer sees.
+    const payer = await page.context().newPage();
+    await payer.goto(done.invoice!.payerUrl!, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    for (const text of ["Washer drain pump swapped and tested", "12 Oak Lane", "Drain pump for the washer", "tested it"]) await expect(payer.getByText(text, { exact: false }).first()).toBeVisible({ timeout: 45_000 });
+    await payer.screenshot({ path: "screenshots/payer-view-clear-invoice.png", fullPage: true });
+    console.log(`Payer view text: ${JSON.stringify((await payer.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 1500))}`);
+    await payer.close();
+  }
 });

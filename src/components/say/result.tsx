@@ -53,12 +53,18 @@ export function Result({ job, invoice, showLink }: { job: JobView; invoice: Sent
             <dd className="mt-1 text-lg font-semibold text-zinc-900" data-testid="invoice-due">{invoice.dueDate ? longDate(invoice.dueDate) : "On receipt"}</dd>
           </div>
         </dl>
+        {invoice.note ? (
+          <p className="whitespace-pre-line rounded-xl bg-zinc-50 px-4 py-3 text-sm text-zinc-800" data-testid="result-note">
+            {invoice.note}
+          </p>
+        ) : null}
         <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200">
           {job.lines.map((line, i) => (
-            <li key={line.key} className="flex items-baseline justify-between gap-3 px-4 py-2 text-sm">
+            <li key={line.key} className="flex flex-wrap items-baseline justify-between gap-x-3 px-4 py-2 text-sm">
               <span className="font-medium text-zinc-900">{line.name}</span>
               <span className="ml-auto font-mono text-xs text-zinc-500">{formatQuantity(line.quantityMilli)} × {formatCents(line.unitCents)}</span>
               <span className="w-24 text-right font-mono tabular-nums text-zinc-900">{formatCents(totals.lines[i].lineCents)}</span>
+              {line.description ? <span className="basis-full text-zinc-500" data-testid="result-description">{line.description}</span> : null}
             </li>
           ))}
           {totals.taxCents ? (

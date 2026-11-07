@@ -8,16 +8,26 @@ import { defineTool } from "@/lib/agent/tool";
 import { centsToValue, computeTotals, formatCents, formatQuantity, formatRate } from "@/lib/say/money";
 import { moneyFromMinor, toMinor } from "@/lib/money";
 import type { CreateInvoiceRequest } from "@/lib/paypal/types";
+import { MAX_DESCRIPTION, MAX_SITE, MAX_SUMMARY, truncate } from "@/lib/say/wording";
 
 export const SEND_JOB_INVOICE = "send_job_invoice";
 
-const Line = z.object({ name: z.string().min(1).max(200), quantityMilli: z.number().int().positive(), unitCents: z.number().int().positive() });
+const Line = z.object({
+  name: z.string().min(1).max(200),
+  quantityMilli: z.number().int().positive(),
+  unitCents: z.number().int().positive(),
+  description: z.string().max(MAX_DESCRIPTION).optional(),
+  taxed: z.boolean().optional().describe("False leaves this line out of the tax"),
+});
 
 export const SendInvoiceInput = z.object({
   customer_name: z.string().min(1).max(140),
   customer_email: z.string().email(),
   lines: z.array(Line).min(1).max(50),
   tax_rate_milli: z.number().int().min(0),
+  job_summary: z.string().max(MAX_SUMMARY).optional(),
+  job_site: z.string().max(MAX_SITE).optional(),
+  service_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("When the work was done, only if it was said"),
   due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   total_cents: z.number().int().positive(),
   kept_checks: z.array(z.string()).optional().describe("Checks the person let stand, kept here for the audit log"),
@@ -25,14 +35,34 @@ export const SendInvoiceInput = z.object({
 });
 export type SendInvoiceInput = z.infer<typeof SendInvoiceInput>;
 
+/** PayPal's limits (Invoicing v2 schema): note 4000 characters, item description 1000. */
+export const NOTE_MAX = 4000;
+export const ITEM_DESCRIPTION_MAX = 1000;
+
+const serviceDay = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+
+/** What the job was, where and when: the note to the customer, at the top of their invoice and in the email. */
+export function invoiceNote(input: Pick<SendInvoiceInput, "job_summary" | "job_site" | "service_date">): string | undefined {
+  const parts = [input.job_summary?.trim(), input.job_site?.trim() ? `Job site: ${input.job_site.trim()}` : "", input.service_date ? `Date of service: ${serviceDay(input.service_date)}` : ""].filter(Boolean);
+  return parts.length ? truncate(parts.join("\n"), NOTE_MAX) : undefined;
+}
+
 /** Everything else on the invoice is PayPal's default: its own number, and today's date in its time zone. */
 export function invoiceRequest(input: SendInvoiceInput): CreateInvoiceRequest {
   const [givenName, ...rest] = input.customer_name.trim().split(/\s+/);
-  const tax = input.tax_rate_milli > 0 ? { tax: { name: "Sales tax", percent: formatRate(input.tax_rate_milli) } } : {};
+  const tax = { name: "Sales tax", percent: formatRate(input.tax_rate_milli) };
+  const note = invoiceNote(input);
   return {
-    detail: { currency_code: "USD", payment_term: { term_type: "DUE_ON_DATE_SPECIFIED", due_date: input.due_date } },
+    detail: { currency_code: "USD", payment_term: { term_type: "DUE_ON_DATE_SPECIFIED", due_date: input.due_date }, ...(note ? { note } : {}) },
     primary_recipients: [{ billing_info: { name: { given_name: givenName, surname: rest.join(" ") || undefined }, email_address: input.customer_email } }],
-    items: input.lines.map((line) => ({ name: line.name, quantity: formatQuantity(line.quantityMilli), unit_amount: { currency_code: "USD", value: centsToValue(line.unitCents) }, ...tax })),
+    items: input.lines.map((line) => ({
+      name: line.name,
+      ...(line.description?.trim() ? { description: truncate(line.description.trim(), ITEM_DESCRIPTION_MAX) } : {}),
+      quantity: formatQuantity(line.quantityMilli),
+      unit_amount: { currency_code: "USD", value: centsToValue(line.unitCents) },
+      ...(input.service_date ? { item_date: input.service_date } : {}),
+      ...(input.tax_rate_milli > 0 && line.taxed !== false ? { tax } : {}),
+    })),
   };
 }
 

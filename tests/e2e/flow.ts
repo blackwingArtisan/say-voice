@@ -1,7 +1,11 @@
 /** The part both flows share: from the confirm screen through the gate to PayPal's own record. */
 import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { readInvoiceFromPayPal } from "./paypal-reread";
+import { computeTotals } from "../../src/lib/say/money";
 import type { JobView } from "../../src/lib/say/types";
+
+/** How the invoice note writes the date of service. */
+export const longServiceDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
 
 export const money = (cents: number) => `$${(cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
 
@@ -62,16 +66,18 @@ async function pressAll(buttons: Locator) {
 
 /** Takes the price book's fix where it has one, and lets everything else stand. */
 export async function settleChecks(page: Page) {
-  for (const testId of ["use-usual", "keep-line", "settle-flag", "not-a-charge"]) await pressAll(page.getByTestId(testId));
+  for (const testId of ["use-usual", "keep-description", "keep-line", "settle-flag", "not-a-charge"]) await pressAll(page.getByTestId(testId));
 }
 
 /**
  * Real AI adds notes of its own, different each run, and a person clears them. Mock has none, so a stray one there still fails.
  * A note about no row has Looks right. One on the Labor row has Keep. The element row's Keep stays the test's own business.
+ * A word the AI wrote that wasn't said has its own button, which settles only that.
  */
 export async function settleAiNotes(page: Page) {
   if (!process.env.E2E_BASE_URL) return;
   await pressAll(page.getByTestId("settle-flag"));
+  await pressAll(page.getByTestId("keep-description"));
   await pressAll(page.getByTestId("invoice-line").first().getByTestId("keep-line"));
 }
 
@@ -137,6 +143,11 @@ export async function sendAndVerify(page: Page, request: APIRequestContext, tota
   const done = await readJob(request, id);
   expect(done.status).toBe("sent");
   await expect(page.getByTestId("invoice-number")).toHaveText(done.invoice!.number);
+  // The app's own re-read carries the note PayPal holds.
+  if (done.details?.summary) {
+    expect(done.invoice!.note).toContain(done.details.summary);
+    await expect(page.getByTestId("result-note")).toContainText(done.details.summary);
+  }
 
   expect(await auditedActions(request, "send_job_invoice")).toEqual(expect.arrayContaining(["approval.requested", "approval.approved", "tool.executed"]));
 
@@ -149,6 +160,18 @@ export async function sendAndVerify(page: Page, request: APIRequestContext, tota
     expect(invoice.detail.invoice_number).toBe(done.invoice!.number);
     expect(invoice.primary_recipients[0].billing_info.email_address).toBe(done.customer.email);
     expect(invoice.detail.payment_term?.due_date).toBe(done.dueDate);
+    // What, where and when, and what each line covers, as the customer reads them on PayPal.
+    const details = done.details!;
+    for (const part of [details.summary, details.site].filter(Boolean)) expect(invoice.detail.note).toContain(part);
+    if (details.serviceDate) expect(invoice.detail.note).toContain(longServiceDate(details.serviceDate));
+    expect(invoice.items.map((item) => item.description ?? "")).toEqual(done.lines.map((line) => line.description ?? ""));
+    expect(invoice.items.map((item) => item.item_date ?? "")).toEqual(done.lines.map(() => details.serviceDate));
+    // Tax per item: on the lines marked taxed, and nowhere else.
+    const taxed = (line: (typeof done.lines)[number]) => done.taxRateMilli > 0 && line.taxed !== false;
+    expect(invoice.items.map((item) => item.tax?.percent ?? null)).toEqual(done.lines.map((line) => (taxed(line) ? (done.taxRateMilli / 1000).toString() : null)));
+    const taxCents = computeTotals(done.lines, done.taxRateMilli).taxCents;
+    expect(invoice.amount.breakdown?.tax_total?.value ?? "0.00").toBe((taxCents / 100).toFixed(2));
+    console.log(`PayPal re-read note: ${JSON.stringify(invoice.detail.note)} descriptions ${JSON.stringify(invoice.items.map((i) => i.description))} item_date ${invoice.items[0]?.item_date ?? "none"} tax ${JSON.stringify(invoice.items.map((i) => i.tax?.percent ?? null))} tax_total ${invoice.amount.breakdown?.tax_total?.value ?? "0"}`);
     console.log(`PayPal re-read: invoice ${invoice.id} number ${invoice.detail.invoice_number} ${invoice.status} ${invoice.amount.currency_code} ${invoice.amount.value} due ${invoice.detail.payment_term?.due_date} items ${JSON.stringify(invoice.items.map((i) => [i.name, i.quantity, i.unit_amount.value]))}`);
   }
   console.log(`Job ${id}: speech=${done.speech?.model ?? "sample"} heard=${done.speech?.durationSec ?? 0}s ai mocked=${done.ai.mocked} model=${done.ai.model ?? "none"} cost=$${done.ai.costUsd.toFixed(4)}`);

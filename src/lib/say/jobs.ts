@@ -6,10 +6,12 @@ import { AiBudgetExceededError, AiCreditError } from "@/lib/ai/errors";
 import { HttpError } from "@/lib/http";
 import { singleton } from "@/lib/singleton";
 import { collection } from "@/lib/store/collection";
+import { describeJob, savedSampleWording, undescribed } from "./describe";
 import { dueFromTranscript } from "./due";
-import { extractJob, savedSampleReading } from "./extract";
+import { extractJob, savedSampleReading, type ExtractedJob } from "./extract";
 import { priceBook } from "./price-store";
 import { dayOf, whyNoReminder } from "./reminder-rules";
+import { rateWasSaid, taxedLineKeys } from "./tax";
 import type { Job, JobCustomer, JobSource, JobView, PendingApproval, ReminderRun, SpeechMeta } from "./types";
 
 const jobs = () => collection<Job>("jobs");
@@ -35,8 +37,33 @@ async function readJob({ source, transcript }: NewJob) {
   }
 }
 
+/** The second call writes the words. If it can't, the job still opens and the person writes them. */
+async function describe({ source, transcript, today }: NewJob, extracted: ExtractedJob) {
+  try {
+    return await describeJob(transcript, extracted.lines, today);
+  } catch (error) {
+    const outOfBudget = error instanceof AiBudgetExceededError || error instanceof AiCreditError;
+    if (outOfBudget && source === "sample") return savedSampleWording(transcript, extracted.lines, today);
+    return undescribed(extracted.lines, outOfBudget ? "The AI is out of budget for now, so nothing was written for the customer." : "The AI couldn't write the descriptions this time.");
+  }
+}
+
+/**
+ * Tax: a rate counts only if it was said, so the AI never picks one. "Plus tax" after one amount
+ * taxes that line only, as a suggestion the person can change.
+ */
+function withTax(transcript: string, extracted: ExtractedJob): ExtractedJob {
+  const taxed = taxedLineKeys(transcript, extracted.lines);
+  return {
+    ...extracted,
+    taxRateMilli: rateWasSaid(transcript, extracted.taxRateMilli) ? extracted.taxRateMilli : 0,
+    lines: extracted.lines.map((line) => ({ ...line, taxed: taxed ? taxed.has(line.key) : true })),
+  };
+}
+
 export async function createJob({ today, ...input }: NewJob): Promise<Job> {
-  const extracted = await readJob({ today, ...input });
+  const extracted = withTax(input.transcript, await readJob({ today, ...input }));
+  const described = await describe({ today, ...input }, extracted);
   const due = dueFromTranscript(input.transcript, today);
   return jobs().upsert({
     id: `job_${randomUUID().slice(0, 8)}`,
@@ -44,7 +71,12 @@ export async function createJob({ today, ...input }: NewJob): Promise<Job> {
     status: "review",
     ...input,
     ...extracted,
-    heardLines: extracted.lines,
+    lines: described.lines,
+    heardLines: described.lines,
+    flags: [...extracted.flags, ...described.flags],
+    details: described.details,
+    aiWording: described.aiWording,
+    describer: described.ai,
     dueDate: due.date,
     dueSaid: due.said,
   });

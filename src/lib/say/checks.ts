@@ -8,9 +8,14 @@ import { lineCents, formatCents } from "./money";
 import { isPriceDoubt } from "./flags";
 import { farFromUsual, findEntry, itemKey, MIN_SAMPLES, soundAlike, usualCents, type PriceEntry } from "./price-book";
 import { findMissingAmounts, heardFor } from "./spoken";
-import type { JobFlag, JobLine } from "./types";
+import { rateChoices, rateSpoken, stateFor, taxSaid, type RateChoice } from "./tax";
+import type { AiWording, JobDetails, JobFlag, JobLine } from "./types";
+import { inventedWords, isGenericName, wordsKey } from "./wording";
 
-export type CheckKind = "far" | "flag" | "unheard" | "missing";
+export type CheckKind = "far" | "flag" | "unheard" | "missing" | "vague" | "words" | "tax";
+
+/** Checks only an edit can close: a generic line needs words, not a tap. */
+const MUST_FIX: CheckKind[] = ["vague"];
 
 export interface Check {
   id: string;
@@ -24,6 +29,11 @@ export interface Check {
   /** Far-off prices: a different price that sounds like the one heard, when there is one. */
   alikeCents?: number;
   excerpt?: string;
+  /** Unsaid words: which text they're in. */
+  field?: "summary" | "site" | "description";
+  /** Tax said with no rate: the state heard, and its one-tap rates. */
+  state?: string;
+  choices?: RateChoice[];
 }
 
 export interface CheckInput {
@@ -34,6 +44,8 @@ export interface CheckInput {
   lines: JobLine[];
   taxRateMilli: number;
   book: PriceEntry[];
+  details?: JobDetails;
+  aiWording?: AiWording;
 }
 
 const FLAT_WORDS = /\bflat\b|\blump\b|\ball in\b|\bfor the (whole )?job\b/i;
@@ -75,8 +87,43 @@ function farCheck(line: JobLine, book: PriceEntry[], transcript: string): Check 
 
 const unchanged = (row: JobLine, before: JobLine) => row.unitCents === before.unitCents && row.quantityMilli === before.quantityMilli;
 
-export function findChecks({ transcript, heardLines, flags, lines, taxRateMilli, book }: CheckInput): Check[] {
+/** Tax was said but no rate: hold the send until a rate is tapped or typed, or "No tax". */
+function taxCheck(transcript: string, lines: JobLine[], taxRateMilli: number): Check | null {
+  if (!taxSaid(transcript) || taxRateMilli > 0 || !lines.some((line) => line.taxed !== false)) return null;
+  const state = stateFor(transcript);
+  const where = state ? `${state.name} rates below, from the state tables. Check your local rate.` : "Check your local rate.";
+  return { id: "tax:rate", kind: "tax", text: `You said tax but no rate. ${where}`, state: state?.name, choices: rateChoices(state) };
+}
+
+/** Words the AI wrote that weren't said: a made-up part or piece of work gets a look before it goes. */
+function wordChecks(lines: JobLine[], details: JobDetails | undefined, wording: AiWording | undefined, transcript: string): Check[] {
+  if (!wording) return [];
   const checks: Check[] = [];
+  const add = (words: string[], field: Check["field"], where: string, lineKey?: string) => {
+    if (!words.length) return;
+    const list = words.map((w) => `"${w}"`).join(", ");
+    checks.push({ id: `words:${lineKey ?? field}:${wordsKey(words)}`, kind: "words", field, lineKey, text: `${list} in the ${where} ${words.length === 1 ? "wasn't" : "weren't"} in what you said.` });
+  };
+  if (details) {
+    add(inventedWords(details.summary, wording.summary, transcript), "summary", "job summary");
+    add(inventedWords(details.site, wording.site, transcript), "site", "job site");
+  }
+  for (const line of lines) add(inventedWords(line.description ?? "", wording.lines[line.key], transcript), "description", "description", line.key);
+  return checks;
+}
+
+export function findChecks({ transcript, heardLines, flags, lines, taxRateMilli, book, details, aiWording }: CheckInput): Check[] {
+  const checks: Check[] = [];
+  const tax = taxCheck(transcript, lines, taxRateMilli);
+  if (tax) checks.push(tax);
+  // Tax said with no rate is the code's to ask about, the same way every time, so the AI's own note on it would only repeat it.
+  const taxByCode = taxSaid(transcript) && !rateSpoken(transcript);
+  for (const line of lines) {
+    if (isGenericName(line.name) && !line.description?.trim()) {
+      checks.push({ id: `vague:${line.key}`, kind: "vague", lineKey: line.key, text: `"${line.name}" on its own doesn't tell the customer what it was for. Add a description.` });
+    }
+  }
+  checks.push(...wordChecks(lines, details, aiWording, transcript));
   for (const line of lines) {
     const far = farCheck(line, book, transcript);
     if (far) checks.push(far);
@@ -85,6 +132,7 @@ export function findChecks({ transcript, heardLines, flags, lines, taxRateMilli,
     const row = lines.find((line) => line.key === flag.lineKey);
     const before = heardLines.find((line) => line.key === flag.lineKey);
     if (row && before && !unchanged(row, before)) return; // the person changed the row it's about
+    if (taxByCode && /\btax/i.test(flag.text)) return;
     const aboutPrice = row !== undefined && isPriceDoubt(flag.text, row);
     // The AI's words differ from run to run. The book's check says it the same way every time.
     if (aboutPrice && checks.some((check) => check.kind === "far" && check.lineKey === row.key)) return;
@@ -106,7 +154,9 @@ export function findChecks({ transcript, heardLines, flags, lines, taxRateMilli,
   return checks;
 }
 
-export const openChecks = (checks: Check[], acknowledged: readonly string[]) => checks.filter((check) => !acknowledged.includes(check.id));
+export const canSettle = (check: Check) => !MUST_FIX.includes(check.kind);
+
+export const openChecks = (checks: Check[], acknowledged: readonly string[]) => checks.filter((check) => !canSettle(check) || !acknowledged.includes(check.id));
 
 /** A row counts once, however many checks sit on it: one tap settles them all. */
 export const placesToCheck = (open: Check[]) => new Set(open.map((check) => check.lineKey ?? check.id)).size;

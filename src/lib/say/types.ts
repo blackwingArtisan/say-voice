@@ -7,6 +7,23 @@ export type JobSource = "mic" | "sample";
 
 export interface JobLine extends InvoiceLine {
   key: string;
+  /** What this charge covers, in words the customer reads on the invoice. */
+  description?: string;
+}
+
+/** What the job was, where and when: the note at the top of the customer's invoice. */
+export interface JobDetails {
+  summary: string;
+  site: string;
+  /** YYYY-MM-DD, only when the speaker said when. */
+  serviceDate: string;
+}
+
+/** The words the AI wrote, kept so a word it made up can be told from one the person typed. */
+export interface AiWording {
+  summary: string;
+  site: string;
+  lines: Record<string, string>;
 }
 
 export interface JobFlag {
@@ -31,6 +48,9 @@ export interface SentInvoice {
   dueDate?: string;
   payerUrl?: string;
   readAt: string;
+  /** The note to the customer and the tax, as PayPal has them. */
+  note?: string;
+  taxCents?: number;
   /** PayPal's record of the payment, once there is one. */
   paidCents?: number;
   paymentId?: string;
@@ -74,6 +94,11 @@ export interface Job {
   /** The lines as first read from speech. Later edits never touch these. */
   heardLines: JobLine[];
   taxRateMilli: number;
+  /** Missing on jobs made before invoices carried these. */
+  details?: JobDetails;
+  aiWording?: AiWording;
+  /** The second AI call, which wrote the words. */
+  describer?: { mocked: boolean; model?: string; costUsd: number };
   dueDate: string;
   dueSaid: boolean;
   flags: JobFlag[];

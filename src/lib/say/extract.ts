@@ -11,7 +11,7 @@ import { generateObject } from "@/lib/ai";
 import { modelLabel } from "@/lib/ai/config";
 import { flagsToShow } from "./flags";
 import { dollarsToCents, percentToRateMilli, unitsToMilli } from "./money";
-import { SAMPLE_EXTRACTION } from "./sample";
+import { PLUS_TAX_EXTRACTION, PLUS_TAX_TRANSCRIPT, SAMPLE_EXTRACTION } from "./sample";
 import type { JobFlag, JobLine } from "./types";
 
 export const InvoiceSchema = z.object({
@@ -82,7 +82,8 @@ export async function extractJob(transcript: string): Promise<ExtractedJob> {
     model: "smart",
     maxTokens: 3000,
     feature: "job extraction",
-    mock: () => SAMPLE_EXTRACTION,
+    // The tax job has its own fixture. Every other transcript reads as the sample, on purpose.
+    mock: () => (transcript.trim() === PLUS_TAX_TRANSCRIPT ? PLUS_TAX_EXTRACTION : SAMPLE_EXTRACTION),
   });
   return { ...toJobFields(res.data), ai: { mocked: res.mocked, model: res.model ? modelLabel(res.model) : undefined, costUsd: res.costUsd } };
 }

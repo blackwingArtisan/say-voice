@@ -14,6 +14,8 @@ export interface InvoiceLine {
   /** Thousandths of a unit, so 1.5 hours is 1500. */
   quantityMilli: number;
   unitCents: number;
+  /** False leaves this line out of the tax. Missing means taxed, as every line was before. */
+  taxed?: boolean;
 }
 
 export interface LineTotal {
@@ -43,10 +45,10 @@ export function lineCents(line: Pick<InvoiceLine, "quantityMilli" | "unitCents">
 }
 
 /** taxRateMilli is the percent in thousandths, so 8.875% is 8875 and 0 means no tax. */
-export function computeTotals(lines: Pick<InvoiceLine, "quantityMilli" | "unitCents">[], taxRateMilli: number): InvoiceTotals {
+export function computeTotals(lines: Pick<InvoiceLine, "quantityMilli" | "unitCents" | "taxed">[], taxRateMilli: number): InvoiceTotals {
   const rows = lines.map((line) => {
     const cents = lineCents(line);
-    return { lineCents: cents, taxCents: divideRounded(cents * taxRateMilli, 100_000) };
+    return { lineCents: cents, taxCents: line.taxed === false ? 0 : divideRounded(cents * taxRateMilli, 100_000) };
   });
   const subtotalCents = rows.reduce((sum, r) => sum + r.lineCents, 0);
   const taxCents = rows.reduce((sum, r) => sum + r.taxCents, 0);

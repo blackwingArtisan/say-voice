@@ -6,10 +6,10 @@ const API = "https://api-m.sandbox.paypal.com";
 export interface PayPalInvoice {
   id: string;
   status: string;
-  amount: { currency_code: string; value: string };
-  detail: { invoice_number: string; currency_code: string; payment_term?: { term_type: string; due_date?: string } };
+  amount: { currency_code: string; value: string; breakdown?: { tax_total?: { value: string } } };
+  detail: { invoice_number: string; currency_code: string; note?: string; payment_term?: { term_type: string; due_date?: string }; metadata?: { recipient_view_url?: string } };
   primary_recipients: { billing_info: { email_address: string } }[];
-  items: { name: string; quantity: string; unit_amount: { value: string } }[];
+  items: { name: string; description?: string; item_date?: string; quantity: string; unit_amount: { value: string }; tax?: { percent: string; amount?: { value: string } } }[];
   payments?: { paid_amount: { value: string }; transactions: { payment_id: string; type: string }[] };
 }
 
