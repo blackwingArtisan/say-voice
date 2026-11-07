@@ -18,7 +18,7 @@ const invoiceAt = (status: string): SentInvoice => ({ id: "INV2", number: "0001"
 async function sentInvoice(paypal: MockPayPal) {
   const draft = await paypal.invoicing.create({
     detail: { currency_code: "USD" },
-    primary_recipients: [{ billing_info: { name: { given_name: "Daniel" }, email_address: "daniel.evans@example.com" } }],
+    primary_recipients: [{ billing_info: { name: { given_name: "Derek" }, email_address: "derek.evans@example.com" } }],
     items: [{ name: "Labor", quantity: "1", unit_amount: { currency_code: "USD", value: "110.00" } }],
   });
   await paypal.invoicing.send(draft.id);
@@ -34,7 +34,7 @@ function jobFor(invoiceId: string): Job {
     source: "sample",
     transcript: "",
     ai: { mocked: true, costUsd: 0 },
-    customer: { name: "Daniel Evans", email: "daniel.evans@example.com" },
+    customer: { name: "Derek Evans", email: "derek.evans@example.com" },
     lines: [],
     heardLines: [],
     taxRateMilli: 0,
@@ -49,15 +49,15 @@ describe("what a reminder may say", () => {
   const invoice = { dueCents: 11_000, totalCents: 15_000 };
 
   it("lets the amount due and the invoice total through", () => {
-    expect(noteProblem("Hi Daniel, $110.00 is still open on your $150 invoice.", invoice)).toBeNull();
-    expect(noteProblem("Hi Daniel, 110 dollars is still open.", invoice)).toBeNull();
-    expect(noteProblem("Hi Daniel, invoice 0042 is still open. Thanks!", invoice)).toBeNull();
+    expect(noteProblem("Hi Derek, $110.00 is still open on your $150 invoice.", invoice)).toBeNull();
+    expect(noteProblem("Hi Derek, 110 dollars is still open.", invoice)).toBeNull();
+    expect(noteProblem("Hi Derek, invoice 0042 is still open. Thanks!", invoice)).toBeNull();
   });
 
   it("refuses any other figure, however it's written", () => {
-    expect(noteProblem("Hi Daniel, $11.00 is due.", invoice)).toContain("$11.00");
+    expect(noteProblem("Hi Derek, $11.00 is due.", invoice)).toContain("$11.00");
     expect(noteProblem("Pay 90 bucks today and we're square.", invoice)).toContain("$90.00");
-    expect(noteProblem("Hi Daniel, one hundred ten dollars is due.", invoice)).toContain("figures");
+    expect(noteProblem("Hi Derek, one hundred ten dollars is due.", invoice)).toContain("figures");
   });
 
   it("refuses links", () => {
@@ -88,7 +88,7 @@ describe("when a reminder may go", () => {
 });
 
 describe("the reminder tools behind the gate", () => {
-  const note = "Hi Daniel, $110.00 is still open. Thanks!";
+  const note = "Hi Derek, $110.00 is still open. Thanks!";
   let paypal: MockPayPal;
   let approvals: ApprovalService;
   let guard: Guard;
@@ -151,14 +151,14 @@ describe("the reminder tools behind the gate", () => {
     decideNext("denied");
     await guard.run(sendPaymentReminder, { job_id: job.id, note }, ctx());
     const pending = approvals.list({ state: "pending" }).length;
-    const again = await guard.run(sendPaymentReminder, { job_id: job.id, note: "Hi Daniel, please pay. $110.00." }, ctx());
+    const again = await guard.run(sendPaymentReminder, { job_id: job.id, note: "Hi Derek, please pay. $110.00." }, ctx());
     expect(again.status).toBe("failed");
     expect(approvals.list({ state: "pending" })).toHaveLength(pending);
     expect(remind).not.toHaveBeenCalled();
   });
 
   it("never shows the person a note with the wrong amount", async () => {
-    const outcome = await guard.run(sendPaymentReminder, { job_id: job.id, note: "Hi Daniel, $11.00 is still open." }, ctx());
+    const outcome = await guard.run(sendPaymentReminder, { job_id: job.id, note: "Hi Derek, $11.00 is still open." }, ctx());
     expect(outcome.status).toBe("failed");
     expect(approvals.list({ runId })).toEqual([]);
     expect(remind).not.toHaveBeenCalled();
@@ -188,7 +188,7 @@ describe("the reminder tools behind the gate", () => {
 
   it("reads what PayPal says is owed", async () => {
     const read = await readJobInvoice.execute({ job_id: job.id }, { runId, actor: "a", paypal, idempotencyKey: "", requestId: "" });
-    expect(read).toMatchObject({ customer_first_name: "Daniel", amount_due: "$110.00", can_remind: true, reminders_sent: 0 });
+    expect(read).toMatchObject({ customer_first_name: "Derek", amount_due: "$110.00", can_remind: true, reminders_sent: 0 });
   });
 });
 

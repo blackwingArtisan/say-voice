@@ -1,7 +1,8 @@
 "use client";
 
-import { CheckCircle2, ExternalLink } from "lucide-react";
-import { ButtonLink, Card, CardBody, StatusPill } from "@/components/ui";
+import { useState } from "react";
+import { CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
+import { Button, ButtonLink, Card, CardBody, StatusPill } from "@/components/ui";
 import { computeTotals, formatCents, formatQuantity } from "@/lib/say/money";
 import { isPaid, type JobView, type SentInvoice } from "@/lib/say/types";
 
@@ -12,13 +13,20 @@ function PaidBanner({ invoice, customer }: { invoice: SentInvoice; customer: str
   return (
     <div className="rounded-xl bg-emerald-50 px-4 py-3 text-emerald-900" data-testid="paid-banner">
       <p className="text-lg font-semibold">{byHand ? "Marked as paid" : `Paid: ${formatCents(invoice.paidCents ?? invoice.totalCents)} from ${customer}`}</p>
-      <p className="mt-0.5 text-sm">{byHand ? "Someone recorded this by hand. No money came through PayPal." : "PayPal says the money came in."}</p>
-      {invoice.paymentId ? <p className="mt-1 break-all font-mono text-xs" data-testid="payment-id">{invoice.paymentId}</p> : null}
+      <p className="mt-0.5 text-sm" data-testid="paid-source">
+        {byHand ? "Someone recorded this by hand. No money came through PayPal." : invoice.paidEventId ? `PayPal's INVOICING.INVOICE.PAID event said so (${invoice.paidEventId}), and a fresh read from PayPal agrees.` : "Read straight from PayPal: the invoice is PAID."}
+      </p>
+      {invoice.paymentId ? (
+        <p className="mt-1 break-all text-xs">
+          PayPal transaction id <span className="font-mono font-semibold" data-testid="payment-id">{invoice.paymentId}</span>
+        </p>
+      ) : null}
     </div>
   );
 }
 
-export function Result({ job, invoice, showLink }: { job: JobView; invoice: SentInvoice; showLink: boolean }) {
+export function Result({ job, invoice, showLink, onCheck }: { job: JobView; invoice: SentInvoice; showLink: boolean; onCheck?: () => Promise<void> }) {
+  const [checking, setChecking] = useState(false);
   const totals = computeTotals(job.lines, job.taxRateMilli);
   return (
     <Card data-testid="result">
@@ -80,6 +88,11 @@ export function Result({ job, invoice, showLink }: { job: JobView; invoice: Sent
             <a href={invoice.payerUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50" data-testid="payer-link">
               Open what the customer sees <ExternalLink className="size-4" />
             </a>
+          ) : null}
+          {onCheck && !isPaid(invoice) ? (
+            <Button variant="secondary" icon={<RefreshCw className="size-4" />} loading={checking} onClick={() => { setChecking(true); void onCheck().finally(() => setChecking(false)); }} data-testid="check-payment">
+              Check payment with PayPal
+            </Button>
           ) : null}
         </div>
       </CardBody>

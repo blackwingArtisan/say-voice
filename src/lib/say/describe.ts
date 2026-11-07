@@ -12,7 +12,7 @@ import { formatCents, formatQuantity } from "./money";
 import { PLUS_TAX_DESCRIPTION, PLUS_TAX_TRANSCRIPT, SAMPLE_DESCRIPTION, SAMPLE_TRANSCRIPT } from "./sample";
 import { heardFor } from "./spoken";
 import type { AiWording, JobDetails, JobFlag, JobLine } from "./types";
-import { checkedServiceDate, cleanText, hasLink, lineNumbers, MAX_DESCRIPTION, MAX_SITE, MAX_SUMMARY, saidNumbers, strayNumbers, truncate } from "./wording";
+import { checkedServiceDate, cleanText, hasLink, lineNumbers, MAX_DESCRIPTION, MAX_SITE, MAX_SUMMARY, saidNumbers, strayNumbers, truncate, withoutRepeatedSentences, withoutRepeatedTail } from "./wording";
 
 export const DescriptionSchema = z.object({
   job_summary: z.string().describe("One short line: what the job was, in the speaker's words. Under 100 characters."),
@@ -105,7 +105,7 @@ export function applyDescription(out: Description, lines: JobLine[], transcript:
 
   const described = lines.map((line) => {
     const raw = out.lines.find((l) => l.id === line.key)?.description ?? "";
-    const text = truncate(cleanText(raw), MAX_DESCRIPTION);
+    const text = withoutRepeatedSentences(truncate(cleanText(raw), MAX_DESCRIPTION));
     const refused = text ? refusal(text, said, lineNumbers(line)) : null;
     if (refused) {
       flags.push({ text: `The AI's description of ${line.name} had ${refused}, so it was left out. Write one in your own words.`, lineKey: line.key });
@@ -122,7 +122,7 @@ export function applyDescription(out: Description, lines: JobLine[], transcript:
     flags.push({ text: `The AI's ${label} had ${refused}, so it was left out.` });
     return "";
   };
-  wording.summary = field(out.job_summary, MAX_SUMMARY, "job summary");
+  wording.summary = withoutRepeatedTail(field(out.job_summary, MAX_SUMMARY, "job summary"), described.map((l) => l.description));
   wording.site = field(out.job_site, MAX_SITE, "job site");
   const serviceDate = checkedServiceDate(out.service_date, out.service_date_words, transcript, today);
 

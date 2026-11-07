@@ -9,8 +9,8 @@ import { DailyMoneyCounter } from "@/lib/agent/policy";
 import { MockPayPal } from "@/lib/paypal/mock";
 
 const job: SendInvoiceInput = {
-  customer_name: "Daniel Evans",
-  customer_email: "daniel.evans@example.com",
+  customer_name: "Derek Evans",
+  customer_email: "derek.evans@example.com",
   lines: [
     { name: "Labor", quantityMilli: 750, unitCents: 8000 },
     { name: "Heating element", quantityMilli: 1000, unitCents: 5000 },

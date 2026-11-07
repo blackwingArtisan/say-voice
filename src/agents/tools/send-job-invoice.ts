@@ -4,6 +4,7 @@
  * until the person approves this exact amount.
  */
 import { z } from "zod";
+import { appConfig } from "@/app.config";
 import { defineTool } from "@/lib/agent/tool";
 import { centsToValue, computeTotals, formatCents, formatQuantity, formatRate } from "@/lib/say/money";
 import { moneyFromMinor, toMinor } from "@/lib/money";
@@ -54,6 +55,7 @@ export function invoiceRequest(input: SendInvoiceInput): CreateInvoiceRequest {
   const note = invoiceNote(input);
   return {
     detail: { currency_code: "USD", payment_term: { term_type: "DUE_ON_DATE_SPECIFIED", due_date: input.due_date }, ...(note ? { note } : {}) },
+    invoicer: { business_name: appConfig.tradeName },
     primary_recipients: [{ billing_info: { name: { given_name: givenName, surname: rest.join(" ") || undefined }, email_address: input.customer_email } }],
     items: input.lines.map((line) => ({
       name: line.name,

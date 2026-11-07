@@ -11,7 +11,7 @@ import { dueFromTranscript } from "./due";
 import { extractJob, savedSampleReading, type ExtractedJob } from "./extract";
 import { priceBook } from "./price-store";
 import { dayOf, whyNoReminder } from "./reminder-rules";
-import { rateWasSaid, taxedLineKeys } from "./tax";
+import { rateWasSaid, taxedLineKeys, untaxedLineKeys } from "./tax";
 import type { Job, JobCustomer, JobSource, JobView, PendingApproval, ReminderRun, SpeechMeta } from "./types";
 
 const jobs = () => collection<Job>("jobs");
@@ -54,10 +54,12 @@ async function describe({ source, transcript, today }: NewJob, extracted: Extrac
  */
 function withTax(transcript: string, extracted: ExtractedJob): ExtractedJob {
   const taxed = taxedLineKeys(transcript, extracted.lines);
+  const untaxed = untaxedLineKeys(transcript, extracted.lines);
+  const isTaxed = (key: string) => (untaxed === "all" ? false : untaxed?.has(key) ? false : taxed ? taxed.has(key) : true);
   return {
     ...extracted,
     taxRateMilli: rateWasSaid(transcript, extracted.taxRateMilli) ? extracted.taxRateMilli : 0,
-    lines: extracted.lines.map((line) => ({ ...line, taxed: taxed ? taxed.has(line.key) : true })),
+    lines: extracted.lines.map((line) => ({ ...line, taxed: isTaxed(line.key) })),
   };
 }
 

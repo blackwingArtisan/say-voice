@@ -96,14 +96,22 @@ export function JobScreen() {
     }
   }
 
-  async function askForReminder() {
+  async function askForReminder(ask: string) {
     setBusy(true);
     try {
-      setJob(await kitFetch<JobView>(`/api/jobs/${id}/remind`, { json: {} }));
+      setJob(await kitFetch<JobView>(`/api/jobs/${id}/remind`, { json: ask.trim() ? { ask } : {} }));
     } catch (e) {
       toast({ title: "Could not draft a reminder", description: (e as Error).message, variant: "error", durationMs: 8000 });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function checkPayment() {
+    try {
+      setJob(await kitFetch<JobView>(`/api/jobs/${id}/sync`, { json: {} }));
+    } catch (e) {
+      toast({ title: "Could not reach PayPal", description: (e as Error).message, variant: "error", durationMs: 8000 });
     }
   }
 
@@ -137,7 +145,7 @@ export function JobScreen() {
             </p>
           ) : null}
           {approval && !sent ? approval : null}
-          {sent ? <Result job={job} invoice={job.invoice!} showLink={status?.paypal.mode === "sandbox"} /> : null}
+          {sent ? <Result job={job} invoice={job.invoice!} showLink={status?.paypal.mode === "sandbox"} onCheck={checkPayment} /> : null}
           {sent ? (
             <div ref={reminder} className="scroll-mt-20 space-y-6">
               {approval}

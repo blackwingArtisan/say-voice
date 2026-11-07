@@ -44,17 +44,25 @@ export const readJobInvoice = defineTool({
       days_past_due: invoice.dueDate ? Math.max(0, daysBetween(invoice.dueDate, today)) : 0,
       reminders_sent: job.reminders?.length ?? 0,
       reminders_sent_today: remindersOn(today, job.reminders),
+      person_asked: job.reminderAsk || undefined,
       can_remind: whyNot === null,
       why_not: whyNot ?? undefined,
     };
   },
 });
 
-/** Runs before the approval card and again after it, as the customer may pay in between. */
-async function clearedToRemind(input: { job_id: string; note: string }, paypal: PayPalApi) {
+/**
+ * Runs before the approval card and again after it, as the customer may pay in between. A note that
+ * states the wrong figure is kept on the job, so the person sees what code stopped.
+ */
+async function clearedToRemind(input: { job_id: string; note: string }, paypal: PayPalApi, runId: string) {
   const { job, invoice } = await currentInvoice(input.job_id, paypal);
   const refused = whyNoReminder(invoice, job.reminders, dayOf(new Date())) ?? noteProblem(input.note, invoice);
-  if (refused) throw new Error(refused);
+  if (refused) {
+    const latest = requireJob(job.id);
+    saveJob({ ...latest, refusedNotes: [...(latest.refusedNotes ?? []), { at: new Date().toISOString(), note: input.note, reason: refused, runId }] });
+    throw new Error(refused);
+  }
   return { job, invoice };
 }
 
@@ -67,7 +75,7 @@ export const sendPaymentReminder = defineTool({
   impact: async (input, ctx) => {
     // One proposal a run: a no from the person ends it, however the note gets reworded.
     if (getApprovals().list({ runId: ctx.runId }).some((a) => a.tool === SEND_PAYMENT_REMINDER)) throw new Error("This was already put to the person. Stop here.");
-    const { job, invoice } = await clearedToRemind(input, ctx.paypal);
+    const { job, invoice } = await clearedToRemind(input, ctx.paypal, ctx.runId);
     return {
       amount: moneyFromMinor(invoice.dueCents),
       counterparties: [job.customer.email],
@@ -75,7 +83,7 @@ export const sendPaymentReminder = defineTool({
     };
   },
   execute: async (input, ctx: ToolContext) => {
-    const { job, invoice } = await clearedToRemind(input, ctx.paypal);
+    const { job, invoice } = await clearedToRemind(input, ctx.paypal, ctx.runId);
     await ctx.paypal.invoicing.remind(invoice.id, { subject: `Reminder: invoice ${invoice.number}`, note: input.note, send_to_recipient: true });
     const latest = requireJob(job.id);
     saveJob({ ...latest, invoice: { ...invoice, paidEventId: latest.invoice?.paidEventId }, reminders: [...(latest.reminders ?? []), { sentAt: new Date().toISOString(), note: input.note, runId: ctx.runId }] });

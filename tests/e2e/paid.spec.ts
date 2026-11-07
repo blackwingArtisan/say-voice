@@ -21,7 +21,7 @@ test.describe("getting paid", () => {
     else await request.post(`/api/dev/pay-invoice/${sent.invoice!.id}`);
 
     // PayPal's delivery takes a while. The page isn't touched here: it has to notice on its own.
-    await expect(page.getByTestId("paid-banner")).toContainText("Paid: $110.00 from Daniel Evans", { timeout: 300_000 });
+    await expect(page.getByTestId("paid-banner")).toContainText("Paid: $110.00 from Derek Evans", { timeout: 300_000 });
     await expect(page.getByTestId("invoice-status")).toContainText(/paid/i);
     await expect(page.getByRole("heading", { name: "Invoice paid" })).toBeVisible();
     await expect(page.getByTestId("reminder-card")).toHaveCount(0);

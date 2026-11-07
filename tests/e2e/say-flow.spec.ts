@@ -137,7 +137,7 @@ test("a spoken amount with no line item stops the send until the person decides"
   await paceAiCalls();
 
   // The fixture leaves out what was said at the end, the way a real extraction sometimes has.
-  const job = await (await request.post("/api/jobs", { data: { source: "mic", today: "2026-11-01", customer: { name: "Tom Baker", email: "tom.baker@example.com" }, transcript: "Daniel Evans, the dryer would not heat. Three quarters of an hour at eighty an hour. New heating element, fifty dollars. Plus a forty dollar disposal charge.", speech: { mocked: true, model: "Speech mock" } } })).json();
+  const job = await (await request.post("/api/jobs", { data: { source: "mic", today: "2026-11-01", customer: { name: "Tom Baker", email: "tom.baker@example.com" }, transcript: "Derek Evans, the dryer would not heat. Three quarters of an hour at eighty an hour. New heating element, fifty dollars. Plus a forty dollar disposal charge.", speech: { mocked: true, model: "Speech mock" } } })).json();
   await page.goto(`/jobs/${job.id}`);
   const warning = page.getByTestId("missing-amount").filter({ hasText: "$40.00" });
   await expect(warning).toContainText("forty dollar disposal");
@@ -145,7 +145,7 @@ test("a spoken amount with no line item stops the send until the person decides"
 
   // The name in the words is shown and never used.
   await expect(page.getByTestId("customer-name")).toHaveValue("Tom Baker");
-  await expect(page.getByTestId("heard-name")).toContainText("Daniel Evans");
+  await expect(page.getByTestId("heard-name")).toContainText("Derek Evans");
 
   await warning.getByTestId("add-missing").click();
   const added = page.getByTestId("invoice-line").last();

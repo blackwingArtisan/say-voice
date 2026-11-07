@@ -9,7 +9,7 @@ export interface Contact {
 }
 
 export const CONTACTS: Contact[] = [
-  { id: SAMPLE_CONTACT_ID, name: "Daniel Evans", email: "daniel.evans@example.com", note: "Dryer, Birch Road" },
+  { id: SAMPLE_CONTACT_ID, name: "Derek Evans", email: "derek.evans@example.com", note: "Dryer, Birch Road" },
   { id: "priya-raghunathan", name: "Priya Raghunathan", email: "priya.raghunathan@example.com", note: "Landlord account" },
   { id: "tom-baker", name: "Tom Baker", email: "tom.baker@example.com", note: "Elm Street" },
   { id: "margaret-collins", name: "Margaret Collins", email: "margaret.collins@example.com", note: "Garage rewire" },

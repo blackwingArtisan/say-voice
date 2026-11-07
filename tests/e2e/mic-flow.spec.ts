@@ -39,7 +39,7 @@ test("records with the real microphone path, then reaches a sent invoice", async
   await keepUpload(page);
   await page.goto("/jobs");
   await expect(page.getByTestId("record-start")).toBeDisabled();
-  await page.getByTestId("contact-daniel-evans").click();
+  await page.getByTestId("contact-derek-evans").click();
   await page.getByTestId("record-start").click();
 
   const level = page.getByTestId("mic-level");
@@ -64,7 +64,7 @@ test("records with the real microphone path, then reaches a sent invoice", async
 
   await page.waitForURL(/\/jobs\/job_/, { timeout: 120_000 });
   await expect(page.getByTestId("invoice-line").first()).toBeVisible();
-  await expect(page.getByTestId("customer-name")).toHaveValue("Daniel Evans");
+  await expect(page.getByTestId("customer-name")).toHaveValue("Derek Evans");
   const job = await readJob(request, jobId(page));
   expect(job.source).toBe("mic");
   expect(job.speech?.mocked).toBe(!speechLive);

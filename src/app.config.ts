@@ -11,6 +11,8 @@ export const appConfig = {
   brandForeground: "#FFFFFF", // kit:brand-foreground
   tagline: "Say the job in the van. Send the invoice before you drive off.",
   description: "Dictate a job, check every number against what you said, and send a real PayPal invoice in seconds.",
+  /** The made-up trade business the demo invoices come from. The customer sees it at the top of PayPal's page. */
+  tradeName: "Ridgeline Home Repair",
   repoUrl: "",
   videoUrl: "",
 
@@ -21,10 +23,15 @@ export const appConfig = {
   ],
 
   landing: {
-    eyebrow: "For plumbers, electricians and anyone who bills from the van",
+    eyebrow: "For one-person trades who bill from the van: plumbers, roofers, appliance techs",
     headline: "Say the job. Send the invoice.",
     subheadline:
-      "Tradespeople invoice late because the paperwork happens at night. Say-Voice turns a few seconds of speech into a real PayPal invoice, and you check every number before it goes.",
+      "You say the job in the van, check each number against your own words, and a PayPal invoice goes out before you drive off. Speech is never trusted with money: code does every sum.",
+    proof: [
+      { figure: "6 of 20", body: "test clips where an AI model stated a wrong total. Here code adds up every cent, and the AI never states one." },
+      { figure: "$600", body: "a real roofer's job, sent through PayPal's sandbox with what was fixed on every line (below, as the customer saw it)." },
+    ],
+    whyNot: "Why not Housecall Pro or Jobber? No suite to set up. Your words sit beside every number, a price book stops a wrong price whoever said it, and nothing reaches a customer until you approve the exact amount.",
     primaryCta: { label: "Start a job", href: "/jobs" },
     secondaryCta: { label: "How it works", href: "#how" },
     steps: [

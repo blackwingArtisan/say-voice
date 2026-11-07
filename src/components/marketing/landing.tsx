@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowRight, Check, Landmark, Mic, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Mic, ShieldCheck, Sparkles } from "lucide-react";
 import { appConfig } from "@/app.config";
 import { ButtonLink } from "../ui/button";
 import { AppLogo } from "../shell/app-logo";
@@ -26,43 +26,19 @@ export function SiteHeader() {
   );
 }
 
-/** A real job from the tests: the spoken note, and the invoice it became. */
-function SpeechToInvoicePreview() {
-  const rows = [
-    { name: "Labor", detail: "2 × $90.00", total: "$180.00" },
-    { name: "P-trap", detail: "2 × $18.00", total: "$36.00" },
-  ];
+/** The real roofer's job, as the customer saw it on PayPal's sandbox page (the trade name came later). */
+function RooferInvoice() {
   return (
-    <div className="relative space-y-3" data-testid="hero-preview">
-      <div className="rounded-2xl border border-zinc-200 bg-white/90 p-5 shadow-lg shadow-brand-900/5 ring-1 ring-black/5 backdrop-blur">
-        <p className="flex items-center gap-2 text-sm font-semibold text-zinc-900">
-          <Mic className="size-4 text-brand" /> What you said
-        </p>
-        <p className="mt-2 text-[15px] leading-relaxed text-zinc-600">&ldquo;Kitchen sink leak, all done. Two hours labor at ninety an hour. Two new P-traps at eighteen dollars each. No tax on this one.&rdquo;</p>
+    <figure className="relative" data-testid="hero-preview">
+      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl shadow-brand-900/10 ring-1 ring-black/5">
+        {/* eslint-disable-next-line @next/next/no-img-element -- a fixed screenshot, no resizing wanted */}
+        <img src="/proof/roofer-invoice.png" alt="The roofer's $600 PayPal invoice: Labor $400 and Material $200, each with what was done" width={885} height={780} className="h-auto w-full" />
       </div>
-      <div className="flex justify-center text-brand" aria-hidden>
-        <ArrowDown className="size-5" />
-      </div>
-      <div className="rounded-2xl border border-zinc-200 bg-white/90 p-5 shadow-2xl shadow-brand-900/10 ring-1 ring-black/5 backdrop-blur">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-zinc-900">Invoice ready to send</span>
-          <Landmark className="size-4 text-zinc-400" />
-        </div>
-        <ul className="mt-3 divide-y divide-zinc-100">
-          {rows.map((r) => (
-            <li key={r.name} className="flex items-baseline justify-between gap-3 py-2 text-sm">
-              <span className="font-medium text-zinc-900">{r.name}</span>
-              <span className="ml-auto font-mono text-xs text-zinc-500">{r.detail}</span>
-              <span className="font-mono tabular-nums text-zinc-900">{r.total}</span>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-2 flex items-baseline justify-between border-t border-zinc-200 pt-3">
-          <span className="text-sm font-semibold text-zinc-900">Total</span>
-          <span className="font-mono text-lg font-semibold tabular-nums text-zinc-950">$216.00</span>
-        </div>
-      </div>
-    </div>
+      <figcaption className="mt-3 flex items-start gap-2 text-sm text-zinc-600">
+        <Mic className="size-4 shrink-0 translate-y-0.5 text-brand" />
+        <span>A working roofer said this job out loud. This is the PayPal invoice their customer opened: what was fixed, on every line.</span>
+      </figcaption>
+    </figure>
   );
 }
 
@@ -87,11 +63,19 @@ export function Hero() {
               {l.secondaryCta.label}
             </ButtonLink>
           </div>
-          <p className="mt-6 flex items-center gap-2 text-sm text-zinc-500">
-            <ShieldCheck className="size-4 text-emerald-600" /> Nothing goes to a customer until you press send.
+          <dl className="mt-8 grid gap-3 sm:grid-cols-2" data-testid="hero-proof">
+            {l.proof.map((p) => (
+              <div key={p.figure} className="rounded-xl border border-zinc-200 bg-white/80 p-4 shadow-sm">
+                <dt className="font-mono text-2xl font-semibold tabular-nums text-zinc-950">{p.figure}</dt>
+                <dd className="mt-1 text-sm leading-snug text-zinc-600">{p.body}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-5 flex items-start gap-2 text-sm leading-relaxed text-zinc-700" data-testid="hero-why-not">
+            <ShieldCheck className="size-4 shrink-0 translate-y-0.5 text-emerald-600" /> {l.whyNot}
           </p>
         </div>
-        <SpeechToInvoicePreview />
+        <RooferInvoice />
       </div>
     </section>
   );

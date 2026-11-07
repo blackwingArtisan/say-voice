@@ -158,3 +158,23 @@ export function taxedLineKeys(transcript: string, lines: (Pick<InvoiceLine, "qua
   }
   return keys.size ? keys : null;
 }
+
+/**
+ * "No tax on this one" after an amount leaves that line untaxed. Said with no amount before it, or
+ * on a job where no tax was asked for at all, it leaves every line untaxed.
+ */
+export function untaxedLineKeys(transcript: string, lines: (Pick<InvoiceLine, "quantityMilli" | "unitCents"> & { key: string })[]): Set<string> | "all" | null {
+  const said = [...transcript.matchAll(new RegExp(NO_TAX.source, "gi"))];
+  if (!said.length) return null;
+  if (!transcript.match(PLUS_TAX)) return "all";
+  const amounts = findNumbers(transcript).filter((m) => m.isAmount);
+  const keys = new Set<string>();
+  for (const no of said) {
+    const before = amounts.filter((m) => m.end <= no.index!).pop();
+    const cents = before ? [before.value, before.alternative].filter((v): v is number => v !== undefined).map((v) => Math.round(v * 100)) : [];
+    const line = lines.find((l) => cents.includes(l.unitCents) || cents.includes(lineCents(l)));
+    if (!line) return "all";
+    keys.add(line.key);
+  }
+  return keys;
+}

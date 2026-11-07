@@ -60,12 +60,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           {open ? <X className="size-5" /> : <Menu className="size-5" />}
         </button>
       </header>
+      {/* On a phone the badges stay in view: which PayPal, which models, and today's AI spend. */}
+      <ModeBadges className="border-b border-zinc-200 bg-zinc-50/90 px-4 py-2 lg:hidden" />
       {open ? (
         <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 lg:hidden">
           <Suspense>
             <Nav onNavigate={() => setOpen(false)} />
           </Suspense>
-          <ModeBadges className="mt-3" />
         </div>
       ) : null}
 

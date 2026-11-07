@@ -7,7 +7,7 @@ import { syncInvoice } from "./paid";
 import { dayOf, whyNoReminder } from "./reminder-rules";
 import { isPaid, type Job } from "./types";
 
-export async function requestReminder(id: string, channel: string): Promise<Job> {
+export async function requestReminder(id: string, channel: string, ask?: string): Promise<Job> {
   const job = requireJob(id);
   if (!job.invoice) throw new HttpError(409, "This job has no invoice yet.", "conflict");
   if (job.reminderRunId && getRun(job.reminderRunId)?.status === "running") throw new HttpError(409, "A reminder is already being drafted.", "conflict");
@@ -16,6 +16,8 @@ export async function requestReminder(id: string, channel: string): Promise<Job>
   if (isPaid(fresh.invoice)) return fresh;
   const refused = whyNoReminder(fresh.invoice, fresh.reminders, dayOf(new Date()));
   if (refused) throw new HttpError(409, refused, "conflict");
-  const run = startAgentRun(reminderAgent, { goal: `Propose a payment reminder for job ${id}.`, context: { job_id: id } }, { channel });
-  return saveJob({ ...fresh, reminderRunId: run.id });
+  const asked = ask?.trim() || undefined;
+  saveJob({ ...requireJob(id), reminderAsk: asked });
+  const run = startAgentRun(reminderAgent, { goal: `Propose a payment reminder for job ${id}.`, context: { job_id: id, ask: asked } }, { channel });
+  return saveJob({ ...requireJob(id), reminderRunId: run.id });
 }

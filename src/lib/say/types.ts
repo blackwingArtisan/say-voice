@@ -109,6 +109,10 @@ export interface Job {
   invoice?: SentInvoice;
   reminders?: SentReminder[];
   reminderRunId?: string;
+  /** What the person asked the reminder agent to add, if anything. */
+  reminderAsk?: string;
+  /** Notes the agent proposed that code refused before any approval card. */
+  refusedNotes?: { at: string; note: string; reason: string; runId: string }[];
 }
 
 export interface PendingApproval {

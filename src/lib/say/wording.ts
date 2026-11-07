@@ -167,3 +167,35 @@ export function checkedServiceDate(date: string, words: string, transcript: stri
 const GENERIC_NAMES = new Set(["labor", "labour", "materials", "material", "misc", "miscellaneous", "parts", "part", "service call", "service", "fee", "other"]);
 
 export const isGenericName = (name: string) => GENERIC_NAMES.has(name.trim().toLowerCase().replace(/\s+/g, " ").replace(/[.:]$/, ""));
+
+const words = (text: string) => text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+const DANGLING = /[\s,;:-]+(?:on|of|with|for|and|in|to|at|the|a|an)?[\s,;:-]*$/i;
+
+/**
+ * The customer reads the summary and then every line, so a phrase of four words or more that ends
+ * the summary and turns up again on a line comes off the summary ("valley replacement on laminated
+ * shingles approximately 10 years old" next to a materials line that says the shingles' age).
+ */
+export function withoutRepeatedTail(summary: string, descriptions: string[]): string {
+  const tokens = [...summary.matchAll(/[A-Za-z0-9]+/g)];
+  const lines = descriptions.map((d) => ` ${words(d).join(" ")} `);
+  for (let start = 0; start <= tokens.length - 4; start++) {
+    const tail = ` ${tokens.slice(start).map((t) => t[0].toLowerCase()).join(" ")} `;
+    if (!lines.some((line) => line.includes(tail))) continue;
+    const kept = summary.slice(0, tokens[start].index).replace(DANGLING, "").replace(/[\s,;:-]+$/, "");
+    return words(kept).length >= 2 ? kept : summary;
+  }
+  return summary;
+}
+
+/** A sentence whose words were already said earlier in the same description is dropped. */
+export function withoutRepeatedSentences(text: string): string {
+  let before = " ";
+  const kept = (text.match(/[^.!?]+[.!?]*/g) ?? []).filter((sentence) => {
+    const key = words(sentence).join(" ");
+    if (!key || before.includes(` ${key} `)) return false;
+    before += `${key} `;
+    return true;
+  });
+  return kept.join("").trim();
+}
