@@ -104,3 +104,28 @@ describe("the guard is seen refusing", () => {
     expect(requireJob(job.id).reminders).toHaveLength(1);
   });
 });
+
+describe("the price book learns from the trade's own PayPal invoices", () => {
+  it("reads this trade's sent invoices from PayPal, skips other apps' and labor, and says how many", async () => {
+    const { getPayPal } = await import("@/lib/paypal");
+    const { learnFromPayPal } = await import("@/lib/say/paypal-history");
+    const { priceBook } = await import("@/lib/say/price-store");
+    const paypal = getPayPal();
+    const send = async (business_name: string, name: string, value: string) => {
+      const draft = await paypal.invoicing.create({ detail: { currency_code: "USD" }, invoicer: { business_name }, primary_recipients: [{ billing_info: { email_address: "wei.zhang@example.com" } }], items: [{ name, quantity: "1", unit_amount: { currency_code: "USD", value } }, { name: "Labor", quantity: "1", unit_amount: { currency_code: "USD", value: "400.00" } }] });
+      await paypal.invoicing.send(draft.id);
+    };
+    await send(appConfig.tradeName, "Igniter", "41.00");
+    await send(appConfig.tradeName, "Igniter", "43.00");
+    await send("Another app's shop", "Igniter", "1.00");
+    await paypal.invoicing.create({ detail: { currency_code: "USD" }, invoicer: { business_name: appConfig.tradeName }, items: [{ name: "Igniter", quantity: "1", unit_amount: { currency_code: "USD", value: "2.00" } }] }); // a draft never went out
+
+    const visitor = `v_${Math.random()}`;
+    const history = await learnFromPayPal(visitor);
+    const igniter = priceBook(visitor).find((e) => e.name === "Igniter");
+    expect(igniter?.samples.slice(-2)).toEqual([4_100, 4_300]);
+    expect(history.lines.some((l) => l.unitCents === 100 || l.unitCents === 200)).toBe(false);
+    expect(priceBook(visitor).find((e) => e.name === "Labor")?.samples).not.toContain(40_000);
+    expect(priceBook("someone-else").find((e) => e.name === "Igniter")).toBeUndefined();
+  });
+});

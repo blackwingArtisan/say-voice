@@ -105,6 +105,13 @@ test("demo", async ({ browser }) => {
   clock.check("open");
 
   // A person speaks.
+  // The price book starts from the trade's own PayPal invoices.
+  await page.goto("/prices");
+  await page.getByTestId("learn-from-paypal").click();
+  await expect(page.getByTestId("learned-from-paypal")).toBeVisible({ timeout: 30_000 });
+  await point(page, "The price book is plain code. It starts from your own past PayPal invoices.", page.getByTestId("learned-from-paypal"), 4200);
+  clock.check("price book");
+
   await page.goto("/jobs");
   const contact = page.getByTestId("contact-derek-evans");
   await expect(contact).toBeVisible();
@@ -351,7 +358,7 @@ test("demo", async ({ browser }) => {
       page,
       "Say-Voice",
       "Said in the van. Checked by code. Paid through PayPal.<br><span style='font-size:16px;opacity:.75'>PayPal Invoicing · ElevenLabs Scribe v2 · Claude Sonnet 5.5 and Haiku 5.5</span>",
-      4200,
+      7000,
       { keep: true },
     );
     clock.check("end");
