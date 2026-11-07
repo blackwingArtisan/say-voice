@@ -71,22 +71,34 @@ describe("a far-off price", () => {
 });
 
 describe("flat-rate labor", () => {
-  const flat = (quantityMilli: number, unitCents: number, transcript: string, name = "Labor") => isFlatLabor({ name, quantityMilli, unitCents }, transcript);
+  const flat = (unitCents: number, transcript: string, quantityMilli = 1000, name = "Labor") => isFlatLabor({ name, quantityMilli, unitCents }, transcript);
 
   it("is a labor line for one, with no hours said around it", () => {
-    expect(flat(1000, 20000, "Fixed the leak. Labor was two hundred.")).toBe(true);
-    expect(flat(1000, 20000, "Flat rate two hundred for labor.")).toBe(true);
-    expect(flat(1000, 20000, "Took two hours, two hundred flat.")).toBe(true);
+    expect(flat(20000, "Fixed the leak. Labor was two hundred.")).toBe(true);
+    expect(flat(20000, "Flat rate two hundred for labor.")).toBe(true);
+    expect(flat(20000, "Took two hours, two hundred flat.")).toBe(true);
+  });
+
+  it("is a flat sum said next to how long it took", () => {
+    expect(flat(40000, "Pulled the rotten fascia and put up the new board, approximately three and a half hours, four hundred dollars labor.")).toBe(true);
+    expect(flat(30000, "Took me about five hours, three hundred labor.")).toBe(true);
+    expect(flat(9000, "Ninety bucks labor, about an hour.")).toBe(true);
+  });
+
+  it("isn't a rate said with the estimate", () => {
+    expect(flat(1500, "About an hour of labor at fifteen an hour.")).toBe(false);
+    expect(flat(1500, "Roughly an hour, fifteen an hour labor.")).toBe(false);
+    expect(flat(1600, "Labor took about an hour, sixteen per hour.")).toBe(false);
   });
 
   it("isn't one hour at a rate, which is exactly where a misheard rate shows up", () => {
-    expect(flat(1000, 1600, "I was there an hour at sixteen an hour.")).toBe(false);
-    expect(flat(1000, 1600, "One hour of labor, sixteen.")).toBe(false);
+    expect(flat(1600, "I was there an hour at sixteen an hour.")).toBe(false);
+    expect(flat(1600, "One hour of labor, sixteen.")).toBe(false);
   });
 
   it("isn't more than one, or anything but labor", () => {
-    expect(flat(2000, 20000, "Labor was two hundred.")).toBe(false);
-    expect(flat(1000, 20000, "Service call two hundred.", "Service call")).toBe(false);
+    expect(flat(20000, "Labor was two hundred.", 2000)).toBe(false);
+    expect(flat(20000, "Service call two hundred.", 1000, "Service call")).toBe(false);
   });
 });
 

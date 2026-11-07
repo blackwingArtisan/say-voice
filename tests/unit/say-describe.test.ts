@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { invoiceNote, invoiceRequest, ITEM_DESCRIPTION_MAX, NOTE_MAX } from "@/agents/tools/send-job-invoice";
 import { MockPayPal } from "@/lib/paypal/mock";
 import { findChecks, openChecks, type CheckInput } from "@/lib/say/checks";
-import { applyDescription, describeJob, DESCRIBE_SYSTEM, mockDescription, type Description } from "@/lib/say/describe";
+import { applyDescription, describeJob, describePrompt, DESCRIBE_SYSTEM, mockDescription, type Description } from "@/lib/say/describe";
 import { toJobFields } from "@/lib/say/extract";
 import { computeTotals } from "@/lib/say/money";
 import { PLUS_TAX_AMOUNTS, PLUS_TAX_EXTRACTION, PLUS_TAX_TRANSCRIPT, SAMPLE_EXTRACTION, SAMPLE_TRANSCRIPT } from "@/lib/say/sample";
@@ -18,6 +18,7 @@ const lines: JobLine[] = [
 ];
 const good: Description = {
   job_summary: "Um, kitchen faucet cartridge replaced",
+  parts_heard: [],
   job_site: "41 Elm Court",
   service_date: "2026-11-05",
   service_date_words: "yesterday",
@@ -86,6 +87,26 @@ describe("the description step", () => {
     expect(out.lines[0].description).toBe("About 3.5 hours");
   });
 
+  it("reads a number after a comma as said on its own", () => {
+    const transcript = "Rebuilt the porch steps. Labor's five hundred, eight hours flat.";
+    const one: JobLine[] = [{ key: "x", name: "Labor", quantityMilli: 1000, unitCents: 50000 }];
+    const out = applyDescription({ ...good, job_site: "", lines: [{ id: "x", description: "Rebuilt the porch steps, eight hours flat" }] }, one, transcript, TODAY);
+    expect(out.lines[0].description).toBe("Rebuilt the porch steps, eight hours flat");
+    expect(out.flags).toEqual([]);
+  });
+
+  it("gives the AI the words said around each price, and asks for every part heard", () => {
+    const transcript = "Swapped the rotten sill with a new treated board and flashing tape. Labor three hundred. Materials eighty.";
+    const two: JobLine[] = [
+      { key: "l", name: "Labor", quantityMilli: 1000, unitCents: 30000 },
+      { key: "m", name: "Materials", quantityMilli: 1000, unitCents: 8000 },
+    ];
+    const prompt = describePrompt(transcript, two, TODAY);
+    expect(prompt).toContain('id m: Materials, quantity 1, $80.00 each. Price said in: "Materials eighty."');
+    expect(DESCRIBE_SYSTEM).toContain("parts_heard");
+    expect(DESCRIBE_SYSTEM).toContain("even ones said far from its price");
+  });
+
   it("keeps a service date only when it was said", () => {
     expect(apply({}).details.serviceDate).toBe("2026-11-05");
     expect(apply({ service_date_words: "" }).details.serviceDate).toBe("");
@@ -121,6 +142,7 @@ describe("words the speaker didn't say", () => {
 
   it("allows plurals, tenses and a one-letter sound-alike", () => {
     expect(unsaidWords("Replacing cartridges in the kitchn", TRANSCRIPT)).toEqual([]);
+    expect(unsaidWords("Setting the posts, mudded the seams", "Set the posts and mud the seams.")).toEqual([]);
   });
 
   it("closes when the person takes the word out, and never flags words they typed", () => {

@@ -38,12 +38,14 @@ A working roofer told us customers want to know exactly what was fixed. "Labor $
 - **A job summary, the job site and the date of service** at the top, in PayPal's note to the customer (it's in the invoice email too). The date is there only if you said one.
 - **A description under every line**: the work done on the labor line, the parts and materials on the materials line.
 
-A second Claude call (Haiku 5.5, its own prompt and mock fixture) writes these after the line items are read. It gets the transcript and the item names and can only write words: code merges its text onto the lines that already exist, so it can't add, remove or change an item, a quantity or a price. Then code checks every word:
+A second Claude call (Haiku 5.5, its own prompt and mock fixture) writes these after the line items are read. It gets the transcript and each item with the words said around its price, first lists every part and material named anywhere in the note, then puts each one on the line that paid for it, so a material named while describing the work still lands on the materials line. It can only write words: code merges its text onto the lines that already exist, so it can't add, remove or change an item, a quantity or a price. Then code checks every word:
 
 - Fillers ("um", "uh", "mm-hmm") are stripped.
 - A link, or a number you didn't say that isn't that line's own quantity or price, blanks the text, and the screen says why.
 - A word you didn't say is flagged on the confirm screen, so a made-up part or piece of work gets a look before it goes. Plurals, tenses and one-letter slips count as said. Words you type yourself are never flagged.
 - A date goes on only when the words for it are in what you said.
+
+The prompt is tuned on 12 made-up jobs from other trades, written by someone who hadn't seen it (`tests/dev/`): `AI_MODE=live npx tsx scripts/description-dev.ts` runs the real extraction and description step on each and scores whether every part and step named lands on its own line, with no unflagged made-up words. The two real jobs in `tests/heldout/` are only ever run once, at the end, never tuned on.
 
 Everything is editable on the confirm screen, at phone size too. A generic line (Labor, Materials, Parts, Service call, Fee, Misc, Other and the like) with no description holds the send, and no tap waves it through: write a few words and it clears.
 
@@ -75,7 +77,7 @@ All PayPal calls go to the **sandbox** (`https://api-m.sandbox.paypal.com`); the
 
 - **Code does the arithmetic**: money is integer cents, and line totals and the invoice total are computed in code, never stated by the AI. The rounding matches PayPal's, checked against real sandbox invoices.
 - **The extraction prompt is frozen**: it was tested on sealed clips the prompt had never seen, and a unit test pins its hash.
-- **Code checks the AI**: a separate parser finds the amounts in the transcript and warns when one has no line item, and the price book compares each price with what that item usually costs. When the AI doubts a price the book also knows, the book's line replaces the AI's words, so the warning reads the same on every run. Flat-rate labor (one Labor line with no hours said around it) isn't compared with the hourly rate.
+- **Code checks the AI**: a separate parser finds the amounts in the transcript and warns when one has no line item, and the price book compares each price with what that item usually costs. When the AI doubts a price the book also knows, the book's line replaces the AI's words, so the warning reads the same on every run. Flat-rate labor (one Labor line with no hours said around it, or with hours said as how long it took: "about three hours, four hundred labor") isn't compared with the hourly rate. A rate said with it ("fifteen an hour") still is.
 - **The agent can't talk its way past a limit**: code refuses a reminder for a paid invoice, a note with any figure other than what's owed, a note with a link, and a third reminder in a day. The check runs before the approval card and again after it, in case the customer paid in between. One proposal a run, so a no ends it.
 - **Due dates** come from code: the extraction doesn't return one, so "net 30" or "due in two weeks" is read from the transcript, and the default is 14 days.
 - **Cost control**: a hard daily spend cap (worst case reserved before every call) and per-IP rate limits. With the budget used up, a recording waits in the browser, and the sample job runs on a saved Claude reading and says so.

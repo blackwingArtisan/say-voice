@@ -1,0 +1,319 @@
+[
+ {
+  "id": "dev01",
+  "transcript": "Um, so finished that roof repair on the ranch house. Labor was six hundred flat, took about five hours, tore off the damaged section and nailed down the new shingles. Materials were two bundles of architectural shingles, new flashing, drip edge and a roll of underlayment, that's three forty.",
+  "expect": [
+   {
+    "line": "Labor",
+    "amount": 600,
+    "must_mention": [
+     "tore off the damaged section",
+     "nailed down the new shingles"
+    ]
+   },
+   {
+    "line": "Materials",
+    "amount": 340,
+    "must_mention": [
+     "two bundles of architectural shingles",
+     "new flashing",
+     "drip edge",
+     "roll of underlayment"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dev02",
+  "transcript": "Uh, replaced the kitchen faucet and swapped out the supply lines under the sink. Three hours at ninety an hour, so two seventy labor. Parts were a new single-handle faucet, two braided supply lines and a quarter-turn shutoff valve, one eighty-five for all of it.",
+  "expect": [
+   {
+    "line": "Labor",
+    "amount": 270,
+    "must_mention": [
+     "replaced the kitchen faucet",
+     "swapped out the supply lines"
+    ]
+   },
+   {
+    "line": "Materials",
+    "amount": 185,
+    "must_mention": [
+     "single-handle faucet",
+     "two braided supply lines",
+     "quarter-turn shutoff valve"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dev03",
+  "transcript": "Okay so the AC quit on em, uh, found the condenser fan motor was seized, pulled it and put a new one in and cleaned the coil. Three hours at eighty an hour for labor. The fan motor itself was three eighty-five, and then misc stuff, wire nuts, mounting bolts and some electrical tape, forty-five bucks.",
+  "expect": [
+   {
+    "line": "Labor",
+    "amount": 240,
+    "must_mention": [
+     "pulled the seized motor and installed a new one",
+     "cleaned the coil"
+    ]
+   },
+   {
+    "line": "Condenser fan motor",
+    "amount": 385,
+    "must_mention": [
+     "condenser fan motor"
+    ]
+   },
+   {
+    "line": "Materials",
+    "amount": 45,
+    "must_mention": [
+     "wire nuts",
+     "mounting bolts",
+     "electrical tape"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dev04",
+  "transcript": "Uh, upgraded the main panel to a two hundred amp today. Labor eight hundred flat, took me most of a day, that was swapping the panel, rewiring the circuits and labeling everything. Materials were the two hundred amp panel, a bunch of breakers, a ground rod, clamps and some Romex, eleven fifty.",
+  "expect": [
+   {
+    "line": "Labor",
+    "amount": 800,
+    "must_mention": [
+     "swapping the panel",
+     "rewiring the circuits",
+     "labeling everything"
+    ]
+   },
+   {
+    "line": "Materials",
+    "amount": 1150,
+    "must_mention": [
+     "two hundred amp panel",
+     "breakers",
+     "ground rod",
+     "clamps",
+     "Romex"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dev05",
+  "transcript": "Put up sixty feet of six foot privacy fence, um, set the posts, hung the rails and nailed the pickets. Labor's six hundred, ten hours flat. Materials were cedar pickets, pressure treated posts, four bags of concrete, galvanized screws and a gate latch, nine twelve. Oh and fifty for hauling off the old fence.",
+  "expect": [
+   {
+    "line": "Labor",
+    "amount": 600,
+    "must_mention": [
+     "set the posts",
+     "hung the rails",
+     "nailed the pickets"
+    ]
+   },
+   {
+    "line": "Materials",
+    "amount": 912,
+    "must_mention": [
+     "cedar pickets",
+     "pressure treated posts",
+     "four bags of concrete",
+     "galvanized screws",
+     "gate latch"
+    ]
+   },
+   {
+    "line": "Disposal",
+    "amount": 50,
+    "must_mention": [
+     "hauling off the old fence"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dev06",
+  "transcript": "So, uh, patched a big water damaged hole in the ceiling, cut it out, hung the patch, taped, mudded three coats and sanded. Six hours at fifty-five an hour, three thirty labor. Material was a sheet of half inch drywall, joint compound, mesh tape and sandpaper, about fifty-eight dollars.",
+  "expect": [
+   {
+    "line": "Labor",
+    "amount": 330,
+    "must_mention": [
+     "cut out the damaged section",
+     "hung the patch",
+     "taped",
+     "mudded three coats",
+     "sanded"
+    ]
+   },
+   {
+    "line": "Materials",
+    "amount": 58,
+    "must_mention": [
+     "sheet of half inch drywall",
+     "joint compound",
+     "mesh tape",
+     "sandpaper"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dev07",
+  "transcript": "Finished the living room and hallway, two coats on the walls plus I did all the trim. Um, labor is nine fifty flat, took two days. Paint was three gallons of eggshell, a gallon of semi-gloss for the trim, painter's tape, and drop cloths, two sixty-five.",
+  "expect": [
+   {
+    "line": "Labor",
+    "amount": 950,
+    "must_mention": [
+     "two coats on the walls",
+     "did all the trim"
+    ]
+   },
+   {
+    "line": "Materials",
+    "amount": 265,
+    "must_mention": [
+     "three gallons of eggshell",
+     "gallon of semi-gloss",
+     "painter's tape",
+     "drop cloths"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dev08",
+  "transcript": "Uh, did the yard cleanup today, trimmed the hedges, edged the beds and spread the mulch. Two guys, four hours each, forty an hour each, so that's three twenty labor. Materials were six yards of hardwood mulch, landscape fabric and a bundle of edging stakes, two eighty-five.",
+  "expect": [
+   {
+    "line": "Labor",
+    "amount": 320,
+    "must_mention": [
+     "trimmed the hedges",
+     "edged the beds",
+     "spread the mulch"
+    ]
+   },
+   {
+    "line": "Materials",
+    "amount": 285,
+    "must_mention": [
+     "six yards of hardwood mulch",
+     "landscape fabric",
+     "bundle of edging stakes"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dev09",
+  "transcript": "Garage door spring snapped, so I replaced the torsion springs, rebalanced the door and lubed the rollers. Labor one fifty flat, about an hour and a half. The pair of torsion springs was two forty, and um, forty-five trip charge.",
+  "expect": [
+   {
+    "line": "Labor",
+    "amount": 150,
+    "must_mention": [
+     "replaced the torsion springs",
+     "rebalanced the door",
+     "lubed the rollers"
+    ]
+   },
+   {
+    "line": "Torsion springs",
+    "amount": 240,
+    "must_mention": [
+     "pair of torsion springs"
+    ]
+   },
+   {
+    "line": "Trip charge",
+    "amount": 45,
+    "must_mention": [
+     "trip charge"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dev10",
+  "transcript": "Hung sixty feet of five inch gutter on the back of the house, uh, cut it to length, mounted it and sealed the seams, put the downspouts on. Labor was four hundred flat, about five hours. Materials were seamless aluminum gutter, two downspouts, elbows, hangers and end caps, three seventy-five.",
+  "expect": [
+   {
+    "line": "Labor",
+    "amount": 400,
+    "must_mention": [
+     "cut it to length",
+     "mounted it",
+     "sealed the seams",
+     "put the downspouts on"
+    ]
+   },
+   {
+    "line": "Materials",
+    "amount": 375,
+    "must_mention": [
+     "seamless aluminum gutter",
+     "two downspouts",
+     "elbows",
+     "hangers",
+     "end caps"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dev11",
+  "transcript": "Installed vinyl plank in the master bedroom, um, ripped out the old carpet and tack strips, laid the underlayment and clicked it all together. Eight hours at sixty-five an hour, five twenty for labor. Material was eight boxes of vinyl plank, underlayment, a transition strip and quarter round, six eighty.",
+  "expect": [
+   {
+    "line": "Labor",
+    "amount": 520,
+    "must_mention": [
+     "ripped out the old carpet and tack strips",
+     "laid the underlayment",
+     "clicked it all together"
+    ]
+   },
+   {
+    "line": "Materials",
+    "amount": 680,
+    "must_mention": [
+     "eight boxes of vinyl plank",
+     "underlayment",
+     "transition strip",
+     "quarter round"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dev12",
+  "transcript": "Got that push mower running again. Uh, cleaned and rebuilt the carburetor, changed the oil and sharpened the blade. Ninety bucks labor flat, about an hour. Parts were a carb rebuild kit, a new spark plug, an air filter and a quart of oil, thirty-eight.",
+  "expect": [
+   {
+    "line": "Labor",
+    "amount": 90,
+    "must_mention": [
+     "cleaned and rebuilt the carburetor",
+     "changed the oil",
+     "sharpened the blade"
+    ]
+   },
+   {
+    "line": "Materials",
+    "amount": 38,
+    "must_mention": [
+     "carb rebuild kit",
+     "new spark plug",
+     "air filter",
+     "quart of oil"
+    ]
+   }
+  ]
+ }
+]

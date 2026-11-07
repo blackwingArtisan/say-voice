@@ -15,34 +15,44 @@ import type { AiWording, JobDetails, JobFlag, JobLine } from "./types";
 import { checkedServiceDate, cleanText, hasLink, lineNumbers, MAX_DESCRIPTION, MAX_SITE, MAX_SUMMARY, saidNumbers, strayNumbers, truncate } from "./wording";
 
 export const DescriptionSchema = z.object({
-  job_summary: z.string().describe("One short line: what the job was. Under 100 characters."),
+  job_summary: z.string().describe("One short line: what the job was, in the speaker's words. Under 100 characters."),
   job_site: z.string().describe("The job's street address if one was said, written cleanly. Empty if none was said."),
   service_date: z.string().describe("YYYY-MM-DD when the speaker said when the work was done. Empty otherwise."),
   service_date_words: z.string().describe("The exact words from the note that say when, such as 'yesterday'. Empty otherwise."),
-  lines: z.array(z.object({ id: z.string(), description: z.string().describe("What this charge covers, under 150 characters.") })),
+  parts_heard: z.array(z.string()).describe("Every part, material and supply named anywhere in the note, in the speaker's words."),
+  lines: z.array(z.object({ id: z.string(), description: z.string().describe("What this charge paid for, under 200 characters.") })),
 });
 
 export type Description = z.infer<typeof DescriptionSchema>;
 
-export const DESCRIBE_SYSTEM = `You write the words a customer reads on a tradesperson's invoice, so they know exactly what was done, where and when.
+export const DESCRIBE_SYSTEM = `You write the words a customer reads on a tradesperson's invoice, so they can see exactly what each charge paid for, where and when.
 
-You get the raw speech-to-text of the tradesperson's job note, today's date, and the line items already taken from it (id, name, quantity, price). The items are final. Write:
-- job_summary: one short line saying what the job was: what was fixed, installed or replaced, and on what.
+You get the raw speech-to-text of the tradesperson's job note, today's date, and the line items already taken from it: id, name, quantity, price, and the words said around that price. The items are final. Write:
+- job_summary: one short line saying what the job was, built only from words in the note: what was fixed, put in or done, and on what.
 - job_site: the street address of the job if one was said, tidied (speech-to-text splits things like "66 th"). Empty if none was said.
 - service_date and service_date_words: only if the speaker said when the work was done. service_date is YYYY-MM-DD, worked out from today's date; service_date_words are the exact words from the note. Both empty otherwise. Never assume today.
-- lines: for every id you were given, a short description of what that charge covers: the work done for labor, the parts and materials for a parts or materials line.
+- parts_heard: every part, material and supply the speaker named anywhere in the note, with the count or size they said. Go through the whole note, not just the sentence with the materials price: things named while describing the work count too ("replaced the old boards with cedar decking and a joist hanger" names cedar decking and a joist hanger). Empty if none were named.
+- lines: for every id you were given, what that charge paid for:
+  - Labor or other work: the steps of the work, in order, and the time if one was said. Each step names what it was done to, using the note's words: "cut out the cracked tile", not "cut it out".
+  - A line for one named part: that part.
+  - A materials, parts or supplies line: every entry in parts_heard that doesn't have a line of its own, even ones said far from its price. Leave none out. If there are two such lines, put each part on the one it was said with.
+  - A fee (trip charge, disposal, haul-away): what the fee was for.
 
 Rules:
 - Use only what was said. Never add work, parts, materials, brands, sizes, dates, places or prices that weren't said.
-- Use the speaker's own words for parts and work. You may fix an obvious speech-to-text slip, but don't swap in a different word for the same thing.
-- Put each detail on the line it belongs to: the steps of the work on the labor line, the things that were bought or fitted on the parts or materials line.
+- Use the speaker's own words for parts and work, as they said them. Don't swap in a longer or more formal word ("carb" stays "carb", "lubed" stays "lubed", "ripped out" doesn't become "removed"), and don't add a verb they didn't say, such as "installed", "replaced" or "repaired". You may fix an obvious speech-to-text slip.
 - Leave out filler words (um, uh), false starts, self-corrections, the customer's name, tax and payment terms.
-- Don't put prices or totals in a description; the invoice shows them. A time or count the speaker said is fine.
+- Don't put prices or totals in a description; the invoice shows them. A time or count the speaker said is fine, written the way they said it.
 - No links, email addresses or phone numbers.
 - Return every id exactly once. You can't add, remove or change items.`;
 
 export function describePrompt(transcript: string, lines: JobLine[], today: string): string {
-  const items = lines.map((line) => `- id ${line.key}: ${line.name}, quantity ${formatQuantity(line.quantityMilli)}, ${formatCents(line.unitCents)} each`).join("\n");
+  const items = lines
+    .map((line) => {
+      const said = heardFor(transcript, line);
+      return `- id ${line.key}: ${line.name}, quantity ${formatQuantity(line.quantityMilli)}, ${formatCents(line.unitCents)} each${said ? `. Price said in: "${said}"` : ""}`;
+    })
+    .join("\n");
   return `Today is ${today}.\n\nDictated job note:\n"""\n${transcript}\n"""\n\nLine items:\n${items}`;
 }
 
@@ -55,6 +65,7 @@ export function mockDescription(transcript: string, lines: JobLine[], today: str
       job_site: fixture.job_site,
       service_date: fixture.service_date ? `${today.slice(0, 4)}-${fixture.service_date}` : "",
       service_date_words: fixture.service_date_words,
+      parts_heard: [],
       lines: lines.map((line) => ({ id: line.key, description: fixture.lines[line.name] ?? "" })),
     };
   }
@@ -64,6 +75,7 @@ export function mockDescription(transcript: string, lines: JobLine[], today: str
     job_site: "",
     service_date: "",
     service_date_words: "",
+    parts_heard: [],
     lines: lines.map((line) => ({ id: line.key, description: heardFor(transcript, line) ?? "" })),
   };
 }

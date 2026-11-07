@@ -42,14 +42,18 @@ export function truncate(text: string, max: number): string {
 
 export const hasLink = (text: string) => /https?:\/\/|\bwww\.|\b[a-z0-9-]+\.(com|net|org|io|co|us|biz|info|app|dev|ly|me)\b|\S+@\S+\.\S+/i.test(text);
 
-/** Every number the speaker said, with "three and a half" and "three quarters" read both ways. */
+/**
+ * Every number the speaker said, with "three and a half" and "three quarters" read both ways. A
+ * comma is a pause, so "six hundred, ten hours" said six hundred and ten as well as 610.
+ */
 export function saidNumbers(transcript: string): Set<number> {
   const out = new Set<number>();
   const add = (n: number) => out.add(Math.round(n * 1000) / 1000);
-  for (const m of findNumbers(transcript)) {
+  const pieces = transcript.includes(",") ? [transcript, ...transcript.split(",")] : [transcript];
+  for (const m of pieces.flatMap((piece) => findNumbers(piece).map((mention) => ({ ...mention, piece })))) {
     add(m.value);
     if (m.alternative !== undefined) add(m.alternative);
-    const after = transcript.slice(m.end, m.end + 14).toLowerCase();
+    const after = m.piece.slice(m.end, m.end + 14).toLowerCase();
     if (/^\s*and a half\b/.test(after)) add(m.value + 0.5);
     if (/^\s*and a quarter\b/.test(after)) add(m.value + 0.25);
     if (/^\s*quarters?\b/.test(after)) add(m.value / 4);
@@ -82,11 +86,14 @@ const PLAIN = new Set(
   ).split(" "),
 );
 
-/** Close enough to count as the same word: plurals and tenses, nothing more. */
+/** Close enough to count as the same word: plurals and tenses, nothing more. "Setting" is "set". */
 export function stem(word: string): string {
   const w = word.toLowerCase();
   for (const suffix of ["ing", "ies", "ed", "es", "er", "s", "e", "y"]) {
-    if (w.endsWith(suffix) && w.length - suffix.length >= 3) return w.slice(0, -suffix.length);
+    if (!w.endsWith(suffix) || w.length - suffix.length < 3) continue;
+    const base = w.slice(0, -suffix.length);
+    const doubled = (suffix === "ing" || suffix === "ed" || suffix === "er") && /([b-df-hj-np-tv-z])\1$/.test(base) && !/(ll|ss|ff|zz)$/.test(base);
+    return doubled ? base.slice(0, -1) : base;
   }
   return w;
 }

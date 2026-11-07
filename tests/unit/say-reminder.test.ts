@@ -98,8 +98,10 @@ describe("the reminder tools behind the gate", () => {
   const ctx = () => ({ runId, actor: "agent:payment-reminder", channel: "test" });
 
   const decideNext = (decision: "approved" | "denied", before?: () => Promise<unknown>) => {
+    // Only this test's run: a listener left over from the test before must not decide this one.
+    const mine = runId;
     const off = approvals.onChange((a) => {
-      if (a.state !== "pending") return;
+      if (a.state !== "pending" || a.runId !== mine) return;
       off();
       setTimeout(async () => {
         await before?.();

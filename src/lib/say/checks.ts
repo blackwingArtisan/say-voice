@@ -50,16 +50,22 @@ export interface CheckInput {
 
 const FLAT_WORDS = /\bflat\b|\blump\b|\ball in\b|\bfor the (whole )?job\b/i;
 const HOUR_WORDS = /\bhours?\b|\bhourly\b|\bhrs?\b/i;
+/** How long it took, not what an hour costs: "about three hours", "took me five hours", "approximately an hour". */
+const TIME_ESTIMATE = /\b(?:about|approximately|approx|around|roughly|nearly|almost|maybe|probably|took|spent)\b(?:\s+[\w-]+){0,5}?\s+(?:hours?|hrs?)\b/i;
+const AMOUNT_WORD = "\\d|\\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|bucks|dollars)";
+/** A price for each hour: "sixteen an hour", "per hour", "hourly", "three hours at ninety". */
+const RATE_WORDS = new RegExp(`(?:${AMOUNT_WORD})\\s+(?:an?|per|each|every)\\s+(?:hour|hr)\\b|\\bper\\s+(?:hour|hr)\\b|\\bhourly\\b|/\\s*hr\\b|\\b(?:hours?|hrs?)\\s+at\\b`, "i");
 
 /**
  * Flat-rate labor: one "Labor" line for the whole amount. The book's Labor price is an hourly rate,
  * so comparing the two would be a false alarm, and the flat amount mustn't teach it either. One
- * hour at a rate is not flat, so "an hour at sixteen" still gets checked.
+ * hour at a rate is not flat, so "an hour at sixteen" still gets checked. Hours said as an estimate
+ * next to the amount ("about three hours, four hundred labor") are how long it took, so that's flat.
  */
 export function isFlatLabor(line: Pick<JobLine, "name" | "quantityMilli" | "unitCents">, transcript: string): boolean {
   if (line.quantityMilli !== 1000 || itemKey(line.name) !== "labor") return false;
   const said = heardFor(transcript, line) ?? transcript;
-  return FLAT_WORDS.test(said) || !HOUR_WORDS.test(said);
+  return FLAT_WORDS.test(said) || !HOUR_WORDS.test(said) || (TIME_ESTIMATE.test(said) && !RATE_WORDS.test(said));
 }
 
 /** What this item usually costs, once the book has enough invoices to say. */

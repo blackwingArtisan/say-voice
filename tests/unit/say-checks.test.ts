@@ -20,6 +20,18 @@ describe("flat-rate labor", () => {
     expect(findChecks({ ...base, transcript: "Flat rate two fifty for labor.", heardLines: lines, lines, flags: [] }).filter((check) => check.kind === "far")).toEqual([]);
   });
 
+  it("isn't compared with the hourly rate when the hours are how long it took", () => {
+    const lines = labor(40000);
+    const transcript = "Reset the sagging gate and rehung it, approximately three and a half hours, four hundred dollars labor.";
+    expect(findChecks({ ...base, transcript, heardLines: lines, lines, flags: [] }).filter((check) => check.kind === "far")).toEqual([]);
+  });
+
+  it("still catches an hourly rate far from the book, said with an estimate", () => {
+    const lines = labor(1500);
+    const transcript = "Cleared the clogged drain, about an hour of labor at fifteen an hour.";
+    expect(findChecks({ ...base, transcript, heardLines: lines, lines, flags: [] })[0]).toMatchObject({ kind: "far", usualCents: 8000 });
+  });
+
   it("still catches one hour at a misheard rate", () => {
     const lines = labor(1600);
     expect(findChecks({ ...base, transcript: "One hour at sixteen an hour.", heardLines: lines, lines, flags: [] })[0]).toMatchObject({ kind: "far", usualCents: 8000 });
