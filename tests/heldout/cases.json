@@ -1,0 +1,15 @@
+{
+  "note": "Held-out real transcripts. Sealed before the description step was written. Never use as prompt examples or for tuning.",
+  "cases": [
+    {
+      "id": "roofer",
+      "transcript": "Okay. Roof leak repair, um, valley replacement, um, laminated shingles approximately 10 years old. Um, remove shingles, um, rebase, um, break out at top, um, put in, uh, ice and water guard underlayment AKA Bituthene. Um, replace shingles with a valley liner and tie into existing seal old to new. Um, approximately three and a half hours, uh, four hundred dollars labor and, uh, two hundred dollars material. Mm-hmm.",
+      "expect": "Summary like \"Roof leak repair: valley replacement on ~10-year-old laminated shingles\". Labor $400 FLAT (qty 1, not hourly) described as tear-off, rebase, valley liner, tie-in, ~3.5 hrs. Materials $200 described as ice and water underlayment (Bituthene), valley liner, shingles. No invented parts or prices. No fillers (um, uh, Mm-hmm)."
+    },
+    {
+      "id": "appliance",
+      "transcript": "I fixed the dryer at 967 66 th Street. The part was three hundred and twenty-nine dollars plus tax for lowa, and it took me two hours, and I charged sixty dollars an hour.",
+      "expect": "Job site \"967 66th Street\", summary \"Dryer repair\". Part $329.00 taxed. Labor 2 h x $60.00 = $120.00 untaxed. A tax check offering Iowa 6% / 7%. At 7%: tax $23.03, total $472.03. At 6%: tax $19.74, total $468.74. Scribe heard \"Iowa\" as \"lowa\" and \"66th\" as \"66 th\"; the state match must handle both."
+    }
+  ]
+}
