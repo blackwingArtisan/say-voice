@@ -1,6 +1,7 @@
 /** The part both flows share: from the confirm screen through the gate to PayPal's own record. */
 import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { readInvoiceFromPayPal } from "./paypal-reread";
+import { appConfig } from "../../src/app.config";
 import { computeTotals } from "../../src/lib/say/money";
 import type { JobView } from "../../src/lib/say/types";
 
@@ -155,6 +156,7 @@ export async function sendAndVerify(page: Page, request: APIRequestContext, tota
     // Straight from PayPal, not through the app.
     const invoice = await readInvoiceFromPayPal(done.invoice!.id);
     expect(invoice.status).toBe("SENT");
+    expect(invoice.invoicer?.business_name).toBe(appConfig.tradeName); // the customer sees the trade, not PayPal's "Test Store"
     expect(invoice.amount).toMatchObject({ currency_code: "USD", value: (totalCents / 100).toFixed(2) });
     expect(invoice.items.map((item) => [item.name, item.quantity, item.unit_amount.value])).toEqual(done.lines.map((line) => [line.name, (line.quantityMilli / 1000).toFixed(3).replace(/\.?0+$/, ""), (line.unitCents / 100).toFixed(2)]));
     expect(invoice.detail.invoice_number).toBe(done.invoice!.number);

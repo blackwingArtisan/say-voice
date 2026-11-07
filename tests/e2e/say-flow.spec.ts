@@ -182,8 +182,11 @@ test("adding an item the speaker didn't mention updates the total", async ({ pag
   await added.getByTestId("line-name").fill("Disposal fee");
   await added.getByTestId("line-price").fill("12.50");
   await expect(page.getByTestId("invoice-total")).toHaveText(money(SAMPLE_AMOUNTS.heardTotalCents + 1250));
+  // The speaker said "No tax on this one", so the heard lines start untaxed. Only the added fee is taxed: 10% of $12.50.
+  await expect(page.getByTestId("invoice-line").nth(0).getByTestId("line-taxed")).not.toBeChecked();
+  await expect(page.getByTestId("invoice-line").nth(1).getByTestId("line-taxed")).not.toBeChecked();
   await page.getByTestId("tax-rate").fill("10");
-  await expect(page.getByTestId("tax-total")).toHaveText("$8.75");
+  await expect(page.getByTestId("tax-total")).toHaveText("$1.25");
 });
 
 test("works at phone width", async ({ page, request }) => {

@@ -33,6 +33,28 @@ test.describe("the reminder agent", () => {
     await page.screenshot({ path: "screenshots/reminder-sent-phone.png", fullPage: true });
   });
 
+  test("code refuses a figure the invoice doesn't have before any card, and the corrected note goes out", async ({ page, request }) => {
+    test.setTimeout(150_000);
+    const sent = await sentSample(page, request);
+    await page.getByTestId("reminder-ask").fill("Add a $25 late fee");
+    const prompt = await proposeReminder(page);
+    const refused = page.getByTestId("reminder-refused");
+    await expect(refused).toHaveCount(1);
+    await expect(refused).toContainText("$25");
+    await expect(page.getByTestId("reminder-refused-reason")).toHaveText("The note says $25.00, but the amount due is $110.00.");
+    await expect(prompt).not.toContainText("$25");
+
+    const job = await readJob(request, sent.id);
+    expect(job.refusedNotes).toHaveLength(1);
+    const actions = await auditedActions(request, "send_payment_reminder", job.reminderRunId!);
+    expect(actions.filter((a) => a === "tool.failed")).toHaveLength(1);
+    expect(actions.filter((a) => a === "approval.requested")).toHaveLength(1); // one card: the refused note never got one
+
+    await page.getByTestId("approve-button").click();
+    await expect(page.getByTestId("reminder-sent")).not.toContainText("$25", { timeout: 30_000 });
+    await expect(page.getByTestId("reminder-sent")).toContainText("$110.00");
+  });
+
   test("a declined reminder sends nothing", async ({ page, request }) => {
     test.setTimeout(150_000);
     await sentSample(page, request);
