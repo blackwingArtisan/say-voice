@@ -39,6 +39,12 @@ describe("spoken amounts with no line item", () => {
     expect(missing[0].excerpt).toContain("sixty dollars");
   });
 
+  it("reads a house number before a street as an address, however speech wrote it", () => {
+    expect(findMissingAmounts("Fixed the sink at 418 12 th Avenue. Trap was twelve dollars.", [line(1, 12)], 0)).toEqual([]);
+    expect(findMissingAmounts("Job at 52 West Elm St, an hour at seventy.", [line(1, 70)], 0)).toEqual([]);
+    expect(findMissingAmounts("Valve at 45 dollars on Oak Street.", [], 0).map((m) => m.cents)).toEqual([4500]);
+  });
+
   it("stays quiet when every amount is on the invoice", () => {
     expect(findMissingAmounts("Three hours at 50 an hour. Two gallons of sealer at $80 a gallon. Taxes 5%.", [line(3, 50), line(2, 80)], 5000)).toEqual([]);
   });

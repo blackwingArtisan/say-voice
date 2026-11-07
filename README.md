@@ -18,6 +18,7 @@ A plumber finishes a job at two in the afternoon and writes the invoice at nine 
 - Press record and say the job: hours, parts, prices, tax.
 - ElevenLabs Scribe v2 writes it down and Claude pulls out the line items.
 - Check the invoice. Your words sit beside every number, and everything is editable.
+- The invoice says what the job was, where and when, with a description on every line, so the customer knows exactly what they paid for (see **Clear invoices and tax** below).
 - The app holds the send until each worry is settled: a price far from what that item usually costs (fifty heard as fifteen shows "Usually $50.00"), a doubt the AI flagged, or a spoken amount with no line item. Each takes one tap.
 - Press send, then approve the exact amount. Nothing reaches the customer before that.
 - PayPal creates and sends the invoice. The result screen shows the real number and status, read back from PayPal.
@@ -30,13 +31,33 @@ If the app can't read a recording yet, you keep it. A refused upload, a lost sig
 
 No mic? **Try a sample job** runs a real recorded job through the same screens, including a mishearing to catch.
 
+## Clear invoices and tax
+
+A working roofer told us customers want to know exactly what was fixed. "Labor $400, Materials $200" says nothing about what job, where or when. So the invoice now carries:
+
+- **A job summary, the job site and the date of service** at the top, in PayPal's note to the customer (it's in the invoice email too). The date is there only if you said one.
+- **A description under every line**: the work done on the labor line, the parts and materials on the materials line.
+
+A second Claude call (Haiku 5.5, its own prompt and mock fixture) writes these after the line items are read. It gets the transcript and the item names and can only write words: code merges its text onto the lines that already exist, so it can't add, remove or change an item, a quantity or a price. Then code checks every word:
+
+- Fillers ("um", "uh", "mm-hmm") are stripped.
+- A link, or a number you didn't say that isn't that line's own quantity or price, blanks the text, and the screen says why.
+- A word you didn't say is flagged on the confirm screen, so a made-up part or piece of work gets a look before it goes. Plurals, tenses and one-letter slips count as said. Words you type yourself are never flagged.
+- A date goes on only when the words for it are in what you said.
+
+Everything is editable on the confirm screen, at phone size too. A generic line (Labor, Materials, Parts, Service call, Fee, Misc, Other and the like) with no description holds the send, and no tap waves it through: write a few words and it clears.
+
+**Tax.** Say "plus tax" with no rate and the send waits for one. The check names the state it heard ("lowa", as speech to text writes Iowa, counts) and offers one-tap rates from a table in code: for Iowa, **6% state** and **7% state + local option**, plus **Other rate** and **No tax**. The rates come from the Tax Foundation's July 2026 table and the labels say to check your local rate. The AI never picks a rate: a rate it fills in that nobody said is dropped. Tax is per line: "plus tax" said after one item taxes that item only (a $329 part taxed, $120 of labor not: $23.03 tax at 7%), and each line has a Taxed switch. PayPal gets the tax on each item, and totals are worked out by code.
+
+On PayPal: `detail.note` (summary, site, date; 4,000 characters), each item's `description` (cut at a word to fit 1,000) and `item_date`, and `tax` per item. The sandbox tests read all of it back from PayPal's API, and once from the page the customer sees.
+
 ## How PayPal is used
 
 All PayPal calls go to the **sandbox** (`https://api-m.sandbox.paypal.com`); there is no live mode in the code. Every call shows on the in-app timeline with its HTTP status and PayPal `debug_id`.
 
 | PayPal API | Endpoint(s) | Where and why |
 |---|---|---|
-| Invoicing v2 | `POST /v2/invoicing/invoices`, `POST /v2/invoicing/invoices/{id}/send` | Creates the invoice from the checked job and sends it, after approval |
+| Invoicing v2 | `POST /v2/invoicing/invoices`, `POST /v2/invoicing/invoices/{id}/send` | Creates the invoice from the checked job and sends it, after approval. The note says what, where and when; each item has a description, a date of service and its own tax |
 | Invoicing v2 | `GET /v2/invoicing/invoices/{id}` | Reads the invoice back, so the screen shows PayPal's number, status, amount due and payment |
 | Invoicing v2 | `POST /v2/invoicing/invoices/{id}/remind` | Sends the reminder the person approved |
 | Webhooks | `POST /v1/notifications/verify-webhook-signature` | Verifies PayPal's events. `INVOICING.INVOICE.PAID`, `REFUNDED` and `CANCELLED` update the job when `PAYPAL_WEBHOOK_ID` is set. The event only says something changed, so the status comes from a fresh read |
@@ -49,6 +70,7 @@ All PayPal calls go to the **sandbox** (`https://api-m.sandbox.paypal.com`); the
 |---|---|---|
 | Speech to text | ElevenLabs Scribe v2 | Turns the recording into a transcript. The audio goes from the server to ElevenLabs and isn't stored here |
 | Job extraction | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | Reads the transcript into line items, quantities, prices and tax, and lists what it's unsure of |
+| Job description | Claude Haiku 5.5 (`claude-haiku-5-5`) | Writes the job summary, job site, date of service and a description per line, in the speaker's words. Code guards every word |
 | Reminder agent | Claude Haiku 5.5 (`claude-haiku-5-5`) | Reads the unpaid invoice from PayPal and writes the note the customer would get |
 
 - **Code does the arithmetic**: money is integer cents, and line totals and the invoice total are computed in code, never stated by the AI. The rounding matches PayPal's, checked against real sandbox invoices.
@@ -109,7 +131,9 @@ Render Blueprint (`render.yaml`): New → Blueprint → this repo, then enter th
 ## Limitations
 
 - Sandbox only; no live payments are possible.
-- US dollars, English speech, and one tax rate per invoice.
+- US dollars, English speech, and one tax rate per invoice (each line is taxed or not).
+- The state rate table is statewide rates only, plus Iowa's local option. Local rates elsewhere are typed in.
+- The word check matches spelling, not meaning: a rewording of what you said (like "tear-off" for "remove") is flagged for a look even when it's fair.
 - Sales tax is worked out per line, as PayPal does, so it can differ by a cent from tax on the whole sum.
 - Recording is capped at two minutes, and the audio is uploaded when you stop, not streamed.
 - Speech can still mishear a price. The confirm screen is what catches that, so a person has to read it.

@@ -88,6 +88,7 @@ function readWords(tokens: Token[], at: number): [number, number, number?] | nul
 
 const MONEY_AFTER = /^(dollars?|bucks?|each|apiece|hour|hr)$/;
 const COUNT_AFTER = /^(hours?|minutes?|days?|weeks?|months?|years?|feet|foot|inch(es)?|amps?|gallons?|percent|rooms?|times?|bags?|boxes|bundles?|panes?|boards?|sets?|cans?)$/;
+const STREET = /^(street|st|avenue|ave|road|rd|lane|ln|drive|dr|court|ct|boulevard|blvd|place|pl|parkway|pkwy|terrace|circle|highway|hwy)$/i;
 const MONEY_BEFORE = /^(at|labor|fee|charge|cost|costs|price|plus)$/;
 
 function classify(tokens: Token[], before: number, after: number, dollarSign: boolean, percentSign: boolean): boolean {
@@ -102,6 +103,8 @@ function classify(tokens: Token[], before: number, after: number, dollarSign: bo
   if (COUNT_AFTER.test(next)) return false;
   // "at 12 Oak Lane" is an address, "at 45 a bag" and "at sixty" are prices.
   if (tokens[after] && /^[A-Z]/.test(tokens[after].text) && tokens[after].start === tokens[after - 1].end + 1) return false;
+  // So is "at 967 66th Street", which speech to text can write "967 66 th Street": a street word follows close behind.
+  if (tokens.slice(after, after + 4).some((t) => STREET.test(t.text))) return false;
   return MONEY_BEFORE.test(tokens[before]?.lower ?? "");
 }
 

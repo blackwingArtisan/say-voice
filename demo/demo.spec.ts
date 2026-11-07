@@ -40,6 +40,12 @@ test("demo", async ({ page }) => {
   await point(page, "Totals are worked out by code, in cents. The AI never states them.", page.getByTestId("invoice-total"));
   clock.check("corrected");
 
+  // Scene 3b: a clear invoice
+  await expect(page.getByTestId("job-summary")).not.toHaveValue("");
+  await point(page, "A second AI call writes what the customer reads: what the job was, in your words.", page.getByTestId("job-summary"));
+  await point(page, "Every line says what it covers. Code flags any word you didn't say.", page.getByTestId("line-description").first());
+  clock.check("clear");
+
   // Scene 4: the gate
   await page.getByTestId("send-invoice").click();
   const prompt = page.getByTestId("approval-prompt");
@@ -50,7 +56,7 @@ test("demo", async ({ page }) => {
   clock.check("sent");
 
   // Scene 5: chasing it
-  await point(page, "The invoice number and status are read back from PayPal.", page.getByTestId("invoice-number"));
+  await point(page, "The invoice number, status and note to the customer are read back from PayPal.", page.getByTestId("result-note"));
   await page.getByTestId("ask-reminder").click();
   const reminder = page.getByTestId("approval-prompt");
   await expect(reminder).toBeVisible({ timeout: 30_000 });
