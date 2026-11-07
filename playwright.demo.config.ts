@@ -14,6 +14,7 @@ export default defineConfig({
   timeout: 420_000,
   expect: { timeout: 20_000 },
   workers: 1,
+  retries: 1, // the browser's audio now and then starts silent; a second take starts clean
   reporter: [["list"]],
   outputDir: "test-results/demo/out",
   use: {

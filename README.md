@@ -6,6 +6,12 @@
 
 The site is on free hosting, so the first visit can take a minute.
 
+**For one-person trades who bill from the van.** In testing, an AI model stated a wrong total on **6 of 20** spoken jobs, so here code does every sum and the AI never states one. A working roofer's **$600** roof repair went out through it, with what was fixed on every line:
+
+![A real roofer's $600 job, as the customer saw it on PayPal](public/proof/roofer-invoice.png)
+
+**Why not Housecall Pro or Jobber?** No suite to set up. Your words sit beside every number, a price book stops a wrong price whoever said it (you or the speech model), and nothing reaches a customer until you approve the exact amount.
+
 ![The confirm screen](docs/screenshot.png)
 
 ## The problem
@@ -22,10 +28,11 @@ A plumber finishes a job at two in the afternoon and writes the invoice at nine 
 - The app holds the send until each worry is settled: a price far from what that item usually costs (fifty heard as fifteen shows "Usually $50.00"), a doubt the AI flagged, or a spoken amount with no line item. Each takes one tap.
 - Press send, then approve the exact amount. Nothing reaches the customer before that.
 - PayPal creates and sends the invoice. The result screen shows the real number and status, read back from PayPal.
-- If it's unpaid, an agent drafts a reminder from what PayPal says is owed. You read the words and approve them before PayPal sends it.
+- If it's unpaid, an agent drafts a reminder from what PayPal says is owed. You can ask it to add something; it writes what you ask, and code refuses any figure PayPal's invoice doesn't have (a "$25 late fee", say) before an approval card ever appears, and shows you what it refused. You read the corrected words and approve them before PayPal sends it.
+- The customer's PayPal invoice comes from the trade's name (`invoicer.business_name`), not PayPal's default.
 - When the customer pays, the job turns paid by itself, from PayPal's webhook.
 
-The **Prices** page is the price book: seeded with demo items, then learned from the invoices that browser sent.
+The **Prices** page is the price book: seeded with demo items, then learned from the invoices that browser sent. **Learn from my PayPal invoices** reads the trade's own past invoices from PayPal (`GET /v2/invoicing/invoices`, then each one in full) and says how many it learned from. It keeps the last 20 from this trade name, because the sandbox account is shared with other apps, and leaves labor out, since a flat labor line can't be told from an hourly one without the words said around it.
 
 If the app can't read a recording yet, you keep it. A refused upload, a lost signal or an empty AI or speech balance leaves the take in your browser with a clear message and **Try again**, even after a reload. Speech that was already heard isn't paid for twice. A recording with no words in it asks for a new one.
 
@@ -62,6 +69,7 @@ All PayPal calls go to the **sandbox** (`https://api-m.sandbox.paypal.com`); the
 | Invoicing v2 | `POST /v2/invoicing/invoices`, `POST /v2/invoicing/invoices/{id}/send` | Creates the invoice from the checked job and sends it, after approval. The note says what, where and when; each item has a description, a date of service and its own tax |
 | Invoicing v2 | `GET /v2/invoicing/invoices/{id}` | Reads the invoice back, so the screen shows PayPal's number, status, amount due and payment |
 | Invoicing v2 | `POST /v2/invoicing/invoices/{id}/remind` | Sends the reminder the person approved |
+| Invoicing v2 | `GET /v2/invoicing/invoices` | Reads the trade's past invoices into the price book, on request |
 | Webhooks | `POST /v1/notifications/verify-webhook-signature` | Verifies PayPal's events. `INVOICING.INVOICE.PAID`, `REFUNDED` and `CANCELLED` update the job when `PAYPAL_WEBHOOK_ID` is set. The event only says something changed, so the status comes from a fresh read |
 
 **Safety around money:** the send and the reminder go through a guard. It enforces a per-action cap, a daily cap, a payee allowlist and idempotency, and it waits for a person every time, whatever the amount. The allowlist means invoices can only go to made-up `@example.com` addresses: type a real one and the guard refuses, and the page says what to do instead. Before sending, the app compares PayPal's own total with the approved total, and stops if they differ by a cent. The server works out the open checks again, so skipping the screen gets a refusal. Every decision goes to a hash-chained, append-only audit log.
@@ -113,6 +121,8 @@ AI_MODE=mock PAYPAL_MODE=mock npm run dev   # no credentials needed
 ```
 
 Open http://localhost:3000. For the real sandbox set `PAYPAL_MODE=sandbox`, `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`. For real AI set `ANTHROPIC_API_KEY` and `ELEVENLABS_API_KEY`. The microphone needs `localhost` or HTTPS.
+
+Demo video: `DEMO_VOICE=take.m4a DEMO_PAYPAL_MODE=sandbox DEMO_AI_MODE=live npm run demo:record` records at phone width with live speech and AI. The clip is the microphone, so ElevenLabs really hears it, and `scripts/demo-finish.ts` cuts PayPal's checkout window in and lays the voice under the record press. Output: `videos/demo-say-voice.mp4`. With no `DEMO_VOICE`, a macOS computer voice stands in as a placeholder.
 
 Checks: `npm run check` (lint, typecheck, unit tests, build), `npm run test:e2e` (mock PayPal), `npm run test:e2e:sandbox` (sends real sandbox invoices). Set `E2E_BASE_URL` to run the sandbox flow against a deployed copy. `ENGINE=webkit npm run test:e2e:engines` runs the mock suite on another browser; `ENGINE` can also be `firefox`, `iphone` or `android`. Each of those uses a stand-in microphone, because only Chromium has a fake one.
 

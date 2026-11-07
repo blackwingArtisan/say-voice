@@ -41,10 +41,7 @@ test("demo", async ({ browser }) => {
     viewport: PHONE,
     deviceScaleFactor: 2,
     permissions: ["microphone"],
-    recordVideo: {
-      dir: path.join(OUT, "raw"),
-      size: { width: PHONE.width * 2, height: PHONE.height * 2 },
-    },
+    recordVideo: { dir: path.join(OUT, "raw"), size: PHONE },
   });
   // The voice clip is the microphone: the recorder, its level meter and the upload to the speech model all get it, starting at the press.
   const voice = fs.readFileSync(process.env.DEMO_VOICE_WAV ?? path.join(OUT, "voice.wav")).toString("base64");
@@ -58,7 +55,7 @@ test("demo", async ({ browser }) => {
       const out = audio.createMediaStreamDestination();
       source.connect(out);
       source.start();
-      Object.assign(window, { voiceStartedAt: Date.now() });
+      Object.assign(window, { voiceStartedAt: Date.now(), voiceState: audio.state });
       return out.stream;
     };
   }, voice);
@@ -127,6 +124,7 @@ test("demo", async ({ browser }) => {
   await page.getByTestId("record-start").click();
   await page.waitForFunction(() => "voiceStartedAt" in window);
   timeline.recordPressMs = (await page.evaluate(() => (window as unknown as { voiceStartedAt: number }).voiceStartedAt)) - t0;
+  console.log(`[demo] voice audio context: ${await page.evaluate(() => (window as unknown as { voiceState: string }).voiceState)}`);
   await expect.poll(async () => Number(await page.getByTestId("mic-level").getAttribute("data-peak")), { timeout: 5_000 }).toBeGreaterThan(0.01);
   await page.waitForTimeout(VOICE_SECONDS * 1000 + 600);
   await page.getByTestId("record-stop").click();
@@ -285,11 +283,10 @@ test("demo", async ({ browser }) => {
     context.waitForEvent("page", { timeout: 30_000 }),
     cardButtons()!.locator('[data-funding-source="card"]').first().click(),
   ]);
-  (timeline.popups as unknown[]).push({
-    openMs: at(),
-    video: await checkout.video()!.path(),
-  });
+  (timeline.popups as unknown[]).push({ openMs: at(), video: await checkout.video()!.path() });
   await checkout.locator("#cardNumber").waitFor({ timeout: 30_000 });
+  // Playwright fits a bigger window into the video size, so the finisher needs its size to cut the padding off.
+  Object.assign((timeline.popups as object[]).at(-1)!, { size: await checkout.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight })) });
   await caption(
     checkout,
     "Test card 4111 1111 1111 1111, on PayPal's own checkout.",
