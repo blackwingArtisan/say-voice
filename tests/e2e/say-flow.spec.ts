@@ -564,3 +564,43 @@ test("a first visit opens on a finished sample job: sent, paid and labelled Samp
   const { entries } = (await (await request.get("/api/paypal/ledger?kind=invoice")).json()) as { entries: unknown[] };
   expect(entries.length).toBeGreaterThan(0);
 });
+
+test("your business: the trade name you set is the one PayPal shows, and a customer you add is there to pick", async ({ page, request }) => {
+  const { live, sandbox } = await kitStatus(request);
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
+  const tradeName = "Birch Lane Plumbing";
+
+  await openNewJob(page);
+  const card = page.getByTestId("business-card");
+  await expect(card.getByTestId("trade-name-current")).toHaveText(appConfig.tradeName); // the demo trade until you put your own
+  await card.getByTestId("trade-name-input").fill(tradeName);
+  await card.getByTestId("trade-name-save").click();
+  await expect(card.getByTestId("trade-name-current")).toHaveText(tradeName);
+
+  // Only a test address can be added, the same rule the Guard keeps for sending.
+  await card.getByTestId("add-customer-name").fill("Jordan Ellis");
+  await card.getByTestId("add-customer-email").fill("jordan.ellis@gmail.com");
+  await card.getByTestId("add-customer-save").click();
+  await expect(card.getByTestId("add-customer-problem")).toContainText("@example.com");
+  await card.getByTestId("add-customer-email").fill("jordan.ellis@example.com");
+  await card.getByTestId("add-customer-save").click();
+  const added = page.getByRole("button", { name: /Jordan Ellis/ });
+  await expect(added).toHaveAttribute("aria-pressed", "true");
+
+  // Both stay with this browser.
+  await page.reload();
+  await expect(page.getByTestId("business-card").getByTestId("trade-name-current")).toHaveText(tradeName);
+  await expect(page.getByRole("button", { name: /Jordan Ellis/ })).toBeVisible();
+  await page.screenshot({ path: "screenshots/your-business.png" });
+  const elsewhere = (await (await request.get("/api/contacts")).json()) as { contacts: { email: string }[] };
+  expect(elsewhere.contacts.map((c) => c.email)).not.toContain("jordan.ellis@example.com");
+
+  const sent = await sentSample(page, request);
+  await expect(page.getByTestId("invoice-from")).toHaveText(tradeName);
+  expect(sent.invoice!.businessName).toBe(tradeName);
+  if (sandbox) {
+    const invoice = await readInvoiceFromPayPal(sent.invoice!.id);
+    expect(invoice.invoicer?.business_name).toBe(tradeName);
+    console.log(`PayPal re-read: ${invoice.detail.invoice_number} ${invoice.id} ${invoice.status} USD ${invoice.amount.value} from ${invoice.invoicer?.business_name}`);
+  }
+});
