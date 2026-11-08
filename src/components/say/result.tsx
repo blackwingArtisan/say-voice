@@ -5,6 +5,7 @@ import { CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
 import { Button, ButtonLink, Card, CardBody, StatusPill } from "@/components/ui";
 import { computeTotals, formatCents, formatQuantity } from "@/lib/say/money";
 import { isPaid, type JobView, type SentInvoice } from "@/lib/say/types";
+import { PayNow } from "./pay-now";
 
 const longDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
@@ -68,11 +69,13 @@ export function Result({ job, invoice, showLink, onCheck }: { job: JobView; invo
         ) : null}
         <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200">
           {job.lines.map((line, i) => (
-            <li key={line.key} className="flex flex-wrap items-baseline justify-between gap-x-3 px-4 py-2 text-sm">
-              <span className="font-medium text-zinc-900">{line.name}</span>
-              <span className="ml-auto font-mono text-xs text-zinc-500">{formatQuantity(line.quantityMilli)} × {formatCents(line.unitCents)}</span>
-              <span className="w-24 text-right font-mono tabular-nums text-zinc-900">{formatCents(totals.lines[i].lineCents)}</span>
-              {line.description ? <span className="basis-full text-zinc-500" data-testid="result-description">{line.description}</span> : null}
+            <li key={line.key} className="px-4 py-2 text-sm" data-testid="result-line">
+              <div className="flex items-baseline gap-3">
+                <span className="min-w-0 flex-1 break-words font-medium text-zinc-900">{line.name}</span>
+                <span className="shrink-0 text-right font-mono tabular-nums text-zinc-900" data-testid="result-line-amount">{formatCents(totals.lines[i].lineCents)}</span>
+              </div>
+              <p className="font-mono text-xs text-zinc-500">{formatQuantity(line.quantityMilli)} × {formatCents(line.unitCents)}</p>
+              {line.description ? <p className="mt-0.5 text-zinc-500" data-testid="result-description">{line.description}</p> : null}
             </li>
           ))}
           {totals.taxCents ? (
@@ -82,9 +85,10 @@ export function Result({ job, invoice, showLink, onCheck }: { job: JobView; invo
             </li>
           ) : null}
         </ul>
+        {showLink && invoice.payerUrl && !isPaid(invoice) ? <PayNow url={invoice.payerUrl} dueCents={invoice.dueCents} customer={job.customer.name} /> : null}
         <div className="flex flex-wrap gap-3">
           <ButtonLink href="/jobs" data-testid="next-job">Start the next job</ButtonLink>
-          {showLink && invoice.payerUrl ? (
+          {showLink && invoice.payerUrl && isPaid(invoice) ? (
             <a href={invoice.payerUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50" data-testid="payer-link">
               Open what the customer sees <ExternalLink className="size-4" />
             </a>
