@@ -7,6 +7,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/unit/**/*.test.ts"],
+    setupFiles: ["tests/unit/setup.ts"],
     env: {
       // Tests never touch the shared credentials file or the real data dir.
       ENV_SHARED_PATH: path.join(os.tmpdir(), "kit-tests-no-shared-env"),
