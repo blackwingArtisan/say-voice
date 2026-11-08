@@ -44,7 +44,7 @@ export function errorResponse(error: unknown): Response {
   if (error instanceof PayPalNetworkError) return Response.json({ error: { type: "paypal_network", message: error.message } }, { status: 502 });
   if (error instanceof ZodError) return Response.json({ error: { type: "validation", message: "Invalid request", issues: error.issues } }, { status: 400 });
   if (error instanceof RateLimitedError) {
-    return Response.json({ error: { type: "rate_limited", message: error.message, retry_after_seconds: error.retryAfterSeconds } }, { status: 429, headers: { "Retry-After": String(error.retryAfterSeconds) } });
+    return Response.json({ error: { type: "rate_limited", message: error.message, retry_after_seconds: error.retryAfterSeconds, ...(error.limit ? { limit: error.limit.count, per: error.limit.per } : {}) } }, { status: 429, headers: { "Retry-After": String(error.retryAfterSeconds) } });
   }
   if (error instanceof AiBudgetExceededError) return Response.json({ error: { type: "ai_credit", message: "Today's AI budget is used up. It resets at midnight UTC." } }, { status: 402 });
   if (error instanceof AiCreditError) return Response.json({ error: { type: "ai_credit", message: error.message } }, { status: 402 });

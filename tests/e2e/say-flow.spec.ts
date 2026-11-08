@@ -213,7 +213,17 @@ test("works at phone width", async ({ page, request }) => {
   await startSample(page);
   await expect(page.getByTestId("invoice-total")).toBeVisible();
   await fits();
+  // What the customer reads, the due date and the tax fold into one line, with Edit.
+  const folded = page.getByTestId("details-summary");
+  await expect(folded).toBeVisible();
+  await expect(folded).toContainText(/Due [A-Z][a-z]{2} \d{1,2} · No tax/);
+  await expect(page.getByTestId("job-summary")).toBeHidden();
+  await expect(page.getByTestId("due-date")).toBeHidden();
   await page.screenshot({ path: "screenshots/confirm-phone.png", fullPage: true });
+  await page.getByTestId("edit-details").click();
+  await expect(page.getByTestId("job-summary")).toBeVisible();
+  await expect(page.getByTestId("due-date")).toBeVisible();
+  await expect(folded).toHaveCount(0);
   await settleAiNotes(page);
 
   // One hand: the next step is always under the thumb, and it leads to whatever needs a look.
@@ -224,6 +234,10 @@ test("works at phone width", async ({ page, request }) => {
   const fixes = await page.evaluate(() => [...document.querySelectorAll("[data-testid=use-usual],[data-testid=keep-line]")].map((el) => el.getBoundingClientRect().height));
   expect(Math.min(...fixes)).toBeGreaterThanOrEqual(44);
   await element.getByTestId("use-usual").click();
+  // The Send bar stays under the thumb, with the total on it.
+  await expect(page.getByTestId("send-invoice")).toBeInViewport();
+  await expect(page.getByTestId("send-invoice")).toContainText("$110.00");
+  await page.mouse.wheel(0, -2000);
   await expect(page.getByTestId("send-invoice")).toBeInViewport();
   // Earlier tests sent invoices. Their webhooks belong to those jobs, not this one.
   await expect(page.getByTestId("timeline-step").filter({ hasText: "INVOICING." })).toHaveCount(0);
@@ -473,4 +487,24 @@ test("learn from my PayPal invoices: the book fills from PayPal, each price says
   await expect(element.getByTestId("line-usual")).toHaveCount(0);
   await expect(element.getByTestId("learned-note")).toContainText(mock ? "Your PayPal invoices had this at $50.00 last time" : /Your PayPal invoices had this at \$\d+\.\d\d last time/);
   await expect(element.getByTestId("learned-note")).toContainText("This says $55.00");
+});
+
+test("a first visit opens on a finished sample job: sent, paid and labelled Sample, with Activity and the ledger filled", async ({ page, request }) => {
+  // Made in the background when the server starts, so it may take a moment on the sandbox.
+  await expect.poll(async () => ((await (await request.get("/api/jobs")).json()) as { example: { invoice?: { status: string } } | null }).example?.invoice?.status ?? "none", { timeout: 90_000, intervals: [1_000] }).toMatch(/^(PAID|MARKED_AS_PAID)$/);
+  await page.goto("/jobs");
+  const row = page.getByTestId("example-job-row");
+  await expect(row).toContainText("Sample");
+  await expect(row).toContainText("$110.00");
+  await row.click();
+  await page.waitForURL(/\/jobs\/job_sample$/);
+  await expect(page.getByTestId("example-badge")).toHaveText("Sample");
+  await expect(page.getByRole("heading", { name: "Invoice paid" })).toBeVisible();
+  await expect(page.getByTestId("paid-banner")).toBeVisible();
+  await expect(page.getByTestId("invoice-amount")).toHaveText("$110.00");
+  // Through the same approval gate as any job.
+  await page.goto("/activity");
+  await expect(page.getByTestId("activity-row").first()).toBeVisible();
+  const { entries } = (await (await request.get("/api/paypal/ledger?kind=invoice")).json()) as { entries: unknown[] };
+  expect(entries.length).toBeGreaterThan(0);
 });

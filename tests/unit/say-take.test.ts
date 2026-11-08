@@ -16,6 +16,7 @@ const bodyOf = async (error: unknown) => {
 describe("what the server says when it refuses", () => {
   it("gives the wait with a rate limit, so the page can count it down", async () => {
     expect(await bodyOf(new RateLimitedError(34))).toMatchObject({ status: 429, type: "rate_limited", retry_after_seconds: 34 });
+    expect(await bodyOf(new RateLimitedError(34, { count: 6, per: "minute" }))).toMatchObject({ retry_after_seconds: 34, limit: 6, per: "minute" });
   });
 
   it("names the daily cap in plain words, not the sums", async () => {
@@ -66,6 +67,9 @@ describe("what the page tells the person", () => {
 
   it("counts down the limit", () => {
     expect(explainTake({ type: "rate_limited", retryAfter: 34 }).waitSeconds).toBe(34);
+    // The real number when the server gives it, not "a few".
+    expect(explainTake({ type: "rate_limited", retryAfter: 34, limit: 6, per: "minute" }).detail).toContain("This demo allows 6 AI requests a minute per person.");
+    expect(explainSample({ type: "rate_limited", retryAfter: 34, limit: 150, per: "day" })).toBe("This demo allows 150 AI requests a day per person. Try again in 34 seconds.");
   });
 
   it("doesn't offer a retry that can't work", () => {
