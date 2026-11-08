@@ -444,3 +444,33 @@ test("if PayPal's own arithmetic comes out different, the draft is deleted and t
   expect(job.status).toBe("review");
   expect(job.invoice).toBeUndefined();
 });
+
+test("learn from my PayPal invoices: the book fills from PayPal, each price says where it came from, and the confirm screen says when one differs", async ({ page, request }) => {
+  const { live, paypal } = await kitStatus(request);
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
+  const mock = paypal === "mock";
+
+  await page.goto("/prices");
+  await expect(page.getByTestId("price-row").first()).toBeVisible();
+  await page.getByTestId("learn-from-paypal").click();
+  await expect(page.getByTestId("learned-from-paypal")).toContainText(/Learned from your last \d+ PayPal invoices/, { timeout: 90_000 });
+  // The demo trade's past invoices, read back with GET /v2/invoicing/invoices (seeded with npm run seed:history on the sandbox).
+  const pump = page.getByTestId("price-row").filter({ hasText: "Drain pump" });
+  await expect(pump.getByTestId("price-count")).toHaveText(mock ? "from 3 PayPal invoices, last $85.00" : /^from \d+ PayPal invoices?, last \$\d+\.\d\d/);
+  await expect(pump).toContainText("PayPal");
+  await expect(page.getByTestId("price-row").filter({ hasText: "Heating element" }).getByTestId("price-count")).toContainText("PayPal invoices, last $");
+  await page.screenshot({ path: `screenshots/learned-${paypal}.png`, fullPage: true });
+
+  // The misheard $15 is stopped against what PayPal says this trade charges.
+  await startSample(page);
+  const element = page.getByTestId("invoice-line").nth(1);
+  await expect(element.getByTestId("line-usual")).toContainText("read from your PayPal");
+  // The reads behind the book stay out of the job's own "What happened".
+  await page.waitForTimeout(1_000); // the activity stream's first snapshot
+  await expect(page.getByTestId("plain-step").filter({ hasText: /past PayPal invoices|invoice back from PayPal/ })).toHaveCount(0);
+  // Close to it but not the same: pointed out, not stopped.
+  await element.getByTestId("line-price").fill("55.00");
+  await expect(element.getByTestId("line-usual")).toHaveCount(0);
+  await expect(element.getByTestId("learned-note")).toContainText(mock ? "Your PayPal invoices had this at $50.00 last time" : /Your PayPal invoices had this at \$\d+\.\d\d last time/);
+  await expect(element.getByTestId("learned-note")).toContainText("This says $55.00");
+});

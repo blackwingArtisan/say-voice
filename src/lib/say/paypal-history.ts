@@ -1,19 +1,25 @@
 /**
  * The price book can start from the trade's own past invoices on PayPal (GET /v2/invoicing/invoices),
  * so a first-day user isn't stuck with demo prices. Only invoices from this trade name count: the
- * sandbox account is shared with other apps. Invoices this browser sent are already in the book from
- * its jobs, so they're skipped. Code reads the prices; no AI is involved. Server only.
+ * sandbox account is shared with other apps. Invoices sent with this app carry its private memo and
+ * are skipped: a browser's own sends reach its book from its jobs, and other visitors' jobs aren't
+ * the trade's history. Code reads the prices; no AI is involved. Server only.
  */
 import { appConfig } from "@/app.config";
 import { toMinor } from "@/lib/money";
 import { getPayPal } from "@/lib/paypal";
 import type { Invoice } from "@/lib/paypal/types";
 import { collection } from "@/lib/store/collection";
+import { seedPastInvoices, type HistoryManifest } from "@/lib/demo/past-invoices";
+import { sentByApp } from "./app-memo";
 import type { Job } from "./types";
 
 export const HISTORY_LIMIT = 20;
+/** PayPal lists the newest invoices first, a page at a time. */
+const PAGE_SIZE = 100;
+const MAX_PAGES = 3;
 /** At most this many full reads per click. */
-const MAX_READS = 30;
+const MAX_READS = 40;
 const COUNTED = new Set(["SENT", "UNPAID", "PARTIALLY_PAID", "PAID", "MARKED_AS_PAID"]);
 
 export interface PayPalHistory {
@@ -29,25 +35,43 @@ const keyOf = (visitor?: string) => `h_${visitor ?? "anyone"}`;
 
 export const historyOf = (visitor?: string) => histories().get(keyOf(visitor)) ?? null;
 
+/** Mock PayPal starts empty, so the demo trade's past invoices are put there the first time they're asked for. */
+async function mockHistory() {
+  const paypal = getPayPal();
+  if (paypal.mode !== "mock") return;
+  const manifests = collection<{ id: string; ids: HistoryManifest }>("past-invoices-mock");
+  const manifest = { ...manifests.get("mock")?.ids };
+  await seedPastInvoices(paypal, manifest);
+  manifests.upsert({ id: "mock", ids: manifest });
+}
+
+const dateOf = (inv: Invoice) => inv.detail.invoice_date ?? inv.detail.metadata?.create_time?.slice(0, 10) ?? "";
+
 /** Reads the newest invoices from PayPal and keeps this trade's last HISTORY_LIMIT. */
 export async function learnFromPayPal(visitor?: string): Promise<PayPalHistory> {
+  await mockHistory();
   const paypal = getPayPal();
-  const own = new Set(collection<Job>("jobs").list().filter((j) => j.visitor === visitor && j.invoice).map((j) => j.invoice!.id));
-  const listed = (await paypal.invoicing.list({ page: 1, page_size: 50 })).items.filter((inv) => COUNTED.has(inv.status) && !own.has(inv.id));
+  const own = new Set(collection<Job>("jobs").list().flatMap((j) => (j.invoice ? [j.invoice.id] : [])));
+  const listed: Invoice[] = [];
+  for (let page = 1; page <= MAX_PAGES && listed.length < MAX_READS; page++) {
+    const { items } = await paypal.invoicing.list({ page, page_size: PAGE_SIZE });
+    listed.push(...items.filter((inv) => COUNTED.has(inv.status) && !own.has(inv.id) && !sentByApp(inv)));
+    if (items.length < PAGE_SIZE) break;
+  }
   // PayPal's list has no items or invoicer, so each one is read in full, a few at a time, newest first.
   const ours: Invoice[] = [];
   const candidates = listed.slice(0, MAX_READS);
-  for (let i = 0; i < candidates.length && ours.length < HISTORY_LIMIT; i += 6) {
-    const read = await Promise.all(candidates.slice(i, i + 6).map((summary) => (summary.items?.length && summary.invoicer ? summary : paypal.invoicing.get(summary.id))));
-    ours.push(...read.filter((invoice) => invoice.invoicer?.business_name === appConfig.tradeName));
+  for (let i = 0; i < candidates.length && ours.length < HISTORY_LIMIT; i += 8) {
+    const read = await Promise.all(candidates.slice(i, i + 8).map((summary) => (summary.items?.length && summary.invoicer ? summary : paypal.invoicing.get(summary.id))));
+    ours.push(...read.filter((invoice) => invoice.invoicer?.business_name === appConfig.tradeName && !sentByApp(invoice)));
   }
-  ours.splice(HISTORY_LIMIT);
-  ours.reverse(); // oldest first, so the newest price is the last sample
+  // The newest by the invoice's own date, then oldest first, so the newest price is the last sample.
+  const kept = ours.sort((a, b) => dateOf(b).localeCompare(dateOf(a))).slice(0, HISTORY_LIMIT).reverse();
   return histories().upsert({
     id: keyOf(visitor),
     visitor,
     learnedAt: new Date().toISOString(),
-    invoiceIds: ours.map((inv) => inv.id),
-    lines: ours.flatMap((inv) => (inv.items ?? []).map((item) => ({ name: item.name, unitCents: toMinor(item.unit_amount.value, "USD"), invoicedAt: inv.detail.invoice_date ?? inv.detail.metadata?.create_time ?? "" }))),
+    invoiceIds: kept.map((inv) => inv.id),
+    lines: kept.flatMap((inv) => (inv.items ?? []).map((item) => ({ name: item.name, unitCents: toMinor(item.unit_amount.value, "USD"), invoicedAt: dateOf(inv) }))),
   });
 }

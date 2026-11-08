@@ -2,6 +2,7 @@
 import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { readInvoiceFromPayPal } from "./paypal-reread";
 import { appConfig } from "../../src/app.config";
+import { APP_MEMO } from "../../src/lib/say/app-memo";
 import { computeTotals } from "../../src/lib/say/money";
 import type { JobView } from "../../src/lib/say/types";
 
@@ -181,6 +182,7 @@ export async function sendAndVerify(page: Page, request: APIRequestContext, tota
     expect(invoice.detail.invoice_number).toBe(done.invoice!.number);
     expect(invoice.primary_recipients[0].billing_info.email_address).toBe(done.customer.email);
     expect(invoice.detail.payment_term?.due_date).toBe(done.dueDate);
+    expect(invoice.detail.memo).toBe(APP_MEMO); // private to the trade: how Learn tells its own sends from past invoices
     // What, where and when, and what each line covers, as the customer reads them on PayPal.
     const details = done.details!;
     for (const part of [details.summary, details.site].filter(Boolean)) expect(invoice.detail.note).toContain(part);

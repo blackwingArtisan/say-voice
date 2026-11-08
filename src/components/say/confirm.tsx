@@ -7,6 +7,7 @@ import { cn } from "@/components/ui/cn";
 import { isTestAddress, TEST_ADDRESS_RULE } from "@/lib/say/contacts";
 import { canSettle, findChecks, openChecks, placesToCheck, type Check } from "@/lib/say/checks";
 import { computeTotals, formatCents, formatQuantity, formatRate, parseDollars, parsePercent, parseQuantity } from "@/lib/say/money";
+import { learnedDifference, type PriceEntry } from "@/lib/say/price-book";
 import { inputProblems, priceProblem, quantityProblem, sendBlockedBy, type InputProblem } from "@/lib/say/line-input";
 import { findNumbers, heardFor } from "@/lib/say/spoken";
 import type { JobCustomer, JobDetails, JobLine, JobView } from "@/lib/say/types";
@@ -107,8 +108,9 @@ function FieldError({ problem, testId }: { problem?: InputProblem; testId: strin
 
 const INVALID = "border-red-400 bg-red-50/50 focus:border-red-500 focus:ring-red-100";
 
-function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineTotal, lineTax, disabled, onChange, onRemove, onSettle, onSettleWords }: {
+function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineTotal, lineTax, disabled, book, onChange, onRemove, onSettle, onSettleWords }: {
   line: EditLine;
+  book: PriceEntry[];
   number: number;
   problems: InputProblem[];
   heardLine?: JobLine;
@@ -127,6 +129,7 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
   const changedPrice = heardLine && parsedCents !== null && parsedCents !== heardLine.unitCents;
   const label = line.name || "this item";
   const far = checks.find((check) => check.kind === "far");
+  const learnedNote = parsedCents === null ? null : learnedDifference({ name: line.name, unitCents: parsedCents }, book);
   const settleable = checks.some((check) => canSettle(check) && check.kind !== "words");
   const applyPrice = (cents: number) => onChange({ price: (cents / 100).toFixed(2) });
   const problemOn = (field: InputProblem["field"]) => problems.find((p) => p.field === field);
@@ -172,6 +175,11 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
         <p className="text-sm text-zinc-500">Added by you.</p>
       ) : null}
       {changedPrice ? <p className="text-sm font-medium text-emerald-700" data-testid="line-changed">You changed this from {formatCents(heardLine.unitCents)}.</p> : null}
+      {learnedNote && !far ? (
+        <p className="text-sm text-sky-800" data-testid="learned-note">
+          {learnedNote}
+        </p>
+      ) : null}
       {checks.map((check) =>
         check.kind === "far" ? (
           <RowFlag key={check.id} testId="line-usual" tone="red">
@@ -372,6 +380,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
                   lineTotal={row.valid ? totals.lines[i].lineCents : null}
                   lineTax={row.valid ? totals.lines[i].taxCents : 0}
                   disabled={sending}
+                  book={job.priceBook}
                   onChange={(patch) => updateLine(line.key, patch)}
                   onRemove={() => setDraft({ ...draft, lines: draft.lines.filter((l) => l.key !== line.key) })}
                   onSettle={() => settle(openOnRow.filter(canSettle).map((check) => check.id))}
