@@ -1,9 +1,10 @@
 /**
  * DEMO VIDEO (npm run demo:record). Landscape 16:9, under 2:30: one card on who it's for, the price
- * book learned from the trade's own PayPal invoices, then on a phone (record to approval) a person
- * saying a job, the catch held in red, the approval and the Pay now QR; then the guard refusing a
- * figure, the customer paying on PayPal's page, Paid, Activity by job and the real jobs.
- * Captions name the speech and AI models only when they're live.
+ * book learned from the trade's own PayPal invoices, then on a phone zoomed to half as big again
+ * (record to approval) a person saying a job first and picking the customer after, the catch held
+ * in red before 0:35, the approval and the Pay now QR; then one beat of the guard refusing a
+ * figure, the customer paying on PayPal's page, Paid, Activity by job and the real jobs. Small
+ * chips name the PayPal calls behind each scene. Captions name the models only when they're live.
  *
  * Playwright's video has no sound, so this writes test-results/demo/timeline.json (video files, when
  * the record button was pressed, and the waits to cut) for scripts/demo-finish.ts, which stitches
@@ -12,7 +13,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { bringIntoView, caption, closePhoneStage, DemoClock, highlight, phoneStage, titleCard } from "./captions";
+import { apiChips, bringIntoView, caption, closePhoneStage, DemoClock, highlight, phoneStage, titleCard } from "./captions";
 import { appConfig } from "../src/app.config";
 import { untilCheckoutCloses } from "../tests/e2e/pay-as-guest";
 
@@ -90,17 +91,17 @@ test("demo", async ({ browser }) => {
   });
   const element0 = page.getByTestId("price-row").filter({ hasText: "Heating element" });
   const from = /from \d+ PayPal invoices?, last \$[\d,.]+/.exec(await element0.innerText())?.[0] ?? "from your PayPal invoices";
-  await point(page, `The price book reads the trade's past PayPal invoices (GET /v2/invoicing/invoices). Heating element: ${from}.`, element0, HOLD_MS + 600);
+  await apiChips(page, ["GET /v2/invoicing/invoices"]);
+  await point(page, `The price book reads the trade's past PayPal invoices. Heating element: ${from}.`, element0, HOLD_MS + 600);
+  await apiChips(page, []);
   clock.check("price book");
 
-  // On the phone: a person says the job.
+  // On the phone: the record button comes first, so a person says the job, then picks who it was for.
   const phone = await phoneStage(page, "/jobs");
   const contact = phone.getByTestId("contact-derek-evans");
-  await cut(expect(contact).toBeVisible({ timeout: 30_000 }));
-  await contact.click();
-  await point(page, "On the phone, in the van. The customer comes from your contacts: names never come from speech.", contact, 3200);
+  await cut(expect(contact).toBeAttached({ timeout: 30_000 }));
   await bringIntoView(phone.getByTestId("record-start"));
-  await caption(page, liveSpeech ? "Press record and say the job. ElevenLabs Scribe v2 is listening." : "Press record and say the job.", { wait: false });
+  await caption(page, liveSpeech ? "On the phone, in the van. Press record and say the job. ElevenLabs Scribe v2 is listening." : "On the phone, in the van. Press record and say the job.", { wait: false });
   await phone.getByTestId("record-start").click();
   await phone.waitForFunction(() => "voiceStartedAt" in window);
   timeline.recordPressMs = (await phone.evaluate(() => (window as unknown as { voiceStartedAt: number }).voiceStartedAt)) - t0;
@@ -111,8 +112,11 @@ test("demo", async ({ browser }) => {
   await page.waitForTimeout(Math.max(0, VOICE_SECONDS * 1000 + 600 - 900));
   await phone.getByTestId("record-stop").click();
   timeline.recordStopMs = at();
+  await expect(phone.getByTestId("take-waiting")).toBeVisible();
+  await point(page, "Then who it was for, from your contacts. Names never come from speech.", contact, 2600);
+  await contact.click();
   await caption(page, liveAi ? "Claude Sonnet 5.5 turns the words into line items. Code does every sum." : "The AI turns the words into line items. Code does every sum.", { wait: false });
-  await page.waitForTimeout(2_400);
+  await page.waitForTimeout(2_000);
   await cut(phone.waitForURL(/\/jobs\/job_/, { timeout: 90_000 }).then(() => expect(phone.getByTestId("invoice-line").first()).toBeVisible()));
   clock.check("heard");
 
@@ -139,7 +143,9 @@ test("demo", async ({ browser }) => {
   await point(page, "The Guard holds it. Nothing reaches the customer until you approve this exact amount.", prompt, HOLD_MS);
   await prompt.getByTestId("approve-button").click();
   await cut(expect(phone.getByTestId("result")).toBeVisible({ timeout: 60_000 }).then(() => expect(phone.getByText("Approved", { exact: true })).toBeHidden({ timeout: 15_000 })));
+  await apiChips(page, ["Agent Toolkit", "create_invoice", "send_invoice"]);
   await point(page, "PayPal's Agent Toolkit created and sent it. Number and status are read back from PayPal.", phone.getByTestId("invoice-number"), 3400);
+  await apiChips(page, []);
   const qr = phone.getByTestId("pay-qr");
   if (await qr.count()) await point(page, "Pay now: the customer scans PayPal's own pay page before the van leaves.", qr, 4000);
   const jobUrl = phone.url();
@@ -147,19 +153,23 @@ test("demo", async ({ browser }) => {
   await closePhoneStage(page);
   await cut(page.goto(jobUrl).then(() => expect(page.getByTestId("result")).toBeVisible()));
 
-  // The guard refusing.
-  await bringIntoView(page.getByTestId("reminder-ask"));
-  await caption(page, "Ask the reminder agent for a $25 late fee that isn't on the PayPal invoice.", { wait: false });
-  await page.getByTestId("reminder-ask").pressSequentially("Add a $25 late fee", { delay: 30 });
-  await page.getByTestId("ask-reminder").click();
+  // The guard refusing, in one beat: the ask and the agent's draft happen off camera.
   const refused = page.getByTestId("reminder-refused");
-  await cut(expect(refused.first()).toBeVisible({ timeout: 60_000 }));
-  await point(page, "The agent wrote it. Code refused it before any approval card: the customer only reads what PayPal says is owed.", refused.first(), 5000);
-  const reminder = page.getByTestId("approval-prompt");
-  await cut(expect(reminder).toBeVisible({ timeout: 60_000 }));
-  await point(page, "The corrected reminder waits for your approval too.", reminder.getByTestId("approve-button"), 3000);
-  await reminder.getByTestId("approve-button").click();
-  await cut(expect(page.getByTestId("reminder-sent")).toBeVisible({ timeout: 30_000 }));
+  await cut(async () => {
+    await page.getByTestId("reminder-ask").fill("Add a $25 late fee");
+    await page.getByTestId("ask-reminder").click();
+    await expect(refused.first()).toBeVisible({ timeout: 60_000 });
+    // The corrected reminder's card lands above it; wait for it, so the outline stays on the refusal.
+    await expect(page.getByTestId("approval-prompt")).toBeVisible({ timeout: 60_000 });
+  });
+  const detourFrom = at();
+  await point(page, "Asked for a $25 late fee that isn't on the invoice, the reminder agent wrote it in. Code refused it before any approval card.", refused.first(), 5000);
+  console.log(`[demo] reminder detour ${((at() - detourFrom) / 1000).toFixed(1)}s`);
+  // The corrected reminder is approved off camera, so the job is tidy when the customer pays.
+  await cut(async () => {
+    await page.getByTestId("approval-prompt").getByTestId("approve-button").click();
+    await expect(page.getByTestId("reminder-sent")).toBeVisible({ timeout: 30_000 });
+  }, { lead: 0, tail: 0 });
   clock.check("refused");
 
   // The customer pays on PayPal's own page.
@@ -240,7 +250,9 @@ test("demo", async ({ browser }) => {
     const check = page.getByTestId("check-payment");
     if (!(await banner.isVisible()) && (await check.count())) await check.click();
     await cut(expect(banner).toBeVisible({ timeout: 60_000 }));
-    await point(page, "PAID, read back from PayPal, with PayPal's transaction id. On the hosted site the INVOICING.INVOICE.PAID webhook does this by itself.", banner, 5600);
+    await apiChips(page, ["webhook INVOICING.INVOICE.PAID"]);
+    await point(page, "PAID, read back from PayPal, with PayPal's transaction id. On the hosted site PayPal's webhook does this by itself.", banner, 5600);
+    await apiChips(page, []);
     clock.check("paid");
 
     await cut(page.goto("/activity").then(() => expect(page.getByTestId("activity-job").first()).toBeVisible()));

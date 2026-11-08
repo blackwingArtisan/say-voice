@@ -13,8 +13,8 @@ export const appConfig = {
   description: "Dictate a job, check every number against what you said, and send a real PayPal invoice in seconds.",
   /** The made-up trade business the demo invoices come from. The customer sees it at the top of PayPal's page. */
   tradeName: "Ridgeline Home Repair",
-  repoUrl: "",
-  videoUrl: "",
+  repoUrl: "https://github.com/blackwingArtisan/say-voice",
+  videoUrl: "", // TODO: the demo video, once the final take (owner's voice, live AI) is up
 
   nav: [
     { label: "Jobs", href: "/jobs" },
@@ -132,8 +132,8 @@ export const appConfig = {
     primaryCta: { label: "Start a job", href: "/jobs" },
     secondaryCta: { label: "How it works", href: "#how" },
     steps: [
-      { title: "Pick the customer", body: "Choose them from your contacts or type the name. Speech can't be trusted for names, so it never picks one." },
-      { title: "Say the job", body: "Press record and talk it through: hours, parts, prices, tax. AI turns it into line items." },
+      { title: "Say the job", body: "Press record first and talk it through: hours, parts, prices, tax. AI turns it into line items." },
+      { title: "Pick the customer", body: "Before or after, from your contacts or by typing the name. Speech can't be trusted for names, so it never picks one." },
       { title: "Check and send", body: "Every number sits next to what you said. You fix anything flagged, press send, and PayPal delivers the invoice." },
     ],
     features: [
