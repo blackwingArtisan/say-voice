@@ -4,7 +4,7 @@
  * on the timeline in both modes.
  */
 export interface OperationSpec {
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  method: "GET" | "POST" | "PATCH" | "DELETE";
   /** `{id}` is replaced by the first string argument. */
   path: string;
   label: string;
@@ -33,7 +33,6 @@ export const OPERATIONS = {
 
   "invoicing.generateNextNumber": { method: "POST", path: "/v2/invoicing/generate-next-invoice-number", label: "Next invoice number" },
   "invoicing.create": { method: "POST", path: "/v2/invoicing/invoices", label: "Create draft invoice", money: true },
-  "invoicing.update": { method: "PUT", path: "/v2/invoicing/invoices/{id}", label: "Update invoice", money: true },
   "invoicing.send": { method: "POST", path: "/v2/invoicing/invoices/{id}/send", label: "Send invoice", money: true },
   "invoicing.remind": { method: "POST", path: "/v2/invoicing/invoices/{id}/remind", label: "Send reminder" },
   "invoicing.cancel": { method: "POST", path: "/v2/invoicing/invoices/{id}/cancel", label: "Cancel invoice" },

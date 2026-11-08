@@ -1152,31 +1152,6 @@ export class MockPayPal implements PayPalApi {
         return link;
       }),
 
-    update: (id, body) =>
-      this.io("invoicing.update", undefined, () => {
-        const rec = this.getInvoiceRec(id);
-        const inv = rec.invoice;
-        if (!["DRAFT", "SENT", "UNPAID", "PARTIALLY_PAID", "SCHEDULED"].includes(inv.status)) throw unprocessable("INVALID_INVOICE_STATUS", `A ${inv.status} invoice cannot be updated.`, "invoicing/v2");
-        if (!body?.items?.length) throw invalidRequest("MISSING_REQUIRED_PARAMETER", "An invoice must include at least one item.");
-        if (body.detail?.currency_code !== inv.detail.currency_code) throw unprocessable("CURRENCY_MISMATCH", "The currency of an invoice can't change.", "invoicing/v2");
-        const computed = this.computeInvoice(body);
-        const paid = inv.payments?.paid_amount;
-        const next: T.Invoice = {
-          ...clone(body),
-          id,
-          status: inv.status,
-          detail: { ...clone(body.detail), invoice_number: inv.detail.invoice_number, invoice_date: body.detail.invoice_date ?? inv.detail.invoice_date, metadata: { ...inv.detail.metadata, last_update_time: this.iso() } },
-          invoicer: body.invoicer ?? inv.invoicer,
-          amount: computed.amount,
-          due_amount: paid ? subtractMoney(computed.amount, paid) : computed.due_amount,
-          ...(inv.payments ? { payments: inv.payments } : {}),
-          links: [],
-        };
-        next.links = this.invoiceLinks(next);
-        rec.invoice = next;
-        return next;
-      }),
-
     remind: (id) =>
       this.io("invoicing.remind", undefined, (ctx) => {
         ctx.status = 204;

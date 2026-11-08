@@ -20,7 +20,6 @@ export const appConfig = {
     { label: "Jobs", href: "/jobs" },
     { label: "Prices", href: "/prices" },
     { label: "Activity", href: "/activity" },
-    { label: "How it works", href: "/#how" },
   ],
 
   landing: {

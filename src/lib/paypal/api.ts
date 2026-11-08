@@ -54,8 +54,6 @@ export interface PayPalApi {
     create(body: T.CreateInvoiceRequest, opts?: RequestOptions): Promise<T.Invoice>;
     /** DRAFT -> SENT (or SCHEDULED if invoice_date is in the future). Returns the payer-view link. */
     send(invoiceId: string, body?: T.InvoiceNotificationRequest): Promise<T.Link>;
-    /** Replaces the whole invoice (PayPal has no partial update). Works on a draft and on a sent, unpaid one. */
-    update(invoiceId: string, body: T.CreateInvoiceRequest, query?: { send_to_recipient?: boolean; send_to_invoicer?: boolean }): Promise<T.Invoice>;
     remind(invoiceId: string, body?: T.InvoiceNotificationRequest): Promise<void>;
     cancel(invoiceId: string, body?: T.InvoiceNotificationRequest): Promise<void>;
     get(invoiceId: string): Promise<T.Invoice>;
