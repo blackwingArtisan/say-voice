@@ -120,6 +120,21 @@ export async function readJob(request: APIRequestContext, id: string): Promise<J
   return (await (await request.get(`/api/jobs/${id}`)).json()) as JobView;
 }
 
+/** Words a tradesperson shouldn't meet unless they open Details. */
+export const TECHNICAL_WORDS = /send_job_invoice|send_payment_reminder|allowlist|debug[ _]id|worst case|reserved|hash-chained|tool\.denied|\/v2\/invoicing|POST |App tool/i;
+
+/** The main view speaks plain words; the calls behind it are one Details press away. */
+export async function expectPlainWords(page: Page, technical: RegExp = /\/v2\/invoicing/) {
+  const toggle = page.getByTestId("details-toggle").first();
+  if ((await toggle.getAttribute("aria-expanded")) === "true") await toggle.click();
+  await expect(page.getByTestId("technical-details")).toHaveCount(0);
+  expect((await page.locator("main").innerText()).match(TECHNICAL_WORDS)).toBeNull();
+  await toggle.click();
+  await expect(page.getByTestId("technical-details").first()).toBeVisible();
+  await expect(page.getByTestId("technical-details").first()).toContainText(technical);
+  await toggle.click();
+}
+
 /** Presses send, checks nothing reaches the customer before approval, approves, and checks the result. */
 export async function sendAndVerify(page: Page, request: APIRequestContext, totalCents: number, screenshot: string) {
   const { sandbox, paypal, live } = await kitStatus(request);
@@ -152,6 +167,8 @@ export async function sendAndVerify(page: Page, request: APIRequestContext, tota
   }
 
   expect(await auditedActions(request, "send_job_invoice")).toEqual(expect.arrayContaining(["approval.requested", "approval.approved", "tool.executed"]));
+  await expect(page.getByTestId("plain-step").filter({ hasText: "PayPal sent the invoice to the customer" })).toHaveCount(1);
+  await expectPlainWords(page);
 
   if (sandbox) {
     // Straight from PayPal, not through the app.

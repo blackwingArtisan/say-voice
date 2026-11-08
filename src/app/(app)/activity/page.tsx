@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, ShieldCheck, ShieldX, Webhook } from "lucide-react";
+import { ChevronDown, RefreshCw, ShieldCheck, ShieldX, Webhook } from "lucide-react";
+import { cn } from "@/components/ui/cn";
+import { plainAudit } from "@/lib/say/plain-steps";
 import { col, DataGrid } from "@/components/data-grid";
 import { useKit } from "@/components/kit/kit-provider";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -16,6 +18,7 @@ export default function ActivityPage() {
   const [audit, setAudit] = useState<{ entries: AuditEntry[]; integrity: { ok: boolean; count: number; brokenAt?: number } } | null>(null);
   const [events, setEvents] = useState<WebhookEventEnvelope[] | null>(null);
   const isMock = status?.paypal.mode === "mock";
+  const [details, setDetails] = useState(false);
 
   const fetchAll = useCallback(async () => {
     const auditRes = await kitFetch<NonNullable<typeof audit>>("/api/audit");
@@ -52,9 +55,43 @@ export default function ActivityPage() {
     }
   }
 
+  const plain = (audit?.entries ?? []).flatMap((entry) => {
+    const text = plainAudit(entry);
+    return text ? [{ entry, text }] : [];
+  }).reverse();
+
   return (
     <>
-      <PageHeader title="Activity" description="The guard's append-only audit log and PayPal webhooks." actions={<Button variant="secondary" icon={<RefreshCw className="size-4" />} onClick={load}>Refresh</Button>} />
+      <PageHeader title="Activity" description="Every invoice and reminder, and what you decided. Nothing moves without your approval." actions={<Button variant="secondary" icon={<RefreshCw className="size-4" />} onClick={load}>Refresh</Button>} />
+      <Card>
+        <CardHeader
+          title="What happened"
+          description="Newest first."
+          action={audit?.integrity.ok ? <Badge tone="success"><ShieldCheck className="size-3.5" /> Record checked</Badge> : audit ? <Badge tone="danger"><ShieldX className="size-3.5" /> Record changed</Badge> : null}
+        />
+        <CardBody>
+          {!audit ? (
+            <p className="text-sm text-zinc-500">Reading the record...</p>
+          ) : plain.length ? (
+            <ul className="divide-y divide-zinc-100" data-testid="activity-plain">
+              {plain.map(({ entry, text }) => (
+                <li key={entry.seq} className="flex items-baseline gap-3 py-2.5 text-sm" data-testid="activity-row">
+                  <span className="w-36 shrink-0 tabular-nums text-zinc-500">{new Date(entry.ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+                  <span className="min-w-0 flex-1 break-words text-zinc-800">{text}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState title="Nothing yet" description="Send an invoice from Jobs and each step shows up here." />
+          )}
+          <button type="button" onClick={() => setDetails((d) => !d)} aria-expanded={details} className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-zinc-800" data-testid="details-toggle">
+            <ChevronDown className={cn("size-3.5 transition-transform", details && "rotate-180")} />
+            {details ? "Hide details" : "Details"}
+          </button>
+        </CardBody>
+      </Card>
+      {details ? (
+        <div data-testid="technical-details">
       <Card>
         <CardHeader
           title="Audit log"
@@ -111,6 +148,8 @@ export default function ActivityPage() {
           )}
         </CardBody>
       </Card>
+        </div>
+      ) : null}
     </>
   );
 }
