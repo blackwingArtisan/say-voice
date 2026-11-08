@@ -8,7 +8,13 @@ export interface Refusal {
   type?: string;
   message?: string;
   retryAfter?: number;
+  /** The limit hit, when the server said: "8 a minute". */
+  limit?: number;
+  per?: "minute" | "day";
 }
+
+/** "This demo allows 8 AI requests a minute per person." The real number, when the server sent it. */
+export const limitSentence = ({ limit, per }: Pick<Refusal, "limit" | "per">) => `This demo allows ${limit ? `${limit} AI requests a ${per ?? "minute"}` : "a few AI requests a minute"} per person.`;
 
 export interface TakeProblem {
   title: string;
@@ -21,10 +27,10 @@ export interface TakeProblem {
 
 const SAFE = "Your recording is safe in this browser.";
 
-export function explainTake({ status, type, message, retryAfter }: Refusal): TakeProblem {
+export function explainTake({ status, type, message, retryAfter, limit, per }: Refusal): TakeProblem {
   switch (type) {
     case "rate_limited":
-      return { title: "Too many tries in a minute", detail: `${SAFE} This demo allows a few AI requests a minute per person. Wait for the timer, then press Try again.`, retry: true, waitSeconds: retryAfter ?? 60 };
+      return { title: per === "day" ? "Too many tries today" : "Too many tries in a minute", detail: `${SAFE} ${limitSentence({ limit, per })} Wait for the timer, then press Try again.`, retry: true, waitSeconds: retryAfter ?? 60 };
     case "ai_credit":
       return { title: "The AI is out of credit for now", detail: `${message ?? ""} ${SAFE} Come back and press Try again, even after closing this page. The sample job still works.`.trim(), retry: true };
     case "speech_credit":
@@ -49,7 +55,7 @@ export const RESTORED: TakeProblem = { title: "You have a recording that wasn't 
 
 /** The same explanation for a job that isn't tied to a recording: the sample. */
 export function explainSample(refusal: Refusal): string {
-  if (refusal.type === "rate_limited") return `This demo allows a few AI requests a minute per person. Try again in ${refusal.retryAfter ?? 60} seconds.`;
+  if (refusal.type === "rate_limited") return `${limitSentence(refusal)} Try again in ${refusal.retryAfter ?? 60} seconds.`;
   if (refusal.type === "network") return "Couldn't reach the server. Check your signal, then try again.";
   return "Try again in a moment.";
 }

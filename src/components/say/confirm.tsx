@@ -1,14 +1,14 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, ArrowDown, Check as CheckIcon, Plus, Send, Trash2 } from "lucide-react";
 import { Button, Card, CardBody, CardHeader, Field, Input, MoneyInput, Textarea } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 import { isTestAddress, TEST_ADDRESS_RULE } from "@/lib/say/contacts";
 import { canSettle, findChecks, openChecks, placesToCheck, type Check } from "@/lib/say/checks";
 import { computeTotals, formatCents, formatQuantity, formatRate, parseDollars, parsePercent, parseQuantity } from "@/lib/say/money";
-import { learnedDifference, type PriceEntry } from "@/lib/say/price-book";
 import { inputProblems, priceProblem, quantityProblem, sendBlockedBy, type InputProblem } from "@/lib/say/line-input";
+import { learnedDifference, type PriceEntry } from "@/lib/say/price-book";
 import { findNumbers, heardFor } from "@/lib/say/spoken";
 import type { JobCustomer, JobDetails, JobLine, JobView } from "@/lib/say/types";
 import { MAX_DESCRIPTION, MAX_SITE, MAX_SUMMARY } from "@/lib/say/wording";
@@ -94,6 +94,9 @@ function RowFlag({ children, testId, tone = "amber" }: { children: ReactNode; te
   );
 }
 
+/** "Nov 22": the due date in the folded summary. */
+const dueLabel = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "not set");
+
 /** Tall enough for a thumb, in a van. */
 const TAP = "h-11";
 
@@ -110,9 +113,9 @@ const INVALID = "border-red-400 bg-red-50/50 focus:border-red-500 focus:ring-red
 
 function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineTotal, lineTax, disabled, book, onChange, onRemove, onSettle, onSettleWords }: {
   line: EditLine;
-  book: PriceEntry[];
   number: number;
   problems: InputProblem[];
+  book: PriceEntry[];
   heardLine?: JobLine;
   checks: Check[];
   open: boolean;
@@ -244,6 +247,12 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
   const jobChecks = checks.filter((check) => !check.lineKey);
   const openJobChecks = open.filter((check) => !check.lineKey);
 
+  // On a phone, what the customer reads, the due date and the tax fold into one line until there's a reason to open them.
+  const [editDetails, setEditDetails] = useState(false);
+  // A due date or tax rate that can't be read opens them too, so "Show me" has a field to go to.
+  const detailsNeedALook = open.some((check) => check.kind === "tax" || (check.kind === "words" && !check.lineKey)) || problems.some((p) => p.field === "due" || p.field === "tax");
+  const folded = !editDetails && !detailsNeedALook;
+  const fold = folded ? "max-lg:hidden" : "";
   const updateDetails = (patch: Partial<JobDetails>) => setDraft({ ...draft, details: { ...draft.details, ...patch } });
   const setRate = (rateMilli: number) => setDraft({ ...draft, taxPercent: formatRate(rateMilli) });
   const noTax = (id: string) => setDraft({ ...draft, taxPercent: "0", acknowledged: [...new Set([...draft.acknowledged, id])] });
@@ -342,7 +351,24 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
         <p className="text-sm text-zinc-500" data-testid="settled-note">You let {jobChecks.length - openJobChecks.length === 1 ? "1 warning" : `${jobChecks.length - openJobChecks.length} warnings`} stand.</p>
       ) : null}
 
-      <Card>
+      {folded ? (
+        <Card className="lg:hidden" data-testid="details-summary">
+          <CardBody className="flex items-center gap-3">
+            <p className="min-w-0 flex-1 truncate text-sm text-zinc-700">
+              Due {dueLabel(draft.dueDate)}
+              {" · "}
+              {taxRateMilli ? `${formatRate(taxRateMilli)}% tax` : "No tax"}
+              {" · "}
+              <span className="font-medium text-zinc-900" data-testid="details-summary-text">{draft.details.summary.trim() || "No job summary"}</span>
+            </p>
+            <Button variant="secondary" className={TAP} disabled={sending} onClick={() => setEditDetails(true)} data-testid="edit-details">
+              Edit
+            </Button>
+          </CardBody>
+        </Card>
+      ) : null}
+
+      <Card className={fold}>
         <CardHeader title="What the customer reads" description="What the job was, where and when. It goes at the top of the PayPal invoice." />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           <Field label="Job summary" htmlFor="job-summary" className="sm:col-span-2">
@@ -404,10 +430,10 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
           <Field label="Customer email" htmlFor="customer-email" error={problemOn("customer-email") ? <span data-testid="customer-email-error">{problemOn("customer-email")}</span> : undefined} hint={draft.customer.email.includes("@") && !isTestAddress(draft.customer.email) ? <span data-testid="customer-email-note">{TEST_ADDRESS_RULE}</span> : undefined}>
             <Input id="customer-email" type="email" aria-invalid={!!problemOn("customer-email")} className={problemOn("customer-email") ? INVALID : undefined} value={draft.customer.email} disabled={sending} onChange={(e) => setDraft({ ...draft, customer: { ...draft.customer, email: e.target.value } })} data-testid="customer-email" />
           </Field>
-          <Field label="Due date" htmlFor="due-date" error={problemOn("due")} hint={job.dueSaid ? "From what you said." : "Nothing said, so 14 days out."}>
+          <Field className={fold} label="Due date" htmlFor="due-date" error={problemOn("due")} hint={job.dueSaid ? "From what you said." : "Nothing said, so 14 days out."}>
             <Input id="due-date" type="date" value={draft.dueDate} disabled={sending} onChange={(e) => setDraft({ ...draft, dueDate: e.target.value })} data-testid="due-date" />
           </Field>
-          <Field label="Sales tax %" htmlFor="tax-rate" hint="On the lines marked Taxed." error={problemOn("tax") ? <span data-testid="tax-rate-error">{problemOn("tax")}</span> : undefined}>
+          <Field className={fold} label="Sales tax %" htmlFor="tax-rate" hint="On the lines marked Taxed." error={problemOn("tax") ? <span data-testid="tax-rate-error">{problemOn("tax")}</span> : undefined}>
             <Input id="tax-rate" inputMode="decimal" aria-invalid={!!problemOn("tax")} value={draft.taxPercent} disabled={sending} onChange={(e) => setDraft({ ...draft, taxPercent: e.target.value })} data-testid="tax-rate" className={cn("font-mono tabular-nums", problemOn("tax") && INVALID)} />
           </Field>
         </CardBody>

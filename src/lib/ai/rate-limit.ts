@@ -41,15 +41,15 @@ export function hit(key: string, limit: number, windowMs: number, now = Date.now
 
 export function enforceRateLimit(req: Request, kind: "ai" | "api" = "api") {
   const ip = clientIp(req);
-  const checks: [string, number, number][] =
+  const checks: [string, number, number, "minute" | "day"][] =
     kind === "ai"
       ? [
-          [`ai:min:${ip}`, num("AI_RATE_LIMIT_PER_MINUTE", 8), 60_000],
-          [`ai:day:${ip}`, num("AI_RATE_LIMIT_PER_DAY", 150), 24 * 60 * 60 * 1000],
+          [`ai:min:${ip}`, num("AI_RATE_LIMIT_PER_MINUTE", 8), 60_000, "minute"],
+          [`ai:day:${ip}`, num("AI_RATE_LIMIT_PER_DAY", 150), 24 * 60 * 60 * 1000, "day"],
         ]
-      : [[`api:min:${ip}`, num("API_RATE_LIMIT_PER_MINUTE", 120), 60_000]];
-  for (const [key, limit, windowMs] of checks) {
+      : [[`api:min:${ip}`, num("API_RATE_LIMIT_PER_MINUTE", 120), 60_000, "minute"]];
+  for (const [key, limit, windowMs, per] of checks) {
     const retry = hit(key, limit, windowMs);
-    if (retry) throw new RateLimitedError(retry);
+    if (retry) throw new RateLimitedError(retry, { count: limit, per });
   }
 }

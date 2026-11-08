@@ -8,7 +8,7 @@ import { useKit } from "@/components/kit/kit-provider";
 import { useTimeline } from "@/components/kit/use-timeline";
 import { PageHeader } from "@/components/shell/app-shell";
 import { useToast } from "@/components/toast";
-import { Card, CardBody, CardHeader, EmptyState, SkeletonCard } from "@/components/ui";
+import { Badge, Card, CardBody, CardHeader, EmptyState, SkeletonCard } from "@/components/ui";
 import { isPaid, type JobView } from "@/lib/say/types";
 import { checkedJob, Confirm, draftFrom, Transcript, type Draft } from "./confirm";
 import { ReminderCard, type OwnerLineAsk } from "./reminder";
@@ -120,7 +120,12 @@ export function JobScreen() {
   const title = !sent ? "Check the invoice" : isPaid(job.invoice) ? "Invoice paid" : "Invoice sent";
   return (
     <>
-      <PageHeader title={title} description={sent ? undefined : "Your words sit beside every number. Nothing goes out until you approve it."} />
+      <PageHeader title={title} description={job.example ? "A sample job: the sample recording, with the misheard price put right, sent through PayPal and paid. Every visitor sees this one." : sent ? undefined : "Your words sit beside every number. Nothing goes out until you approve it."} />
+      {job.example ? (
+        <p className="-mt-2 mb-4" data-testid="example-badge">
+          <Badge tone="neutral">Sample</Badge>
+        </p>
+      ) : null}
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         {/* On a phone the items come straight after the words, and the timeline goes to the bottom. */}
         <div className="contents lg:sticky lg:top-6 lg:block lg:space-y-6">

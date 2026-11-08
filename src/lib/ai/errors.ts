@@ -57,7 +57,11 @@ export class AiOutputError extends Error {
 
 export class RateLimitedError extends Error {
   readonly status = 429;
-  constructor(readonly retryAfterSeconds: number) {
+  constructor(
+    readonly retryAfterSeconds: number,
+    /** The limit that was hit, and over what window, so the screen can say the real number. */
+    readonly limit?: { count: number; per: "minute" | "day" },
+  ) {
     super(`Too many requests. Try again in ${retryAfterSeconds}s.`);
     this.name = "RateLimitedError";
   }

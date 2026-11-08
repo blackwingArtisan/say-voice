@@ -33,7 +33,7 @@ export function priceBook(visitor?: string): PriceEntry[] {
   }
   const sent = collection<Job>("jobs")
     .list()
-    .filter((job) => job.status === "sent" && job.visitor === visitor)
+    .filter((job) => job.status === "sent" && job.visitor === visitor && !job.example)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   for (const job of sent) {
     const lines = job.lines.filter((line) => !isFlatLabor(line, job.transcript));

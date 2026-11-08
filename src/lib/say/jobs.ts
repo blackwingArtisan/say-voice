@@ -128,7 +128,7 @@ export function viewJob(input: Job): JobView {
 export function listJobs(visitor?: string): JobView[] {
   return jobs()
     .list()
-    .filter((job) => job.visitor === visitor)
+    .filter((job) => job.visitor === visitor && !job.example)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map(viewJob);
 }

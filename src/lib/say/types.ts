@@ -94,6 +94,8 @@ export interface Job {
   ai: { mocked: boolean; model?: string; costUsd: number; saved?: boolean };
   /** The browser that made this job. Its jobs and prices are its own, not shared with every visitor. */
   visitor?: string;
+  /** The finished sample every visitor sees on a first visit (src/lib/say/example-job.ts). */
+  example?: boolean;
   customer: JobCustomer;
   /** What the speech said the name was. Shown only: the invoice never uses it. */
   heardName?: string;

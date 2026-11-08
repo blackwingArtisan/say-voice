@@ -18,7 +18,7 @@ export interface KitStatus {
 export class ApiError extends Error {
   constructor(
     readonly status: number,
-    readonly body: { error?: { type?: string; name?: string; message?: string; issue?: string; debug_id?: string; retry_after_seconds?: number } },
+    readonly body: { error?: { type?: string; name?: string; message?: string; issue?: string; debug_id?: string; retry_after_seconds?: number; limit?: number; per?: "minute" | "day" } },
   ) {
     super(body.error?.issue ? `${body.error.message}` : (body.error?.message ?? `Request failed (${status})`));
     this.name = "ApiError";

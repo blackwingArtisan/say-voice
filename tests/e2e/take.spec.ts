@@ -167,3 +167,22 @@ test("someone's real email is refused by the Guard, with what to do about it", a
   await page.getByTestId("approve-button").click();
   await expect(page.getByTestId("result")).toBeVisible({ timeout: 60_000 });
 });
+
+test("too many tries: the sample button says how long to wait, and the wait counts down on screen until it works again", async ({ page }) => {
+  // The real limiter again, for this file's own address.
+  await expect.poll(async () => (await page.request.post("/api/speech", { headers: { "content-type": "text/plain" }, data: "x" })).status(), { intervals: [0], timeout: 30_000 }).toBe(429);
+  await page.getByTestId("try-sample").click();
+  const wait = page.getByTestId("sample-wait");
+  await expect(wait).toContainText(/^This demo allows \d+ AI requests a minute per person\. Try again in \d+ seconds?\.$/);
+  await expect(page.getByTestId("try-sample")).toBeDisabled();
+  await expect(page.getByTestId("try-sample")).toHaveText(/Try again in \d+s/);
+  const seconds = async () => Number(await page.getByTestId("sample-wait-seconds").textContent());
+  const first = await seconds();
+  const shownAt = Date.now();
+  await expect.poll(seconds, { timeout: 5_000 }).toBeLessThan(first);
+  // It stays until the wait is over, not for a few seconds like a toast.
+  await expect(wait).toBeHidden({ timeout: (first + 5) * 1000 });
+  expect(Date.now() - shownAt).toBeGreaterThanOrEqual((first - 2) * 1000);
+  await expect(page.getByTestId("try-sample")).toBeEnabled();
+  await expect(page.getByTestId("try-sample")).toHaveText("Try a sample job");
+});

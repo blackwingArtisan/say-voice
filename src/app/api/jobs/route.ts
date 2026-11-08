@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { HttpError, readJson, route } from "@/lib/http";
 import { contactById } from "@/lib/say/contacts";
+import { exampleJob, kickExampleJob } from "@/lib/say/example-job";
 import { createJob, listJobs, viewJob } from "@/lib/say/jobs";
 import { SAMPLE_CONTACT_ID, SAMPLE_TRANSCRIPT } from "@/lib/say/sample";
+import { isPaid } from "@/lib/say/types";
 import { visitorOf } from "@/lib/say/visitor";
 
 const Customer = z.object({ name: z.string().trim().min(1).max(140), email: z.string().trim().email() });
@@ -20,7 +22,12 @@ const Body = z.discriminatedUnion("source", [
   }),
 ]);
 
-export const GET = route(async (req) => ({ jobs: listJobs(visitorOf(req)) }));
+/** This browser's jobs, and the finished sample every visitor sees. */
+export const GET = route(async (req) => {
+  const example = exampleJob();
+  if (!isPaid(example?.invoice)) kickExampleJob(); // still being made, or the store was reset since the server started
+  return { jobs: listJobs(visitorOf(req)), example: isPaid(example?.invoice) ? viewJob(example!) : null };
+});
 
 /** Reads the transcript into a job. Costs one Claude call unless AI is in mock mode. */
 export const POST = route(
