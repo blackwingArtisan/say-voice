@@ -13,6 +13,7 @@ import { HttpError } from "@/lib/http";
 import { toMinor } from "@/lib/money";
 import { getPayPal } from "@/lib/paypal";
 import type { PayPalApi } from "@/lib/paypal/api";
+import { tradeNameFor } from "./business";
 import { findChecks, openChecks, placesToCheck } from "./checks";
 import { TEST_ADDRESS_REFUSED } from "./contacts";
 import { activeSends, requireJob, saveJob } from "./jobs";
@@ -54,6 +55,7 @@ export async function readInvoice(invoiceId: string, approvedCents: number, payp
     dueCents: invoice.due_amount ? toMinor(invoice.due_amount.value, "USD") : totalCents,
     dueDate: invoice.detail.payment_term?.due_date,
     payerUrl: invoice.detail.metadata?.recipient_view_url,
+    businessName: invoice.invoicer?.business_name,
     note: invoice.detail.note,
     taxCents: invoice.amount.breakdown?.tax_total ? toMinor(invoice.amount.breakdown.tax_total.value, "USD") : 0,
     readAt: new Date().toISOString(),
@@ -85,6 +87,7 @@ async function send(id: string, channel: string) {
       due_date: job.dueDate,
       total_cents: totalCents,
       kept_checks: job.acknowledged ?? [],
+      business_name: tradeNameFor(job.visitor),
       idempotency_key: job.id,
     },
     ctx,

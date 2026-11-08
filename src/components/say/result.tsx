@@ -40,6 +40,7 @@ export function Result({ job, invoice, showLink, onCheck }: { job: JobView; invo
             </h2>
             <p className="mt-1 text-sm text-zinc-500" data-testid="readback">
               Read back from PayPal at {new Date(invoice.readAt).toLocaleTimeString("en-US")}.
+              {invoice.businessName ? <> From <span className="font-medium text-zinc-700" data-testid="invoice-from">{invoice.businessName}</span>.</> : null}
             </p>
           </div>
         </div>

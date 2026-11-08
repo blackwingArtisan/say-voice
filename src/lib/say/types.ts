@@ -47,6 +47,8 @@ export interface SentInvoice {
   dueCents: number;
   dueDate?: string;
   payerUrl?: string;
+  /** The trade name on it, as PayPal shows the customer. */
+  businessName?: string;
   readAt: string;
   /** The note to the customer and the tax, as PayPal has them. */
   note?: string;

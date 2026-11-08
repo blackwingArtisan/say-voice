@@ -35,6 +35,7 @@ export const SendInvoiceInput = z.object({
   due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   total_cents: z.number().int().positive(),
   kept_checks: z.array(z.string()).optional().describe("Checks the person let stand, kept here for the audit log"),
+  business_name: z.string().max(100).optional().describe("The trade name PayPal shows the customer; the demo trade's when not set"),
   idempotency_key: z.string().describe("Same key: never invoiced twice"),
 });
 export type SendInvoiceInput = z.infer<typeof SendInvoiceInput>;
@@ -58,7 +59,7 @@ export function invoiceRequest(input: SendInvoiceInput): CreateInvoiceRequest {
   const note = invoiceNote(input);
   return {
     detail: { currency_code: "USD", payment_term: { term_type: "DUE_ON_DATE_SPECIFIED", due_date: input.due_date }, ...(note ? { note } : {}), memo: APP_MEMO },
-    invoicer: { business_name: appConfig.tradeName },
+    invoicer: { business_name: input.business_name?.trim() || appConfig.tradeName },
     primary_recipients: [{ billing_info: { name: { given_name: givenName, surname: rest.join(" ") || undefined }, email_address: input.customer_email } }],
     items: input.lines.map((line) => ({
       name: line.name,

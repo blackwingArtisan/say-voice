@@ -16,6 +16,7 @@ import { explainSample, explainTake, limitSentence, RESTORED, type Refusal, type
 import type { JobCustomer, JobView } from "@/lib/say/types";
 import { KeptTake } from "./kept-take";
 import { Recorder } from "./recorder";
+import { YourBusiness } from "./your-business";
 import { clearTake, loadTake, saveTake, type Heard, type Take } from "./take-store";
 
 const OTHER = "other";
@@ -193,6 +194,12 @@ export function NewJob() {
   return (
     <>
       <PageHeader title="New job" description="Say what you did before you drive off. You check every number before anything goes to the customer." />
+      <YourBusiness
+        onContacts={(list, added) => {
+          setContacts(list);
+          pick(added.id);
+        }}
+      />
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader title="1. Pick the customer" description="Names come from here, never from speech." />
