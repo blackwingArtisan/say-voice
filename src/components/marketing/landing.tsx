@@ -26,17 +26,17 @@ export function SiteHeader() {
   );
 }
 
-/** The real roofer's job, as the customer saw it on PayPal's sandbox page (the trade name came later). */
+/** The real roofer's job, re-sent through PayPal's sandbox under the trade's name, as the customer's page shows it. */
 function RooferInvoice() {
   return (
     <figure className="relative" data-testid="hero-preview">
       <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl shadow-brand-900/10 ring-1 ring-black/5">
         {/* eslint-disable-next-line @next/next/no-img-element -- a fixed screenshot, no resizing wanted */}
-        <img src="/proof/roofer-invoice.png" alt="The roofer's $600 PayPal invoice: Labor $400 and Material $200, each with what was done" width={885} height={780} className="h-auto w-full" />
+        <img src="/proof/roofer-invoice.png" alt="The roofer's $600 PayPal invoice: Labor $400 and Material $200, each with what was done" width={900} height={1000} className="h-auto w-full" />
       </div>
       <figcaption className="mt-3 flex items-start gap-2 text-sm text-zinc-600">
         <Mic className="size-4 shrink-0 translate-y-0.5 text-brand" />
-        <span>A working roofer said this job out loud. This is the PayPal invoice their customer opened: what was fixed, on every line.</span>
+        <span>A working roofer said this job out loud: their words and numbers, on the PayPal page a customer opens, under the trade&apos;s name. What was fixed is on every line. (Customer and trade name are illustrative.)</span>
       </figcaption>
     </figure>
   );

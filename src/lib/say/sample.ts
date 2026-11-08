@@ -91,3 +91,39 @@ export const PLUS_TAX_DESCRIPTION = {
 
 /** Pump $85.00 and labor $105.00; tax on the pump only. */
 export const PLUS_TAX_AMOUNTS = { pumpCents: 8_500, laborCents: 10_500, tax7Cents: 595, total7Cents: 19_595, tax6Cents: 510, total6Cents: 19_510 };
+
+/**
+ * A working roofer's real job, as they said it. On mock AI it reads the way the live run read it
+ * when the roofer's invoice first went out, so the proof can be re-sent without paying for AI.
+ * The numbers are the roofer's: $400 labor, flat, and $200 material.
+ */
+export const ROOFER_TRANSCRIPT =
+  "Okay. Roof leak repair, um, valley replacement, um, laminated shingles approximately 10 years old. Um, remove shingles, um, rebase, um, break out at top, um, put in, uh, ice and water guard underlayment AKA Bituthene. Um, replace shingles with a valley liner and tie into existing seal old to new. Um, approximately three and a half hours, uh, four hundred dollars labor and, uh, two hundred dollars material. Mm-hmm.";
+
+/** The roofer's customer is made up: an example.com address, so it can go through the sandbox. */
+export const ROOFER_CUSTOMER = { name: "Pat Rivera", email: "pat.rivera@example.com" };
+
+export const ROOFER_EXTRACTION = {
+  customer: "",
+  service_address: null,
+  line_items: [
+    { name: "Labor", quantity: 1, unit_price: 400 },
+    { name: "Material", quantity: 1, unit_price: 200 },
+  ],
+  tax_rate: null,
+  total: 600,
+  uncertain: [],
+};
+
+export const ROOFER_DESCRIPTION = {
+  job_summary: "Roof leak repair: valley replacement on laminated shingles approximately 10 years old.",
+  job_site: "",
+  service_date: "",
+  service_date_words: "",
+  lines: {
+    Labor: "Remove shingles, rebase, break out at top, put in ice and water guard underlayment, replace shingles with a valley liner and tie into existing seal old to new. Approximately three and a half hours.",
+    Material: "Laminated shingles approximately 10 years old, ice and water guard underlayment AKA Bituthene, valley liner.",
+  } as Record<string, string>,
+};
+
+export const ROOFER_AMOUNTS = { laborCents: 40_000, materialCents: 20_000, totalCents: 60_000 };
