@@ -55,3 +55,23 @@ test("the landing page leads with the price book from your PayPal invoices, and 
   await expect(compare).toContainText("not that the product can't do it");
   await compare.screenshot({ path: "screenshots/compare.png" });
 });
+
+test("real jobs: only what the proof shows, with no quotes and no real names", async ({ page }) => {
+  await page.goto("/");
+  const block = page.getByTestId("real-jobs");
+  await expect(block.getByRole("heading", { name: "Real jobs" })).toBeVisible();
+  const jobs = block.getByTestId("real-job");
+  await expect(jobs).toHaveCount(2);
+  await expect(jobs.nth(0).getByTestId("real-job-total")).toHaveText("$600.00");
+  await expect(jobs.nth(1).getByTestId("real-job-total")).toHaveText("$472.03");
+  for (const job of await jobs.all()) {
+    await expect(job.getByTestId("real-job-lines")).toContainText("2 of 2 lines right first time");
+    await expect(job.getByTestId("real-job-caught").locator("li").first()).toBeVisible();
+  }
+  // No quotes from anyone, and no customer names or addresses: the invoices' customers are made up and stay off this block.
+  await expect(block.locator("blockquote, q")).toHaveCount(0);
+  const text = await block.innerText();
+  expect(text).not.toMatch(/Pat Rivera|Sam Ortiz|\d+ ?\d* ?th Street|@/);
+  expect(text).toContain("Customer names on the invoices are made up.");
+  await block.screenshot({ path: "screenshots/real-jobs.png" });
+});

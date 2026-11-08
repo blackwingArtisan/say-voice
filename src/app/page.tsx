@@ -1,4 +1,4 @@
-import { Compare, CtaBand, Features, Hero, HowItWorks, PainPoints, SiteFooter, SiteHeader } from "@/components/marketing/landing";
+import { Compare, CtaBand, Features, Hero, HowItWorks, PainPoints, RealJobs, SiteFooter, SiteHeader } from "@/components/marketing/landing";
 
 export default function LandingPage() {
   return (
@@ -7,6 +7,7 @@ export default function LandingPage() {
       <main>
         <Hero />
         <Compare />
+        <RealJobs />
         <PainPoints />
         <HowItWorks />
         <Features />
