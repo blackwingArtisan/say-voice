@@ -26,6 +26,16 @@ The site is on free hosting, so the first visit can take a minute.
 
 ![The confirm screen](docs/screenshot.png)
 
+## Real jobs
+
+Two jobs said out loud by the people who did them, read by ElevenLabs Scribe and Claude Sonnet, and sent as PayPal sandbox invoices on 7 Nov 2026. Customer names on the invoices are made up. Time from stop-record to sent wasn't measured, so it isn't claimed.
+
+| | Roofer: roof leak repair | Appliance tech: dryer repair |
+|---|---|---|
+| **Sent** | $600.00, PayPal sandbox invoice #0134 | $472.03, PayPal sandbox invoice #0135 |
+| **Lines right first time** | 2 of 2: Labor $400.00 flat, Material $200.00 | 2 of 2: the part $329.00 taxed, labor 2 h at $60.00 |
+| **Checked before it went out** | Whether $400 was for the job or by the hour, since three and a half hours was said too (by the hour, the total would have been $1,600). The $200 material was one lump sum, not itemized. | Tax was said with no rate; speech heard Iowa as "lowa", and it still found Iowa's rates from the state tables (7% was picked). The street address came through split by speech and was read back joined. The unnamed part was listed as "Dryer part" with a note to check. |
+
 ## Why this matters
 
 The US has 2.9 million construction businesses with no employees ([Census, 2022](https://www.census.gov/library/stories/2025/05/smallest-businesses.html)). For them, the person who does the job also writes the bill. Getting paid is already hard, and voice invoicing exists, but the trades don't trust AI with the details:

@@ -5,7 +5,7 @@ import { AppLogo } from "../shell/app-logo";
 
 /**
  * Landing page sections. Content comes from appConfig.landing; reorder or replace freely.
- *   <SiteHeader /> <Hero /> <Compare /> <PainPoints /> <HowItWorks /> <Features /> <CtaBand /> <SiteFooter />
+ *   <SiteHeader /> <Hero /> <Compare /> <RealJobs /> <PainPoints /> <HowItWorks /> <Features /> <CtaBand /> <SiteFooter />
  */
 
 export function SiteHeader() {
@@ -189,6 +189,44 @@ export function Compare() {
           ))}
           .
         </p>
+      </div>
+    </section>
+  );
+}
+
+/** Real jobs: what the saved proof shows, nothing more. */
+export function RealJobs() {
+  const r = appConfig.landing.realJobs;
+  return (
+    <section id="real-jobs" className="border-y border-zinc-200/70 bg-zinc-50/60 py-20" data-testid="real-jobs">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <p className="text-sm font-semibold uppercase tracking-wider text-brand">Proof</p>
+        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950">{r.title}</h2>
+        <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-zinc-600">{r.intro}</p>
+        <div className="mt-8 grid gap-6 md:grid-cols-2">
+          {r.jobs.map((j) => (
+            <article key={j.trade} className="flex flex-col rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm" data-testid="real-job">
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 className="text-lg font-semibold text-zinc-900">{j.trade}</h3>
+                <span className="font-mono text-2xl font-semibold tabular-nums text-zinc-950" data-testid="real-job-total">
+                  {j.total}
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-zinc-500">
+                {j.job} · {j.invoice}
+              </p>
+              <p className="mt-4 flex items-start gap-2 text-[15px] text-zinc-800" data-testid="real-job-lines">
+                <Check className="size-4 shrink-0 translate-y-1 text-emerald-600" /> {j.lines}
+              </p>
+              <p className="mt-4 text-sm font-semibold text-zinc-900">Checked before it went out</p>
+              <ul className="mt-2 list-disc space-y-1.5 pl-5 text-[15px] leading-relaxed text-zinc-600" data-testid="real-job-caught">
+                {j.caught.map((c) => (
+                  <li key={c}>{c}</li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
       </div>
     </section>
   );

@@ -69,6 +69,40 @@ export const appConfig = {
         },
       ],
     },
+    /**
+     * Real jobs: only what the saved proof shows (the confirm screens and the customers' PayPal pages
+     * from the live-AI runs on 2026-11-07). No quotes, no real names, no addresses. Time from
+     * stop-record to sent wasn't measured, so it isn't claimed.
+     */
+    realJobs: {
+      title: "Real jobs",
+      intro: "Two jobs said out loud by the people who did them, read by ElevenLabs Scribe and Claude Sonnet, sent as PayPal sandbox invoices on 7 Nov 2026. Customer names on the invoices are made up.",
+      jobs: [
+        {
+          trade: "Roofer",
+          job: "Roof leak repair, valley replacement",
+          total: "$600.00",
+          invoice: "PayPal sandbox invoice #0134",
+          lines: "2 of 2 lines right first time: Labor $400.00 flat, Material $200.00.",
+          caught: [
+            "Asked whether $400 was for the job or by the hour, since three and a half hours was said too. By the hour, the total would have been $1,600.",
+            "Pointed out that the $200 material was one lump sum, not itemized.",
+          ],
+        },
+        {
+          trade: "Appliance tech",
+          job: "Dryer repair: new part and two hours' labor",
+          total: "$472.03",
+          invoice: "PayPal sandbox invoice #0135",
+          lines: "2 of 2 lines right first time: the part $329.00 taxed, labor 2 h at $60.00.",
+          caught: [
+            "Tax was said with no rate. Speech heard Iowa as \u201clowa\u201d; it still found Iowa's rates from the state tables, and 7% was picked.",
+            "The street address came through split by speech and was read back joined, for a check.",
+            "The part wasn't named, so it was listed as \u201cDryer part\u201d with a note to check.",
+          ],
+        },
+      ],
+    },
     /** From round4/research/say-voice.md, section 2. Every figure was re-opened at its source. */
     pains: [
       {
