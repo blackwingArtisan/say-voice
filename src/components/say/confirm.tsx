@@ -6,7 +6,8 @@ import { Button, Card, CardBody, CardHeader, Field, Input, MoneyInput, Textarea 
 import { cn } from "@/components/ui/cn";
 import { isTestAddress, TEST_ADDRESS_RULE } from "@/lib/say/contacts";
 import { canSettle, findChecks, openChecks, placesToCheck, type Check } from "@/lib/say/checks";
-import { computeTotals, formatCents, formatQuantity, formatRate, MAX_QUANTITY_MILLI, MAX_TAX_RATE_MILLI, MAX_UNIT_CENTS, parseDollars, parsePercent, parseQuantity } from "@/lib/say/money";
+import { computeTotals, formatCents, formatQuantity, formatRate, parseDollars, parsePercent, parseQuantity } from "@/lib/say/money";
+import { inputProblems, priceProblem, quantityProblem, sendBlockedBy, type InputProblem } from "@/lib/say/line-input";
 import { findNumbers, heardFor } from "@/lib/say/spoken";
 import type { JobCustomer, JobDetails, JobLine, JobView } from "@/lib/say/types";
 import { MAX_DESCRIPTION, MAX_SITE, MAX_SUMMARY } from "@/lib/say/wording";
@@ -44,16 +45,15 @@ export function draftFrom(job: JobView): Draft {
 function parseLine(line: EditLine): (JobLine & { valid: boolean }) {
   const quantityMilli = parseQuantity(line.quantity) ?? 0;
   const unitCents = parseDollars(line.price) ?? 0;
-  const valid = line.name.trim().length > 0 && quantityMilli > 0 && quantityMilli <= MAX_QUANTITY_MILLI && unitCents > 0 && unitCents <= MAX_UNIT_CENTS;
+  const valid = line.name.trim().length > 0 && !quantityProblem(line.quantity) && !priceProblem(line.price);
   return { key: line.key, name: line.name.trim(), quantityMilli, unitCents, description: line.description.trim(), taxed: line.taxed, valid };
 }
 
 /** The job as the server should receive it, or null while something on the screen isn't valid. */
 export function checkedJob(draft: Draft) {
+  if (inputProblems(draft).length) return null;
   const lines = draft.lines.map(parseLine);
-  const taxRateMilli = parsePercent(draft.taxPercent);
-  if (!lines.length || lines.some((l) => !l.valid) || taxRateMilli === null || taxRateMilli > MAX_TAX_RATE_MILLI || !draft.dueDate) return null;
-  if (!draft.customer.name.trim() || !draft.customer.email.trim()) return null;
+  const taxRateMilli = parsePercent(draft.taxPercent.trim().replace(/%$/, "") || "0") ?? 0;
   const details = { summary: draft.details.summary.trim(), site: draft.details.site.trim(), serviceDate: draft.details.serviceDate };
   return { customer: draft.customer, lines: lines.map(({ key, name, quantityMilli, unitCents, description, taxed }) => ({ key, name, quantityMilli, unitCents, description, taxed })), taxRateMilli, details, dueDate: draft.dueDate, acknowledged: draft.acknowledged };
 }
@@ -96,8 +96,21 @@ function RowFlag({ children, testId, tone = "amber" }: { children: ReactNode; te
 /** Tall enough for a thumb, in a van. */
 const TAP = "h-11";
 
-function ItemRow({ line, heardLine, checks, open, heard, lineTotal, lineTax, disabled, onChange, onRemove, onSettle, onSettleWords }: {
+function FieldError({ problem, testId }: { problem?: InputProblem; testId: string }) {
+  if (!problem) return null;
+  return (
+    <p className="text-sm font-medium text-red-700" data-testid={testId} data-line={problem.line}>
+      {problem.text}
+    </p>
+  );
+}
+
+const INVALID = "border-red-400 bg-red-50/50 focus:border-red-500 focus:ring-red-100";
+
+function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineTotal, lineTax, disabled, onChange, onRemove, onSettle, onSettleWords }: {
   line: EditLine;
+  number: number;
+  problems: InputProblem[];
   heardLine?: JobLine;
   checks: Check[];
   open: boolean;
@@ -116,19 +129,25 @@ function ItemRow({ line, heardLine, checks, open, heard, lineTotal, lineTax, dis
   const far = checks.find((check) => check.kind === "far");
   const settleable = checks.some((check) => canSettle(check) && check.kind !== "words");
   const applyPrice = (cents: number) => onChange({ price: (cents / 100).toFixed(2) });
+  const problemOn = (field: InputProblem["field"]) => problems.find((p) => p.field === field);
+  const bad = problems.length > 0;
   return (
-    <li id={`line-${line.key}`} data-testid="invoice-line" className={cn("scroll-mt-20 space-y-2 rounded-xl border p-3", open ? "border-amber-400 bg-amber-50/40" : "border-zinc-200")}>
+    <li id={`line-${line.key}`} data-testid="invoice-line" data-invalid={bad || undefined} className={cn("scroll-mt-20 space-y-2 rounded-xl border p-3", bad ? "border-red-300 bg-red-50/30" : open ? "border-amber-400 bg-amber-50/40" : "border-zinc-200")}>
+      <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Line {number}</p>
       <div className="flex items-center gap-2">
-        <Input aria-label="Item" value={line.name} disabled={disabled} onChange={(e) => onChange({ name: e.target.value })} data-testid="line-name" className="font-medium" />
+        <Input aria-label="Item" aria-invalid={!!problemOn("name")} value={line.name} disabled={disabled} onChange={(e) => onChange({ name: e.target.value })} data-testid="line-name" className={cn("font-medium", problemOn("name") && INVALID)} />
         <Button variant="ghost" className="size-11 shrink-0 px-0" aria-label={`Remove ${label}`} disabled={disabled} onClick={onRemove} icon={<Trash2 className="size-4" />} />
       </div>
       <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-2">
-        <Input aria-label={`Quantity for ${label}`} inputMode="decimal" value={line.quantity} disabled={disabled} onChange={(e) => onChange({ quantity: e.target.value })} data-testid="line-quantity" className="font-mono tabular-nums" />
-        <MoneyInput aria-label={`Price for ${label}`} value={line.price} disabled={disabled} onChange={(e) => onChange({ price: e.target.value })} data-testid="line-price" />
-        <span className="w-[5.5rem] text-right font-mono text-[15px] font-semibold tabular-nums text-zinc-900" data-testid="line-total">
+        <Input aria-label={`Quantity for ${label}`} aria-invalid={!!problemOn("quantity")} inputMode="decimal" value={line.quantity} disabled={disabled} onChange={(e) => onChange({ quantity: e.target.value })} data-testid="line-quantity" className={cn("font-mono tabular-nums", problemOn("quantity") && INVALID)} />
+        <MoneyInput aria-label={`Price for ${label}`} aria-invalid={!!problemOn("price")} value={line.price} disabled={disabled} onChange={(e) => onChange({ price: e.target.value })} data-testid="line-price" className={problemOn("price") ? "[&_input]:border-red-400 [&_input]:bg-red-50/50" : undefined} />
+        <span className={cn("w-[5.5rem] text-right font-mono text-[15px] font-semibold tabular-nums", lineTotal === null ? "text-red-700" : "text-zinc-900")} data-testid="line-total">
           {lineTotal === null ? "--" : formatCents(lineTotal)}
         </span>
       </div>
+      <FieldError problem={problemOn("name")} testId="line-name-error" />
+      <FieldError problem={problemOn("quantity")} testId="line-quantity-error" />
+      <FieldError problem={problemOn("price")} testId="line-price-error" />
       <Textarea
         aria-label={`Description for ${label}`}
         placeholder="What this covers, for the customer"
@@ -202,9 +221,15 @@ function ItemRow({ line, heardLine, checks, open, heard, lineTotal, lineTax, dis
 
 export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: JobView; draft: Draft; setDraft: (draft: Draft) => void; sending: boolean; busy: boolean; onSend: () => void }) {
   const parsed = draft.lines.map(parseLine);
-  const taxRateMilli = parsePercent(draft.taxPercent) ?? 0;
+  const taxRateMilli = parsePercent(draft.taxPercent.trim().replace(/%$/, "") || "0") ?? 0;
   const totals = computeTotals(parsed, taxRateMilli);
   const checked = checkedJob(draft);
+  const problems = inputProblems(draft);
+  const lineProblems = problems.filter((p) => p.lineKey);
+  // A line that can't be read holds the total: the total on screen is always the sum of the lines on screen.
+  const holdTotal = lineProblems.length > 0 || problems.some((p) => p.field === "tax");
+  const blockedBy = sendBlockedBy(problems);
+  const problemOn = (field: InputProblem["field"]) => problems.find((p) => p.field === field && !p.lineKey)?.text;
   const checks = findChecks({ transcript: job.transcript, heardLines: job.heardLines, flags: job.flags, lines: parsed.filter((line) => line.valid), taxRateMilli, book: job.priceBook, details: draft.details, aiWording: job.aiWording });
   const open = openChecks(checks, draft.acknowledged);
   const toCheck = placesToCheck(open);
@@ -224,6 +249,14 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
   const settle = (ids: string[]) => setDraft({ ...draft, acknowledged: [...new Set([...draft.acknowledged, ...ids])] });
   const addLine = (price = "") => setDraft({ ...draft, lines: [...draft.lines, { key: `new-${Date.now().toString(36)}`, name: "", quantity: "1", price, description: "", taxed: true }] });
 
+  function goToProblem() {
+    const first = problems[0];
+    if (!first) return;
+    const target = first.lineKey ? document.querySelector<HTMLInputElement>(`#line-${first.lineKey} [data-testid=line-${first.field}]`) : document.getElementById(first.field === "tax" ? "tax-rate" : first.field === "due" ? "due-date" : first.field);
+    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    target?.focus();
+  }
+
   function goToNextCheck() {
     const first = open[0];
     if (!first) return;
@@ -232,6 +265,16 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
 
   return (
     <div className="space-y-6 pb-24 lg:pb-0">
+      {problems.length && !sending ? (
+        <div className="space-y-2" data-testid="input-problems">
+          {problems.map((p) => (
+            <RowFlag key={`${p.lineKey ?? ""}${p.field}`} tone="red" testId="input-problem">
+              <strong className="font-semibold">{p.line ? `Line ${p.line}: ` : ""}</strong>
+              {p.text}
+            </RowFlag>
+          ))}
+        </div>
+      ) : null}
       {toCheck ? (
         <div className="scroll-mt-20 space-y-2" id="flags-panel" data-testid="flags-panel">
           <p className="flex items-center gap-2 text-[15px] font-semibold text-amber-900">
@@ -319,6 +362,8 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
                 <ItemRow
                   key={line.key}
                   line={line}
+                  number={i + 1}
+                  problems={lineProblems.filter((p) => p.lineKey === line.key)}
                   heardLine={heardLine}
                   checks={onRow}
                   open={openOnRow.length > 0}
@@ -343,33 +388,38 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
 
       <Card>
         <CardBody className="grid gap-4 sm:grid-cols-2">
-          <Field label="Customer" htmlFor="customer-name" hint={job.heardName && job.heardName.toLowerCase() !== draft.customer.name.trim().toLowerCase() ? <span data-testid="heard-name">Speech heard &ldquo;{job.heardName}&rdquo;. The invoice uses the name here, never that one.</span> : undefined}>
+          <Field label="Customer" htmlFor="customer-name" error={problemOn("customer-name")} hint={job.heardName && job.heardName.toLowerCase() !== draft.customer.name.trim().toLowerCase() ? <span data-testid="heard-name">Speech heard &ldquo;{job.heardName}&rdquo;. The invoice uses the name here, never that one.</span> : undefined}>
             <Input id="customer-name" value={draft.customer.name} disabled={sending} onChange={(e) => setDraft({ ...draft, customer: { ...draft.customer, name: e.target.value } })} data-testid="customer-name" />
           </Field>
-          <Field label="Customer email" htmlFor="customer-email" hint={draft.customer.email.includes("@") && !isTestAddress(draft.customer.email) ? <span data-testid="customer-email-note">{TEST_ADDRESS_RULE}</span> : undefined}>
-            <Input id="customer-email" type="email" value={draft.customer.email} disabled={sending} onChange={(e) => setDraft({ ...draft, customer: { ...draft.customer, email: e.target.value } })} data-testid="customer-email" />
+          <Field label="Customer email" htmlFor="customer-email" error={problemOn("customer-email") ? <span data-testid="customer-email-error">{problemOn("customer-email")}</span> : undefined} hint={draft.customer.email.includes("@") && !isTestAddress(draft.customer.email) ? <span data-testid="customer-email-note">{TEST_ADDRESS_RULE}</span> : undefined}>
+            <Input id="customer-email" type="email" aria-invalid={!!problemOn("customer-email")} className={problemOn("customer-email") ? INVALID : undefined} value={draft.customer.email} disabled={sending} onChange={(e) => setDraft({ ...draft, customer: { ...draft.customer, email: e.target.value } })} data-testid="customer-email" />
           </Field>
-          <Field label="Due date" htmlFor="due-date" hint={job.dueSaid ? "From what you said." : "Nothing said, so 14 days out."}>
+          <Field label="Due date" htmlFor="due-date" error={problemOn("due")} hint={job.dueSaid ? "From what you said." : "Nothing said, so 14 days out."}>
             <Input id="due-date" type="date" value={draft.dueDate} disabled={sending} onChange={(e) => setDraft({ ...draft, dueDate: e.target.value })} data-testid="due-date" />
           </Field>
-          <Field label="Sales tax %" htmlFor="tax-rate" hint="On the lines marked Taxed.">
-            <Input id="tax-rate" inputMode="decimal" value={draft.taxPercent} disabled={sending} onChange={(e) => setDraft({ ...draft, taxPercent: e.target.value })} data-testid="tax-rate" className="font-mono tabular-nums" />
+          <Field label="Sales tax %" htmlFor="tax-rate" hint="On the lines marked Taxed." error={problemOn("tax") ? <span data-testid="tax-rate-error">{problemOn("tax")}</span> : undefined}>
+            <Input id="tax-rate" inputMode="decimal" aria-invalid={!!problemOn("tax")} value={draft.taxPercent} disabled={sending} onChange={(e) => setDraft({ ...draft, taxPercent: e.target.value })} data-testid="tax-rate" className={cn("font-mono tabular-nums", problemOn("tax") && INVALID)} />
           </Field>
         </CardBody>
         <div className="border-t border-zinc-100 px-5 py-4">
           <dl className="space-y-1 text-sm">
             <div className="flex justify-between text-zinc-600">
               <dt>Items</dt>
-              <dd className="font-mono tabular-nums" data-testid="subtotal">{formatCents(totals.subtotalCents)}</dd>
+              <dd className="font-mono tabular-nums" data-testid="subtotal">{holdTotal ? "--" : formatCents(totals.subtotalCents)}</dd>
             </div>
             <div className="flex justify-between text-zinc-600">
               <dt>Tax</dt>
-              <dd className="font-mono tabular-nums" data-testid="tax-total">{formatCents(totals.taxCents)}</dd>
+              <dd className="font-mono tabular-nums" data-testid="tax-total">{holdTotal ? "--" : formatCents(totals.taxCents)}</dd>
             </div>
             <div className="flex items-baseline justify-between pt-1">
               <dt className="text-[15px] font-semibold text-zinc-900">Total</dt>
-              <dd className="font-mono text-2xl font-semibold tabular-nums text-zinc-950" data-testid="invoice-total">{formatCents(totals.totalCents)}</dd>
+              <dd className="font-mono text-2xl font-semibold tabular-nums text-zinc-950" data-testid="invoice-total">{holdTotal ? "--" : formatCents(totals.totalCents)}</dd>
             </div>
+            {holdTotal ? (
+              <p className="pt-1 text-right text-sm text-red-700" data-testid="total-held">
+                {lineProblems.length ? `No total until line ${lineProblems[0].line} has a ${lineProblems[0].field === "name" ? "name" : `valid ${lineProblems[0].field}`}.` : "No total until the tax rate is fixed."}
+              </p>
+            ) : null}
           </dl>
         </div>
       </Card>
@@ -377,7 +427,16 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
       {sending ? null : (
         // On a phone this sits under the thumb. On a desktop it follows the totals.
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-zinc-200 bg-white/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur lg:static lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
-          {toCheck ? (
+          {blockedBy ? (
+            <div className="space-y-1.5">
+              <Button size="lg" className="w-full" icon={<Send className="size-4" />} disabled data-testid="send-invoice">
+                {blockedBy}
+              </Button>
+              <button type="button" className="w-full text-center text-sm font-medium text-red-700 underline underline-offset-2" onClick={goToProblem} data-testid="go-to-problem">
+                Show me
+              </button>
+            </div>
+          ) : toCheck ? (
             <Button size="lg" variant="dark" className="w-full" icon={<ArrowDown className="size-4" />} onClick={goToNextCheck} data-testid="next-check">
               {toCheck === 1 ? "1 thing to check first" : `${toCheck} things to check first`}
             </Button>

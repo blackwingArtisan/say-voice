@@ -308,3 +308,64 @@ test("a clear invoice: what, where and when, a description per line, and tax on 
     await payer.close();
   }
 });
+
+/** The sum of the line totals on screen, in cents. Null while one shows "--". */
+const sumOfLinesShown = async (page: Page) => {
+  const shown = await page.getByTestId("line-total").allInnerTexts();
+  if (shown.some((t) => !t.startsWith("$"))) return null;
+  return shown.reduce((sum, t) => sum + Math.round(Number(t.replace(/[$,]/g, "")) * 100), 0);
+};
+
+test("a price or quantity that can't be read is named on its line, holds the total, and Send says what to fix", async ({ page, request }) => {
+  const { live } = await kitStatus(request);
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
+
+  await startSample(page);
+  const labor = page.getByTestId("invoice-line").first();
+  const send = page.getByTestId("send-invoice");
+  await expect(page.getByTestId("subtotal")).toHaveText(money((await sumOfLinesShown(page))!));
+
+  const cases: [string, string, RegExp][] = [
+    ["line-price", "-80", /can't be below \$0/],
+    ["line-price", "0", /above \$0/],
+    ["line-price", "99999999999", /more than \$100,000\.00/],
+    ["line-price", "abc", /isn't a price/],
+    ["line-price", "", /Enter a price/],
+    ["line-quantity", "0", /above 0/],
+    ["line-quantity", "-3", /can't be below 0/],
+    ["line-quantity", "1e9", /isn't a quantity/],
+  ];
+  for (const [field, value, words] of cases) {
+    await labor.getByTestId(field).fill(value);
+    const which = field === "line-price" ? "price" : "quantity";
+    await expect(labor.getByTestId(`${field}-error`), `${field}=${value}`).toContainText(words);
+    await expect(labor.getByTestId("line-total")).toHaveText("--");
+    // Never a smaller total that quietly leaves the line out.
+    await expect(page.getByTestId("invoice-total")).toHaveText("--");
+    await expect(page.getByTestId("total-held")).toContainText("line 1");
+    await expect(page.getByTestId("input-problem").first()).toContainText("Line 1:");
+    await expect(send).toBeDisabled();
+    await expect(send).toHaveText(`Fix the ${which} on line 1`);
+    await labor.getByTestId(field).fill(field === "line-price" ? "80.00" : "0.75");
+  }
+  await page.screenshot({ path: "screenshots/sums-restored.png", fullPage: true });
+
+  // Back to valid: the total is the sum of the lines shown again, and the errors are gone.
+  await expect(page.getByTestId("input-problem")).toHaveCount(0);
+  await expect(page.getByTestId("invoice-total")).toHaveText(money(SAMPLE_AMOUNTS.heardTotalCents));
+  expect(await sumOfLinesShown(page)).toBe(SAMPLE_AMOUNTS.heardTotalCents);
+
+  // Show me goes to the field. A bad email is named on the field too, not a toast over the button.
+  await labor.getByTestId("line-price").fill("-80");
+  await page.getByTestId("go-to-problem").click();
+  await expect(labor.getByTestId("line-price")).toBeFocused();
+  await labor.getByTestId("line-price").fill("80.00");
+  await page.getByTestId("customer-email").fill("notanemail");
+  await expect(page.getByTestId("customer-email-error")).toContainText("isn't an email address");
+  await expect(send).toHaveText("Fix the customer email");
+  await expect(send).toBeDisabled();
+  await page.getByTestId("customer-email").fill("derek.evans@example.com");
+  await expect(page.getByTestId("input-problem")).toHaveCount(0);
+  await expect(page.getByTestId("next-check")).toBeVisible(); // the misheard element is still there to check
+  expect((await readJob(request, jobId(page))).status).toBe("review");
+});
