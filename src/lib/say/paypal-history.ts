@@ -6,6 +6,7 @@
  * the trade's history. Code reads the prices; no AI is involved. Server only.
  */
 import { appConfig } from "@/app.config";
+import { withContext } from "@/lib/events/bus";
 import { toMinor } from "@/lib/money";
 import { getPayPal } from "@/lib/paypal";
 import type { Invoice } from "@/lib/paypal/types";
@@ -34,6 +35,30 @@ const histories = () => collection<PayPalHistory>("paypal-history");
 const keyOf = (visitor?: string) => `h_${visitor ?? "anyone"}`;
 
 export const historyOf = (visitor?: string) => histories().get(keyOf(visitor)) ?? null;
+
+/**
+ * The history a visitor's book uses: their own once they've pressed Learn, the trade's shared one
+ * until then. Both come from the same PayPal account; only the time they were read differs.
+ */
+export const tradeHistoryFor = (visitor?: string) => historyOf(visitor) ?? historyOf(undefined);
+
+let learning = false;
+let lastFailure = 0;
+const RETRY_MS = 60_000;
+
+/** Reads the trade's history once in the background, so a first visit's book already comes from PayPal. */
+export function kickTradeHistory() {
+  if (learning || historyOf(undefined) || Date.now() - lastFailure < RETRY_MS) return;
+  learning = true;
+  void withContext({ channel: "prices:shared" }, () => learnFromPayPal(undefined))
+    .catch((e: unknown) => {
+      lastFailure = Date.now();
+      console.error(`The trade's PayPal history wasn't read: ${e instanceof Error ? e.message : String(e)}`);
+    })
+    .finally(() => {
+      learning = false;
+    });
+}
 
 /** Mock PayPal starts empty, so the demo trade's past invoices are put there the first time they're asked for. */
 async function mockHistory() {

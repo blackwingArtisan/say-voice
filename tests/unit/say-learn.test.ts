@@ -90,6 +90,6 @@ describe("the confirm screen points out a price unlike the learned one", () => {
   it("stops the send when it's far off, saying the usual price came from PayPal", () => {
     const lines = [{ key: "a", name: "Drain pump", quantityMilli: 1_000, unitCents: 1_500 }] as JobLine[];
     const far = findChecks({ transcript: SAMPLE_TRANSCRIPT, heardLines: lines, flags: [], lines, taxRateMilli: 0, book: [entry] }).find((c) => c.kind === "far");
-    expect(far?.text).toMatch(/^Usually \$85\.00, from 4 invoices read from your PayPal\. This says \$15\.00\./);
+    expect(far?.text).toMatch(/^Usually \$85\.00, from 4 PayPal invoices, last \$85\.00\. This says \$15\.00\./);
   });
 });

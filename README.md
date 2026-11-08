@@ -1,6 +1,6 @@
 # Say-Voice
 
-> Tradespeople say the job out loud in the van, check the numbers, and a PayPal invoice goes out before they drive off.
+> **Fifty heard as fifteen? Your PayPal invoices catch it.** Tradespeople say the job out loud in the van. A price book learned from their own past PayPal invoices stops a sound-alike number before the customer sees it, code does every sum, and the invoice goes out once they approve the exact amount.
 
 **Live demo:** https://say-voice.onrender.com · **Video (≤3 min):** TODO: add the link once it's recorded · **License:** MIT
 
@@ -13,6 +13,16 @@ The site is on free hosting, so the first visit can take a minute.
 ![A real roofer's $600 job on PayPal's sandbox, under the trade's name, as the customer's page shows it (customer and trade name illustrative)](public/proof/roofer-invoice.png)
 
 **Why not Housecall Pro or Jobber?** No suite to set up. Your words sit beside every number, a price book stops a wrong price whoever said it (you or the speech model), and nothing reaches a customer until you approve the exact amount.
+
+### What the others don't do
+
+| | Say-Voice | Housecall Pro ([source](https://contractingbusiness.com/industry-news/press-release/55316860/housecall-pro-brings-ai-powered-voice-activated-invoicing-to-the-trades)) | Jobber ([source](https://help.getjobber.com/en/articles/jobber-ai-voice-and-chat-beta/)) |
+|---|---|---|---|
+| **Sums done by code** | Code adds every cent. The AI never states a total. | We couldn't find whether code or the AI does the math. | We couldn't find whether code or the AI does the math. |
+| **A price book from your own PayPal invoices** | Reads your past PayPal invoices and stops a price far from them, like fifty heard as fifteen. | We couldn't find a price check. It names cards, Apple Pay and Google Pay, not PayPal. | We couldn't find a price check, or PayPal. |
+| **Nothing sent until you approve the exact amount** | Send waits for your tap on the exact total PayPal will bill. | We couldn't find an approval step. It says invoices are sent by voice. | We couldn't find an approval step. It lists "Send invoice" as something the AI does. |
+
+"We couldn't find" means the linked page doesn't say it, not that the product can't do it. Sources: Housecall Pro's voice invoicing press release (16 Sep 2025) and Jobber's AI Voice and Chat (Beta) help article (updated 28 Oct 2026), both re-read on 2026-11-08.
 
 ![The confirm screen](docs/screenshot.png)
 
@@ -33,14 +43,14 @@ Say-Voice keeps the AI to listening. Code does the math, a price book catches wr
 - ElevenLabs Scribe v2 writes it down and Claude pulls out the line items.
 - Check the invoice. Your words sit beside every number, and everything is editable.
 - The invoice says what the job was, where and when, with a description on every line, so the customer knows exactly what they paid for (see **Clear invoices and tax** below).
-- The app holds the send until each worry is settled: a price far from what that item usually costs (fifty heard as fifteen shows "Usually $50.00"), a doubt the AI flagged, or a spoken amount with no line item. Each takes one tap.
+- The app holds the send until each worry is settled: a price far from what that item usually costs (fifty heard as fifteen shows "Usually $50.00, from 6 PayPal invoices, last $50.00", from the trade's own PayPal history), a doubt the AI flagged, or a spoken amount with no line item. Each takes one tap.
 - Press send, then approve the exact amount. Nothing reaches the customer before that.
 - PayPal creates and sends the invoice. The result screen shows the real number and status, read back from PayPal.
 - If it's unpaid, an agent drafts a reminder from what PayPal says is owed. You can ask it to add something; it writes what you ask, and code refuses any figure PayPal's invoice doesn't have (a "$25 late fee", say) before an approval card ever appears, and shows you what it refused. You read the corrected words and approve them before PayPal sends it.
 - The customer's PayPal invoice comes from the trade's name (`invoicer.business_name`), not PayPal's default.
 - When the customer pays, the job turns paid by itself, from PayPal's webhook.
 
-The **Prices** page is the price book: seeded with demo items, then learned from the invoices that browser sent. **Learn from my PayPal invoices** reads the trade's own past invoices from PayPal (`GET /v2/invoicing/invoices`, a page at a time, then each one in full) and fills the book with them: each line says where its price came from ("from 3 PayPal invoices, last $85.00"), and PayPal's prices replace the demo ones for the same item. On the confirm screen a price far from that stops the send as usual, and one that merely differs from PayPal's last price is pointed out. It keeps the newest 20 from this trade name, because the sandbox account is shared with other apps, and leaves labor out, since a flat labor line can't be told from an hourly one without the words said around it. Every invoice sent with this app carries a private memo (`detail.memo`, which only the invoicer sees), so Learn skips them: other visitors' test jobs never become the trade's history. The demo trade's 18 past invoices are illustrative (made-up jobs and example.com customers, `src/lib/demo/past-invoices.ts`), put on the sandbox once with `npm run seed:history`.
+The **Prices** page is the price book: demo items, then the trade's past PayPal invoices over them (read once in the background when the site starts, so a first visit's catch already says which PayPal invoices its price came from), then what that browser sent. **Learn from my PayPal invoices** reads the trade's own past invoices from PayPal (`GET /v2/invoicing/invoices`, a page at a time, then each one in full) and fills the book with them: each line says where its price came from ("from 3 PayPal invoices, last $85.00"), and PayPal's prices replace the demo ones for the same item. On the confirm screen a price far from that stops the send as usual, and one that merely differs from PayPal's last price is pointed out. It keeps the newest 20 from this trade name, because the sandbox account is shared with other apps, and leaves labor out, since a flat labor line can't be told from an hourly one without the words said around it. Every invoice sent with this app carries a private memo (`detail.memo`, which only the invoicer sees), so Learn skips them: other visitors' test jobs never become the trade's history. The demo trade's 18 past invoices are illustrative (made-up jobs and example.com customers, `src/lib/demo/past-invoices.ts`), put on the sandbox once with `npm run seed:history`.
 
 If the app can't read a recording yet, you keep it. A refused upload, a lost signal or an empty AI or speech balance leaves the take in your browser with a clear message and **Try again**, even after a reload. Speech that was already heard isn't paid for twice. A recording with no words in it asks for a new one.
 

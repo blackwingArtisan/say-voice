@@ -11,5 +11,5 @@ import { visitorOf } from "@/lib/say/visitor";
 export const POST = route(async (req) => {
   const visitor = visitorOf(req);
   const history = await withContext({ channel: `prices:${visitor ?? "shared"}` }, () => learnFromPayPal(visitor));
-  return { prices: priceBook(visitor), history: { invoices: history.invoiceIds.length, learnedAt: history.learnedAt } };
+  return { prices: priceBook(visitor), history: { invoices: history.invoiceIds.length, learnedAt: history.learnedAt, own: !!visitor } };
 });

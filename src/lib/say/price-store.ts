@@ -1,5 +1,5 @@
 /**
- * The price book: the demo prices, plus the trade's past PayPal invoices if asked for, plus what
+ * The price book: the demo prices, then the trade's past PayPal invoices over them, plus what
  * this browser's sent invoices taught it. Worked out
  * from the jobs each time, so one visitor's prices can't change what another visitor sees, and a
  * draft can't teach it anything. Server only.
@@ -7,7 +7,7 @@
 import { collection } from "@/lib/store/collection";
 import { isFlatLabor } from "./checks";
 import { findEntry, itemKey, learned, type PriceEntry } from "./price-book";
-import { historyOf } from "./paypal-history";
+import { tradeHistoryFor } from "./paypal-history";
 import { SEED_PRICES } from "./sample";
 import type { Job } from "./types";
 
@@ -18,7 +18,7 @@ export function priceBook(visitor?: string): PriceEntry[] {
   // The trade's past PayPal invoices, if they asked for them. Their prices replace the demo ones for
   // the items they have. Labor is left out: a flat labor line there can't be told from an hourly one
   // without the words said around it.
-  const history = historyOf(visitor);
+  const history = tradeHistoryFor(visitor);
   const fromPayPal = new Map<string, PriceEntry>();
   for (const line of history?.lines.filter((l) => !/\blabou?r\b/i.test(l.name)) ?? []) {
     const when = line.invoicedAt || history!.learnedAt;

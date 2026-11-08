@@ -6,7 +6,7 @@
  */
 import { lineCents, formatCents } from "./money";
 import { isPriceDoubt } from "./flags";
-import { farFromUsual, findEntry, itemKey, MIN_SAMPLES, soundAlike, usualCents, type PriceEntry } from "./price-book";
+import { farFromUsual, findEntry, itemKey, MIN_SAMPLES, provenance, soundAlike, usualCents, type PriceEntry } from "./price-book";
 import { findMissingAmounts, heardFor } from "./spoken";
 import { rateChoices, rateSpoken, stateFor, taxSaid, type RateChoice } from "./tax";
 import type { AiWording, JobDetails, JobFlag, JobLine } from "./types";
@@ -79,8 +79,10 @@ function farCheck(line: JobLine, book: PriceEntry[], transcript: string): Check 
   const far = farFromUsual(line, book);
   if (!far) return null;
   const alike = soundAlike(line.unitCents);
-  const fromPayPal = findEntry(line.name, book)?.paypal;
-  const usual = `Usually ${formatCents(far.usualCents)}, from ${far.samples} invoices${fromPayPal ? " read from your PayPal" : ""}. This says ${formatCents(line.unitCents)}.`;
+  // Where the usual price came from, said the same way as the price book: "from 6 PayPal invoices, last $50.00".
+  const entry = findEntry(line.name, book);
+  const source = entry?.paypal ? provenance(entry) : `from ${far.samples} invoices`;
+  const usual = `Usually ${formatCents(far.usualCents)}, ${source}. This says ${formatCents(line.unitCents)}.`;
   return {
     id: `far:${line.key}:${line.unitCents}`,
     kind: "far",

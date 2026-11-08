@@ -5,7 +5,7 @@
  */
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { checkCount, fixElementPrice, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, sentSample, settleAiNotes, startSample, visitorHeaders, openNewJob, settleChecks } from "./flow";
+import { checkCount, fixElementPrice, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, sentSample, settleAiNotes, startSample, tradeHistoryReady, visitorHeaders, openNewJob, settleChecks } from "./flow";
 import { PLUS_TAX_AMOUNTS, PLUS_TAX_TRANSCRIPT, SAMPLE_AMOUNTS, ROOFER_AMOUNTS, ROOFER_CUSTOMER, ROOFER_DESCRIPTION, ROOFER_TRANSCRIPT } from "../../src/lib/say/sample";
 import { readInvoiceFromPayPal } from "./paypal-reread";
 import { appConfig } from "../../src/app.config";
@@ -19,6 +19,7 @@ const priceCount = async (page: Page) => {
 test("sample job: catch the misheard price, fix it, approve, invoice sent", async ({ page, request }) => {
   const { live, paypal } = await kitStatus(request);
   test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
+  const fromPayPal = await tradeHistoryReady(request);
 
   await startSample(page);
   const before = await priceCount(page);
@@ -40,6 +41,8 @@ test("sample job: catch the misheard price, fix it, approve, invoice sent", asyn
 
   // The code's check names the usual price, and nothing can be sent until the person deals with it.
   await expect(element.getByTestId("line-usual")).toContainText("Usually $50.00");
+  // Beside the catch: which of the trade's PayPal invoices the usual price came from.
+  if (fromPayPal) await expect(element.getByTestId("line-usual")).toContainText(/Usually \$50\.00, from \d+ PayPal invoices?, last \$\d+\.\d\d\./);
   await expect(element.getByTestId("line-usual")).toContainText('"fifteen" sounds like "fifty"');
   // One voice on the row: the AI's own doubt about this price would differ from run to run.
   await expect(element.getByTestId("line-flag")).toHaveCount(0);
@@ -75,7 +78,7 @@ test("sample job: catch the misheard price, fix it, approve, invoice sent", asyn
   await page.goto("/prices");
   const row = page.getByTestId("price-row").filter({ hasText: "Heating element" });
   await expect(row.getByTestId("price-usual")).toHaveText(money(SAMPLE_AMOUNTS.spokenElementCents));
-  await expect(row.getByTestId("price-count")).toContainText(`${before + 1} invoices`);
+  await expect(row.getByTestId("price-count")).toContainText(fromPayPal ? /PayPal invoices?, last \$\d+\.\d\d, and 1 sent here/ : `${before + 1} invoices`);
 });
 
 test("a price the person keeps goes out, and the server won't skip the check", async ({ page, request }) => {
@@ -534,7 +537,7 @@ test("learn from my PayPal invoices: the book fills from PayPal, each price says
   // The misheard $15 is stopped against what PayPal says this trade charges.
   await startSample(page);
   const element = page.getByTestId("invoice-line").nth(1);
-  await expect(element.getByTestId("line-usual")).toContainText("read from your PayPal");
+  await expect(element.getByTestId("line-usual")).toContainText(/from \d+ PayPal invoices?, last \$\d+\.\d\d/);
   // The reads behind the book stay out of the job's own "What happened".
   await page.waitForTimeout(1_000); // the activity stream's first snapshot
   await expect(page.getByTestId("plain-step").filter({ hasText: /past PayPal invoices|invoice back from PayPal/ })).toHaveCount(0);

@@ -26,6 +26,7 @@ function Row({ entry }: { entry: PriceEntry }) {
 interface History {
   invoices: number;
   learnedAt: string;
+  own?: boolean;
 }
 
 export function PriceBook() {
@@ -66,7 +67,7 @@ export function PriceBook() {
         </Button>
         {history ? (
           <p className="text-sm text-zinc-700" data-testid="learned-from-paypal">
-            Learned from your last {history.invoices} PayPal {history.invoices === 1 ? "invoice" : "invoices"} (read with GET /v2/invoicing/invoices). Labor rates come from the jobs you say.
+            {history.own ? "Learned from your last" : "Learned from the trade's last"} {history.invoices} PayPal {history.invoices === 1 ? "invoice" : "invoices"} (read with GET /v2/invoicing/invoices). Labor rates come from the jobs you say.
           </p>
         ) : null}
       </div>

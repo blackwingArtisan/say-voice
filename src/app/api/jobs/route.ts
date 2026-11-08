@@ -2,6 +2,7 @@ import { z } from "zod";
 import { HttpError, readJson, route } from "@/lib/http";
 import { contactById } from "@/lib/say/contacts";
 import { exampleJob, kickExampleJob } from "@/lib/say/example-job";
+import { kickTradeHistory } from "@/lib/say/paypal-history";
 import { createJob, listJobs, viewJob } from "@/lib/say/jobs";
 import { SAMPLE_CONTACT_ID, SAMPLE_TRANSCRIPT } from "@/lib/say/sample";
 import { isPaid } from "@/lib/say/types";
@@ -26,6 +27,7 @@ const Body = z.discriminatedUnion("source", [
 export const GET = route(async (req) => {
   const example = exampleJob();
   if (!isPaid(example?.invoice)) kickExampleJob(); // still being made, or the store was reset since the server started
+  kickTradeHistory();
   return { jobs: listJobs(visitorOf(req)), example: isPaid(example?.invoice) ? viewJob(example!) : null };
 });
 

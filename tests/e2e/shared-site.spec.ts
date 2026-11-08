@@ -1,9 +1,11 @@
 /** A judge opens the shared site after a hundred test runs. It has to look like theirs. */
 import { expect, test } from "@playwright/test";
-import { kitStatus, sentSample, startSample } from "./flow";
+import { kitStatus, sentSample, startSample, tradeHistoryReady } from "./flow";
 
 test("one visitor's jobs and prices stay out of the next visitor's way", async ({ page, browser, request }) => {
   test.skip((await kitStatus(request)).live, "Mock only: the live check spends on the one mic clip");
+  // Every visitor's book starts from the trade's past PayPal invoices, read once in the background.
+  expect(await tradeHistoryReady(request)).toBe(true);
 
   // The first visitor sends the sample, and keeps a price the book doesn't like.
   await startSample(page);
@@ -15,7 +17,7 @@ test("one visitor's jobs and prices stay out of the next visitor's way", async (
 
   await page.goto("/prices");
   await expect(page.getByTestId("price-row").filter({ hasText: "Sump pump labor" })).toBeVisible();
-  await expect(page.getByTestId("price-row").filter({ hasText: "Heating element" }).getByTestId("price-count")).toContainText("6 invoices");
+  await expect(page.getByTestId("price-row").filter({ hasText: "Heating element" }).getByTestId("price-count")).toHaveText("from 6 PayPal invoices, last $50.00, and 1 sent here");
   await page.goto("/jobs");
   await expect(page.getByTestId("job-row")).toHaveCount(1);
 
@@ -27,15 +29,17 @@ test("one visitor's jobs and prices stay out of the next visitor's way", async (
   const next = await browser.newContext({ baseURL: test.info().project.use.baseURL });
   const judge = await next.newPage();
   await judge.goto("/prices");
-  await expect(judge.getByTestId("price-row")).toHaveCount(7);
-  await expect(judge.getByTestId("price-row").filter({ hasText: "Heating element" }).getByTestId("price-count")).toContainText("5 invoices");
+  await expect(judge.getByTestId("price-row").first()).toBeVisible();
+  await expect(judge.getByTestId("price-row").filter({ hasText: "Sump pump labor" })).toHaveCount(0);
+  await expect(judge.getByTestId("price-row").filter({ hasText: "Heating element" }).getByTestId("price-count")).toHaveText("from 6 PayPal invoices, last $50.00");
+  await expect(judge.getByTestId("learned-from-paypal")).toContainText("Learned from the trade's last");
   await judge.goto("/jobs");
   await expect(judge.getByTestId("try-sample")).toBeVisible();
   await expect(judge.getByTestId("job-row")).toHaveCount(0);
   await judge.screenshot({ path: "screenshots/fresh-visitor-jobs.png", fullPage: true });
 
   await startSample(judge);
-  await expect(judge.getByTestId("line-usual")).toContainText("Usually $50.00, from 5 invoices");
+  await expect(judge.getByTestId("line-usual")).toContainText("Usually $50.00, from 6 PayPal invoices, last $50.00.");
   await next.close();
 });
 
