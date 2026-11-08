@@ -3,8 +3,9 @@
  * `npm run test:e2e:sandbox` sends a real sandbox invoice and re-reads it straight from PayPal.
  * The job is the known trap: "fifty" heard as "fifteen". The confirm screen has to catch it.
  */
-import { expect, test, type Page } from "@playwright/test";
-import { checkCount, fixElementPrice, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, settleAiNotes, startSample, visitorHeaders, openNewJob, settleChecks } from "./flow";
+import path from "node:path";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import { checkCount, fixElementPrice, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, sentSample, settleAiNotes, startSample, visitorHeaders, openNewJob, settleChecks } from "./flow";
 import { PLUS_TAX_AMOUNTS, PLUS_TAX_TRANSCRIPT, SAMPLE_AMOUNTS, ROOFER_AMOUNTS, ROOFER_CUSTOMER, ROOFER_DESCRIPTION, ROOFER_TRANSCRIPT } from "../../src/lib/say/sample";
 import { readInvoiceFromPayPal } from "./paypal-reread";
 import { appConfig } from "../../src/app.config";
@@ -384,6 +385,61 @@ test("a price or quantity that can't be read is named on its line, holds the tot
   await expect(page.getByTestId("input-problem")).toHaveCount(0);
   await expect(page.getByTestId("next-check")).toBeVisible(); // the misheard element is still there to check
   expect((await readJob(request, jobId(page))).status).toBe("review");
+});
+
+/** Reads a QR code the way a phone camera would: from a screenshot of it as drawn on screen. */
+async function readQr(page: Page, qr: Locator): Promise<string | null> {
+  const shot = (await qr.screenshot()).toString("base64");
+  await page.addScriptTag({ path: path.join(process.cwd(), "node_modules/jsqr/dist/jsQR.js") });
+  return page.evaluate(async (png) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${png}`;
+    await img.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, 0, 0);
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const read = (window as unknown as { jsQR: (d: Uint8ClampedArray, w: number, h: number) => { data: string } | null }).jsQR(pixels.data, canvas.width, canvas.height);
+    return read?.data ?? null;
+  }, shot);
+}
+
+test("pay now: a QR of PayPal's own page for the invoice and a link to copy, readable at phone width", async ({ page, request, context }) => {
+  const { live, sandbox } = await kitStatus(request);
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
+  await page.setViewportSize({ width: 390, height: 844 });
+  const sent = await sentSample(page, request);
+  const payNow = page.getByTestId("pay-now");
+  if (!sandbox) {
+    // Mock PayPal has no real page to pay on, so no code to scan.
+    await expect(payNow).toHaveCount(0);
+    return;
+  }
+  const payerUrl = sent.invoice!.payerUrl!;
+  expect(payerUrl).toMatch(/^https:\/\/www\.sandbox\.paypal\.com\//);
+  await expect(payNow).toContainText(`Pay now: ${money(sent.invoice!.dueCents)}`);
+  const qr = page.getByTestId("pay-qr");
+  await qr.scrollIntoViewIfNeeded();
+  await expect(qr.locator("svg")).toBeVisible();
+  const box = (await qr.boundingBox())!;
+  expect(box.width).toBeGreaterThanOrEqual(200); // big enough for a phone camera across a counter
+  expect(box.x + box.width).toBeLessThanOrEqual(390);
+  expect(await readQr(page, qr)).toBe(payerUrl);
+  await expect(page.getByTestId("pay-link")).toHaveText(payerUrl);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.getByTestId("copy-pay-link").click();
+  await expect(page.getByTestId("copy-pay-link")).toContainText("Copied");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(payerUrl);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: "screenshots/pay-now-phone.png", fullPage: true });
+  // The amount sits on the line's own row at phone width, beside its name (whatever name the AI gave it).
+  const line = page.getByTestId("result-line").nth(1);
+  const name = (await line.locator("span").first().boundingBox())!;
+  const amount = (await line.getByTestId("result-line-amount").boundingBox())!;
+  expect(Math.abs(name.y - amount.y)).toBeLessThan(8);
+  console.log(`Pay now QR read back: ${payerUrl}`);
 });
 
 /**
