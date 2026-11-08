@@ -64,6 +64,13 @@ export interface SentInvoice {
 export const isPaidStatus = (status: string) => status === "PAID" || status === "MARKED_AS_PAID";
 export const isPaid = (invoice?: SentInvoice) => !!invoice && isPaidStatus(invoice.status);
 
+/** A line only the person can add to a reminder. Code puts it on PayPal's invoice before the reminder goes. */
+export type OwnerLineKind = "late_fee" | "deposit";
+export interface OwnerLine {
+  kind: OwnerLineKind;
+  cents: number;
+}
+
 export interface SentReminder {
   sentAt: string;
   note: string;
@@ -111,6 +118,10 @@ export interface Job {
   reminderRunId?: string;
   /** What the person asked the reminder agent to add, if anything. */
   reminderAsk?: string;
+  /** The late fee or deposit the person asked for with this reminder. Cleared once it's on PayPal's invoice. */
+  ownerLine?: OwnerLine;
+  /** Late fees and deposits already on PayPal's invoice. */
+  ownerLinesApplied?: (OwnerLine & { at: string; paymentId?: string })[];
   /** Notes the agent proposed that code refused before any approval card. */
   refusedNotes?: { at: string; note: string; reason: string; runId: string }[];
 }

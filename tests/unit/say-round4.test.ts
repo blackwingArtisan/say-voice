@@ -91,7 +91,8 @@ describe("the guard is seen refusing", () => {
     const wrong = await guard.run(sendPaymentReminder, { job_id: job.id, note: "Hi Derek, invoice 0001 for $110.00 is open. There is also a $25 late fee." }, ctx());
     expect(wrong.status).toBe("failed");
     expect(approvals.list({ state: "pending" })).toHaveLength(pendingBefore);
-    expect(requireJob(job.id).refusedNotes).toMatchObject([{ runId, reason: "The note says $25.00, but the amount due is $110.00." }]);
+    // A fee only the note mentions: refused for the fee, before its figure is even weighed.
+    expect(requireJob(job.id).refusedNotes).toMatchObject([{ runId, reason: expect.stringContaining("late fee you didn't set") }]);
 
     const off = approvals.onChange((a) => {
       if (a.state === "pending" && a.runId === runId) {
