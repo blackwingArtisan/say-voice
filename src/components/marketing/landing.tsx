@@ -5,7 +5,7 @@ import { AppLogo } from "../shell/app-logo";
 
 /**
  * Landing page sections. Content comes from appConfig.landing; reorder or replace freely.
- *   <SiteHeader /> <Hero /> <HowItWorks /> <Features /> <CtaBand /> <SiteFooter />
+ *   <SiteHeader /> <Hero /> <Compare /> <PainPoints /> <HowItWorks /> <Features /> <CtaBand /> <SiteFooter />
  */
 
 export function SiteHeader() {
@@ -121,6 +121,74 @@ export function PainPoints() {
           <h3 className="text-lg font-semibold text-zinc-900">How &ldquo;6 of 20&rdquo; was counted</h3>
           <p className="mt-2 max-w-3xl text-[15px] leading-relaxed text-zinc-600">{appConfig.landing.method}</p>
         </div>
+      </div>
+    </section>
+  );
+}
+
+/** What the others don't do: three rows, each competitor cell linked to the page it comes from. */
+export function Compare() {
+  const c = appConfig.landing.compare;
+  return (
+    <section id="compare" className="py-20" data-testid="compare">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <p className="text-sm font-semibold uppercase tracking-wider text-brand">Housecall Pro and Jobber</p>
+        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950">{c.title}</h2>
+        <div className="mt-8 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+          <table className="w-full table-fixed border-collapse text-left text-[15px]">
+            <thead className="hidden bg-zinc-50 text-sm text-zinc-600 md:table-header-group">
+              <tr>
+                <th className="w-1/4 px-5 py-3 font-medium" scope="col">
+                  <span className="sr-only">What</span>
+                </th>
+                <th className="px-5 py-3 font-semibold text-zinc-900" scope="col">
+                  {appConfig.name}
+                </th>
+                {c.products.map((p) => (
+                  <th key={p.name} className="px-5 py-3 font-semibold text-zinc-900" scope="col">
+                    {p.name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {c.rows.map((row) => (
+                <tr key={row.label} className="block border-t border-zinc-200 first:border-t-0 md:table-row" data-testid="compare-row">
+                  <th scope="row" className="block px-5 pt-4 font-semibold text-zinc-900 md:table-cell md:py-4 md:align-top">
+                    {row.label}
+                  </th>
+                  <td className="block px-5 pt-2 text-zinc-900 md:table-cell md:py-4 md:align-top" data-testid="compare-ours">
+                    <span className="flex items-start gap-2">
+                      <Check className="size-4 shrink-0 translate-y-1 text-emerald-600" />
+                      <span>
+                        <span className="font-medium md:hidden">{appConfig.name}: </span>
+                        {row.ours}
+                      </span>
+                    </span>
+                  </td>
+                  {row.theirs.map((text, i) => (
+                    <td key={c.products[i].name} className="block px-5 pt-2 text-zinc-600 last:pb-4 md:table-cell md:py-4 md:align-top" data-testid="compare-theirs">
+                      <span className="font-medium text-zinc-800 md:hidden">{c.products[i].name}: </span>
+                      {text}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-4 text-sm text-zinc-600">
+          {c.note} Sources:{" "}
+          {c.products.map((p, i) => (
+            <span key={p.name}>
+              {i ? "; " : ""}
+              <a href={p.source.href} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-zinc-900" data-testid="compare-source">
+                {p.name}, {p.source.label}
+              </a>
+            </span>
+          ))}
+          .
+        </p>
       </div>
     </section>
   );

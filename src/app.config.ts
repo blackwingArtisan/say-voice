@@ -31,14 +31,44 @@ export const appConfig = {
       body: "US construction businesses have no employees, so the person who does the job also writes the bill.",
       source: { label: "US Census Bureau, 2022 Nonemployer Statistics", href: "https://www.census.gov/library/stories/2025/05/smallest-businesses.html" },
     },
-    headline: "Say the job. Send the invoice.",
+    /** The headline idea: a price book learned from your own PayPal invoices catches sound-alike numbers. */
+    headline: "Fifty heard as fifteen? Your PayPal invoices catch it.",
     subheadline:
-      "You say the job in the van, check each number against your own words, and a PayPal invoice goes out before you drive off. Speech is never trusted with money: code does every sum.",
+      "Say the job in the van. A price book learned from your own past PayPal invoices stops a sound-alike number before the customer sees it, code does every sum, and the invoice goes out once you approve the exact amount.",
     proof: [
       { figure: "6 of 20", body: "test clips where an AI model stated a wrong total. Here code adds up every cent, and the AI never states one.", href: "#method" },
       { figure: "$600", body: "a real roofer's job, sent through PayPal's sandbox with what was fixed on every line (below, as the customer's PayPal page shows it)." },
     ],
     whyNot: "Why not Housecall Pro or Jobber? No suite to set up. Your words sit beside every number, a price book stops a wrong price whoever said it, and nothing reaches a customer until you approve the exact amount.",
+    /**
+     * What the others don't do. Each competitor cell is what its own page says, or "We couldn't find"
+     * when the page doesn't say. Pages from round4/research/say-voice.md, section 4, re-read 2026-11-08.
+     */
+    compare: {
+      title: "What the others don't do",
+      note: "\u201cWe couldn't find\u201d means the page linked under that product doesn't say it, not that the product can't do it.",
+      products: [
+        { name: "Housecall Pro", source: { label: "Voice invoicing press release, 16 Sep 2025", href: "https://contractingbusiness.com/industry-news/press-release/55316860/housecall-pro-brings-ai-powered-voice-activated-invoicing-to-the-trades" } },
+        { name: "Jobber", source: { label: "Jobber AI Voice and Chat (Beta) help, updated 28 Oct 2026", href: "https://help.getjobber.com/en/articles/jobber-ai-voice-and-chat-beta/" } },
+      ],
+      rows: [
+        {
+          label: "Sums done by code",
+          ours: "Code adds every cent. The AI never states a total.",
+          theirs: ["We couldn't find whether code or the AI does the math.", "We couldn't find whether code or the AI does the math."],
+        },
+        {
+          label: "A price book from your own PayPal invoices",
+          ours: "Reads your past PayPal invoices and stops a price far from them, like fifty heard as fifteen.",
+          theirs: ["We couldn't find a price check. It names cards, Apple Pay and Google Pay, not PayPal.", "We couldn't find a price check, or PayPal."],
+        },
+        {
+          label: "Nothing sent until you approve the exact amount",
+          ours: "Send waits for your tap on the exact total PayPal will bill.",
+          theirs: ["We couldn't find an approval step. It says invoices are sent by voice.", "We couldn't find an approval step. It lists \u201cSend invoice\u201d as something the AI does."],
+        },
+      ],
+    },
     /** From round4/research/say-voice.md, section 2. Every figure was re-opened at its source. */
     pains: [
       {
@@ -74,7 +104,7 @@ export const appConfig = {
     ],
     features: [
       { title: "You check every number", body: "The words you said sit beside each price, and anything doubtful is flagged by name. Nothing goes out on its own." },
-      { title: "It knows your usual prices", body: "Fifty misheard as fifteen is caught by plain code, which stops the invoice and shows what that part usually costs." },
+      { title: "It knows your prices from PayPal", body: "It learns your prices from your own past PayPal invoices. Fifty misheard as fifteen is caught by plain code, which stops the invoice and shows the usual price and how many PayPal invoices it came from." },
       { title: "A real PayPal invoice", body: "The customer gets a PayPal invoice they can pay right away. The job turns paid by itself, and if it doesn't, an agent drafts a reminder for you to approve." },
     ],
   },

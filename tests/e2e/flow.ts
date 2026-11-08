@@ -16,6 +16,21 @@ export async function kitStatus(request: APIRequestContext) {
   return { sandbox: status.paypal.mode === "sandbox", live: status.ai.mode === "live", paypal: status.paypal.mode as string, speechLive: status.speech.mode === "live" };
 }
 
+/**
+ * The app reads the trade's past PayPal invoices once, in the background, so a new visitor's price
+ * book says where its prices came from. A test that counts invoices waits for that read first, so
+ * the count can't change under it. False if PayPal didn't answer in time.
+ */
+export async function tradeHistoryReady(request: APIRequestContext, timeoutMs = 90_000) {
+  const until = Date.now() + timeoutMs;
+  while (Date.now() < until) {
+    const { history } = (await (await request.get("/api/prices")).json()) as { history: { invoices: number } | null };
+    if (history) return true;
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  return false;
+}
+
 /** A local live run spends on the one mic clip only. A deployed copy always runs the sample flow. */
 export const keepToOneCall = (live: boolean) => live && !process.env.E2E_BASE_URL;
 

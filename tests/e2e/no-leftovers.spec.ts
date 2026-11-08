@@ -33,3 +33,25 @@ test("the landing page leads with who it's for, the pain points and their source
   await expect(page.getByTestId("method")).toBeInViewport();
   await expect(page.getByTestId("method")).toContainText("0 of 20");
 });
+
+test("the landing page leads with the price book from your PayPal invoices, and every claim about the others is sourced or says we couldn't find it", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Fifty heard as fifteen? Your PayPal invoices catch it.");
+  await expect(page.locator("main")).toContainText("A price book learned from your own past PayPal invoices stops a sound-alike number");
+  const compare = page.getByTestId("compare");
+  await expect(compare.getByRole("heading", { name: "What the others don't do" })).toBeVisible();
+  const rows = compare.getByTestId("compare-row");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0)).toContainText("Sums done by code");
+  await expect(rows.nth(1)).toContainText("A price book from your own PayPal invoices");
+  await expect(rows.nth(2)).toContainText("Nothing sent until you approve the exact amount");
+  // Two products a row, and each says only what its page says, or that we couldn't find it.
+  const theirs = await compare.getByTestId("compare-theirs").allInnerTexts();
+  expect(theirs).toHaveLength(6);
+  for (const text of theirs) expect(text).toMatch(/We couldn't find/);
+  const sources = await compare.getByTestId("compare-source").evaluateAll((links) => links.map((a) => [a.textContent ?? "", a.getAttribute("href") ?? ""]));
+  expect(sources.map(([label]) => label)).toEqual([expect.stringContaining("Housecall Pro"), expect.stringContaining("Jobber")]);
+  for (const [, href] of sources) expect(href).toMatch(/^https:\/\/(contractingbusiness\.com|help\.getjobber\.com)\//);
+  await expect(compare).toContainText("not that the product can't do it");
+  await compare.screenshot({ path: "screenshots/compare.png" });
+});
