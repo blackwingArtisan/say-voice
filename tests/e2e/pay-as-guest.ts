@@ -36,7 +36,9 @@ export async function payAsGuest(browser: Browser, payerUrl: string) {
   // PayPal has labelled this button both "Pay now as guest" and, with the switch off, "Pay Now".
   await checkout.getByRole("button", { name: /^pay now( as guest)?$/i }).click();
 
-  // The invoice page then says "Payment successful", or now redraws as the paid invoice.
-  await expect(page.getByText(/^(Payment successful|Total paid)$/).first()).toBeVisible({ timeout: 60_000 });
+  // PayPal closes its window once the card is taken. The invoice page may say "Payment successful",
+  // redraw as the paid invoice, or not change at all, so the caller re-reads the invoice from PayPal.
+  await checkout.waitForEvent("close", { timeout: 90_000 }).catch(() => undefined);
+  if (!checkout.isClosed()) throw new Error(`PayPal's checkout didn't finish: ${(await checkout.locator("body").innerText()).slice(0, 400)}`);
   await context.close();
 }
