@@ -18,3 +18,18 @@ test("no money route gets around the approval gate", async ({ request }) => {
   const routes = ["/api/paypal/orders", "/api/paypal/orders/X/capture", "/api/paypal/orders/X/authorize", "/api/paypal/captures/X/refund", "/api/paypal/authorizations/X/capture", "/api/paypal/authorizations/X/void"];
   for (const path of routes) expect((await request.post(path, { data: {} })).status(), path).toBe(404);
 });
+
+test("the landing page leads with who it's for, the pain points and their sources, and how 6 of 20 was counted", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("hero-lead")).toContainText("2.9 million");
+  await expect(page.getByTestId("hero-lead-source")).toHaveAttribute("href", /census\.gov/);
+  await expect(page.getByTestId("pain-point")).toHaveCount(3);
+  const sources = page.getByTestId("pain-source");
+  await expect(sources).toHaveCount(3);
+  for (const href of await sources.evaluateAll((links) => links.map((a) => a.getAttribute("href") ?? ""))) expect(href).toMatch(/^https:\/\//);
+  await expect(page.locator("body")).not.toContainText("evening");
+  await page.getByTestId("proof-method-link").click();
+  await expect(page).toHaveURL(/#method$/);
+  await expect(page.getByTestId("method")).toBeInViewport();
+  await expect(page.getByTestId("method")).toContainText("0 of 20");
+});

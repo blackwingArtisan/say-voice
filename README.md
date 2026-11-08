@@ -6,7 +6,9 @@
 
 The site is on free hosting, so the first visit can take a minute.
 
-**For one-person trades who bill from the van.** In testing, an AI model stated a wrong total on **6 of 20** spoken jobs, so here code does every sum and the AI never states one. A working roofer's **$600** roof repair went out through it, with what was fixed on every line:
+**2.9 million US construction businesses have no employees, so the person who does the job also writes the bill** ([US Census Bureau, 2022 Nonemployer Statistics](https://www.census.gov/library/stories/2025/05/smallest-businesses.html)).
+
+**For one-person trades who bill from the van.** In testing, an AI model stated a wrong total on **6 of 20** spoken jobs ([how that was counted](docs/six-of-twenty.md)), so here code does every sum and the AI never states one. A working roofer's **$600** roof repair went out through it, with what was fixed on every line:
 
 ![A real roofer's $600 job on PayPal's sandbox, under the trade's name, as the customer's page shows it (customer and trade name illustrative)](public/proof/roofer-invoice.png)
 
@@ -14,9 +16,15 @@ The site is on free hosting, so the first visit can take a minute.
 
 ![The confirm screen](docs/screenshot.png)
 
-## The problem
+## Why this matters
 
-A plumber finishes a job at two in the afternoon and writes the invoice at nine at night, from memory. Hours get rounded, parts get forgotten, and money comes in days later than it should. The work is done on site, but the paperwork waits for a desk. Dictating is quick, but speech to text can't be trusted with money: in testing, every tool heard "sixty an hour" as "16 hour", and a model stated a wrong total on 6 of 20 clips.
+The US has 2.9 million construction businesses with no employees ([Census, 2022](https://www.census.gov/library/stories/2025/05/smallest-businesses.html)). For them, the person who does the job also writes the bill. Getting paid is already hard, and voice invoicing exists, but the trades don't trust AI with the details:
+
+- **56%** of US small businesses are owed money on unpaid invoices, $17.5K on average, and 47% have invoices more than 30 days overdue ([QuickBooks Small Business Late Payments Report 2025](https://quickbooks.intuit.com/r/small-business-data/small-business-late-payments-report-2025/), n=2,487, all industries).
+- **49%** of construction payments are not made on time, and 61% of firms report cash-flow problems ([Levelset with QuickBooks Time, 2019](https://levelset.com/blog/2019-national-construction-payments-report), n=503, mostly contractors and subcontractors).
+- **58%** of US residential contractors have little or no trust in the AI tools they use; only 11% trust them highly ([ServiceTitan 2026 State of AI in the Trades, via PHCP Pros](https://www.phcppros.com/articles/24198-servicetitan-report-finds-ai-adoption-accelerating-across-the-trades), n>1,000).
+
+Say-Voice keeps the AI to listening. Code does the math, a price book catches wrong prices, and the tradesperson approves before PayPal sends anything. Speech to text can't be trusted with money on its own: in testing, every tool heard "sixty an hour" as "16 hour", and a model stated a wrong total on 6 of 20 clips ([method](docs/six-of-twenty.md)).
 
 ## What it does
 

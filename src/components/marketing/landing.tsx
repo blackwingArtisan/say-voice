@@ -50,7 +50,13 @@ export function Hero() {
       <div className="absolute -top-40 left-1/2 h-[480px] w-[900px] -translate-x-1/2 rounded-full bg-brand-200/40 blur-3xl" aria-hidden />
       <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-16 sm:px-6 lg:grid-cols-[1.1fr_1fr] lg:pt-24">
         <div>
-          <span className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white/80 px-3 py-1 text-sm font-medium text-brand-700 shadow-sm">
+          <p className="max-w-xl text-lg leading-snug text-zinc-800" data-testid="hero-lead">
+            <strong className="font-mono text-3xl font-semibold tabular-nums text-zinc-950 sm:text-4xl">{l.lead.figure}</strong> {l.lead.body}{" "}
+            <a href={l.lead.source.href} target="_blank" rel="noreferrer" className="text-sm text-zinc-500 underline underline-offset-2 hover:text-zinc-800" data-testid="hero-lead-source">
+              {l.lead.source.label}
+            </a>
+          </p>
+          <span className="mt-6 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white/80 px-3 py-1 text-sm font-medium text-brand-700 shadow-sm">
             <Sparkles className="size-4" /> {l.eyebrow}
           </span>
           <h1 className="mt-6 text-4xl font-semibold leading-[1.08] tracking-tight text-zinc-950 sm:text-5xl lg:text-[56px]">{l.headline}</h1>
@@ -67,7 +73,17 @@ export function Hero() {
             {l.proof.map((p) => (
               <div key={p.figure} className="rounded-xl border border-zinc-200 bg-white/80 p-4 shadow-sm">
                 <dt className="font-mono text-2xl font-semibold tabular-nums text-zinc-950">{p.figure}</dt>
-                <dd className="mt-1 text-sm leading-snug text-zinc-600">{p.body}</dd>
+                <dd className="mt-1 text-sm leading-snug text-zinc-600">
+                  {p.body}
+                  {"href" in p && p.href ? (
+                    <>
+                      {" "}
+                      <a href={p.href} className="font-medium text-brand-700 underline underline-offset-2" data-testid="proof-method-link">
+                        How it was counted
+                      </a>
+                    </>
+                  ) : null}
+                </dd>
               </div>
             ))}
           </dl>
@@ -76,6 +92,35 @@ export function Hero() {
           </p>
         </div>
         <RooferInvoice />
+      </div>
+    </section>
+  );
+}
+
+/** Why it matters: the researched pain points, each with its source. */
+export function PainPoints() {
+  return (
+    <section id="why" className="py-20" data-testid="pain-points">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <p className="text-sm font-semibold uppercase tracking-wider text-brand">Why it matters</p>
+        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950">The person who does the job also chases the money</h2>
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
+          {appConfig.landing.pains.map((p) => (
+            <div key={p.title} className="flex flex-col rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm" data-testid="pain-point">
+              <p className="font-mono text-3xl font-semibold tabular-nums text-zinc-950">{p.figure}</p>
+              <h3 className="mt-2 text-lg font-semibold text-zinc-900">{p.title}</h3>
+              <p className="mt-2 text-[15px] leading-relaxed text-zinc-600">{p.body}</p>
+              <p className="mt-3 text-[15px] leading-relaxed text-zinc-800">{p.answer}</p>
+              <a href={p.source.href} target="_blank" rel="noreferrer" className="mt-auto pt-4 text-xs text-zinc-500 underline underline-offset-2 hover:text-zinc-800" data-testid="pain-source">
+                {p.source.label}
+              </a>
+            </div>
+          ))}
+        </div>
+        <div id="method" className="mt-10 scroll-mt-20 rounded-2xl border border-zinc-200 bg-zinc-50/60 p-6" data-testid="method">
+          <h3 className="text-lg font-semibold text-zinc-900">How &ldquo;6 of 20&rdquo; was counted</h3>
+          <p className="mt-2 max-w-3xl text-[15px] leading-relaxed text-zinc-600">{appConfig.landing.method}</p>
+        </div>
       </div>
     </section>
   );
