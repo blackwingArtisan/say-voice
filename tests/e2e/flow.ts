@@ -121,11 +121,18 @@ export async function readJob(request: APIRequestContext, id: string): Promise<J
   return (await (await request.get(`/api/jobs/${id}`)).json()) as JobView;
 }
 
+/** What happened is folded to its latest step until opened. */
+export async function openWhatHappened(page: Page) {
+  const toggle = page.getByTestId("what-happened-toggle").first();
+  if ((await toggle.count()) && (await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+}
+
 /** Words a tradesperson shouldn't meet unless they open Details. */
 export const TECHNICAL_WORDS = /send_job_invoice|send_payment_reminder|allowlist|debug[ _]id|worst case|reserved|hash-chained|tool\.denied|\/v2\/invoicing|POST |App tool/i;
 
 /** The main view speaks plain words; the calls behind it are one Details press away. */
 export async function expectPlainWords(page: Page, technical: RegExp = /\/v2\/invoicing/) {
+  await openWhatHappened(page);
   const toggle = page.getByTestId("details-toggle").first();
   if ((await toggle.getAttribute("aria-expanded")) === "true") await toggle.click();
   await expect(page.getByTestId("technical-details")).toHaveCount(0);

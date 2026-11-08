@@ -604,3 +604,49 @@ test("your business: the trade name you set is the one PayPal shows, and a custo
     console.log(`PayPal re-read: ${invoice.detail.invoice_number} ${invoice.id} ${invoice.status} USD ${invoice.amount.value} from ${invoice.invoicer?.business_name}`);
   }
 });
+
+test("on a phone the catch sits under your words without scrolling, What happened is folded, and Send stays under the thumb", async ({ page, request }) => {
+  const { live } = await kitStatus(request);
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await startSample(page);
+  await expect(page.getByTestId("transcript")).toBeInViewport();
+
+  // The price book's catch, in full, with both answers, where a thumb reaches it: not under the Send bar, and no scrolling.
+  const catchCard = page.getByTestId("catch-card");
+  await expect(catchCard).toHaveCount(1);
+  await expect(catchCard).toContainText(/Line 2, .+: Usually \$50\.00/);
+  const uncovered = (testId: string) =>
+    page.evaluate((id) => {
+      const el = document.querySelector(`[data-testid=${id}]`);
+      if (!el) return "missing";
+      const box = el.getBoundingClientRect();
+      if (box.bottom > window.innerHeight || box.top < 0) return `out of view (${Math.round(box.top)} to ${Math.round(box.bottom)})`;
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return hit && el.contains(hit) ? "ok" : `covered by ${hit?.closest("[data-testid]")?.getAttribute("data-testid") ?? hit?.tagName}`;
+    }, testId);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await expect.poll(() => uncovered("catch-use-usual")).toBe("ok");
+  await expect.poll(() => uncovered("catch-keep")).toBe("ok");
+  await page.screenshot({ path: "screenshots/confirm-phone-catch.png" });
+
+  // What happened is one line until opened.
+  await expect(page.getByTestId("plain-steps")).toBeHidden();
+  await expect(page.getByTestId("what-happened-latest")).toBeVisible();
+
+  await page.getByTestId("catch-use-usual").click();
+  const element = page.getByTestId("invoice-line").nth(1);
+  await expect(element.getByTestId("line-price")).toHaveValue("50.00");
+  await expect(catchCard).toHaveCount(0);
+  await settleAiNotes(page);
+  await expect(page.getByTestId("send-invoice")).toContainText("$110.00");
+  await expect.poll(() => uncovered("send-invoice")).toBe("ok");
+  await page.mouse.wheel(0, 5000);
+  await expect.poll(() => uncovered("send-invoice")).toBe("ok");
+  // Scrolled to the bottom, the last card's toggle sits above the Send bar, not under it.
+  await expect.poll(() => uncovered("what-happened-toggle")).toBe("ok");
+
+  await page.getByTestId("what-happened-toggle").click();
+  await expect(page.getByTestId("plain-steps")).toBeVisible();
+  await expect(page.getByTestId("plain-step").first()).toBeVisible();
+});

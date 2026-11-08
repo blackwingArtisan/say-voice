@@ -246,6 +246,10 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
   const toCheck = placesToCheck(open);
   const jobChecks = checks.filter((check) => !check.lineKey);
   const openJobChecks = open.filter((check) => !check.lineKey);
+  const catches = open.flatMap((check) => {
+    const i = check.kind === "far" ? draft.lines.findIndex((line) => line.key === check.lineKey) : -1;
+    return i < 0 ? [] : [{ check, line: draft.lines[i], number: i + 1 }];
+  });
 
   // On a phone, what the customer reads, the due date and the tax fold into one line until there's a reason to open them.
   const [editDetails, setEditDetails] = useState(false);
@@ -297,7 +301,33 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
           <p className="flex items-center gap-2 text-[15px] font-semibold text-amber-900">
             <AlertTriangle className="size-5 text-amber-600" /> {toCheck === 1 ? "1 thing to check before you send" : `${toCheck} things to check before you send`}
           </p>
-          {toCheck > openJobChecks.length ? <p className="text-sm text-amber-900">Look for the marked items below.</p> : null}
+          {toCheck > openJobChecks.length + catches.length ? <p className="text-sm text-amber-900">Look for the marked items below.</p> : null}
+          {catches.map(({ check, line, number }) => {
+            const cents = parseDollars(line.price);
+            return (
+              // On a phone the price book's catch comes up here, right under your words, not a screen further down.
+              <div key={check.id} className="space-y-2 lg:hidden" data-testid="catch-card">
+                <RowFlag tone="red">
+                  <strong className="font-semibold">
+                    Line {number}, {line.name || "this item"}:{" "}
+                  </strong>
+                  {check.text}
+                </RowFlag>
+                {sending ? null : (
+                  <div className="flex gap-2">
+                    {check.usualCents ? (
+                      <Button className={cn(TAP, "flex-1")} onClick={() => updateLine(line.key, { price: (check.usualCents! / 100).toFixed(2) })} data-testid="catch-use-usual">
+                        Use {formatCents(check.usualCents)}
+                      </Button>
+                    ) : null}
+                    <Button variant="secondary" className={cn(TAP, "flex-1")} icon={<CheckIcon className="size-4" />} onClick={() => settle(open.filter((c) => c.lineKey === line.key && canSettle(c)).map((c) => c.id))} data-testid="catch-keep">
+                      {cents !== null ? `Keep ${formatCents(cents)}` : "Looks right"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
           {openJobChecks.map((check) =>
             check.kind === "tax" ? (
               <div key={check.id} className="space-y-2" data-testid="tax-check">
