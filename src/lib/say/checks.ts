@@ -79,7 +79,8 @@ function farCheck(line: JobLine, book: PriceEntry[], transcript: string): Check 
   const far = farFromUsual(line, book);
   if (!far) return null;
   const alike = soundAlike(line.unitCents);
-  const usual = `Usually ${formatCents(far.usualCents)}, from ${far.samples} invoices. This says ${formatCents(line.unitCents)}.`;
+  const fromPayPal = findEntry(line.name, book)?.paypal;
+  const usual = `Usually ${formatCents(far.usualCents)}, from ${far.samples} invoices${fromPayPal ? " read from your PayPal" : ""}. This says ${formatCents(line.unitCents)}.`;
   return {
     id: `far:${line.key}:${line.unitCents}`,
     kind: "far",

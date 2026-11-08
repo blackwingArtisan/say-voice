@@ -4,6 +4,7 @@
  * A misheard "fifty" sent as $15 is the case it exists for: the extraction can't know the usual
  * price, and recognizer confidence told us nothing in testing.
  */
+import { formatCents } from "./money";
 
 export interface PriceEntry {
   /** The normalized item name. */
@@ -13,6 +14,10 @@ export interface PriceEntry {
   samples: number[];
   source: "seed" | "learned";
   updatedAt: string;
+  /** Read from the trade's past PayPal invoices: how many had it, and the newest price. */
+  paypal?: { invoices: number; lastCents: number; lastAt: string };
+  /** How many of this browser's sent invoices had it. */
+  sentHere?: number;
 }
 
 /** One confirmation could be the mistake itself, so a single price can't raise a flag yet. */
@@ -107,4 +112,27 @@ export function learned(book: PriceEntry[], lines: { name: string; unitCents: nu
     changed.set(next.id, next);
   }
   return [...changed.values()];
+}
+
+const invoiceCount = (n: number) => (n === 1 ? "1 invoice" : `${n} invoices`);
+
+/** Where a price came from, in a few words: "from 12 PayPal invoices, last $85.00". */
+export function provenance(entry: PriceEntry): string {
+  if (entry.paypal) {
+    const here = entry.sentHere ? `, and ${entry.sentHere} sent here` : "";
+    return `from ${entry.paypal.invoices === 1 ? "1 PayPal invoice" : `${entry.paypal.invoices} PayPal invoices`}, last ${formatCents(entry.paypal.lastCents)}${here}`;
+  }
+  const low = Math.min(...entry.samples);
+  const high = Math.max(...entry.samples);
+  return `${invoiceCount(entry.samples.length)}${low === high ? "" : `, ${formatCents(low)} to ${formatCents(high)}`}`;
+}
+
+/**
+ * A price unlike the one the trade's PayPal invoices had last time. Not far enough off to stop the
+ * send (that's farFromUsual's job), so the confirm screen only points it out.
+ */
+export function learnedDifference(line: { name: string; unitCents: number }, book: PriceEntry[]): string | null {
+  const entry = findEntry(line.name, book);
+  if (!entry?.paypal || line.unitCents <= 0 || line.unitCents === entry.paypal.lastCents) return null;
+  return `Your PayPal invoices had this at ${formatCents(entry.paypal.lastCents)} last time (${invoiceCount(entry.paypal.invoices)}). This says ${formatCents(line.unitCents)}.`;
 }

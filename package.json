@@ -19,6 +19,7 @@
     "seed": "tsx scripts/seed.ts",
     "seed:reset": "tsx scripts/seed.ts --reset",
     "seed:sandbox": "tsx scripts/seed.ts --sandbox",
+    "seed:history": "tsx scripts/seed-history.ts",
     "paypal:mcp": "node scripts/paypal-mcp.mjs",
     "check": "npm run lint && npm run typecheck && npm test && npm run build"
   },
