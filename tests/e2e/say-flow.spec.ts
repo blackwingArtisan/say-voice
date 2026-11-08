@@ -423,3 +423,24 @@ test("the roofer's job goes out under the trade's name, with the roofer's own nu
   }
   expect((await readJob(request, id)).status).toBe("sent");
 });
+
+test("if PayPal's own arithmetic comes out different, the draft is deleted and the screen says so", async ({ page, request }) => {
+  const { paypal } = await kitStatus(request);
+  test.skip(paypal !== "mock", "Mock only: PayPal can't be made to add up wrong on purpose");
+  await startSample(page);
+  await fixElementPrice(page);
+  await settleAiNotes(page);
+  const id = jobId(page);
+  expect((await request.post("/api/dev/invoice-arithmetic", { data: { cents: 1 } })).ok()).toBe(true);
+  await page.getByTestId("send-invoice").click();
+  await expect(page.getByTestId("approval-prompt")).toContainText("$110.00");
+  await page.getByTestId("approve-button").click();
+
+  const refused = page.getByTestId("job-error");
+  await expect(refused).toContainText("PayPal worked this out as $110.01, not the $110.00 you approved. The draft was deleted, so nothing was sent.");
+  await expect(page.getByTestId("result")).toHaveCount(0);
+  await expect(page.getByTestId("plain-step").filter({ hasText: "Deleted the draft on PayPal" })).toHaveCount(1);
+  const job = await readJob(request, id);
+  expect(job.status).toBe("review");
+  expect(job.invoice).toBeUndefined();
+});

@@ -4,6 +4,7 @@
  * (requireApprovalFor in app.config.ts), so the customer hears nothing until the person says yes.
  */
 import { z } from "zod";
+import { toolkitInvoicing } from "@/lib/say/toolkit-invoicing";
 import { getApprovals } from "@/lib/agent/approvals";
 import { defineTool, type ToolContext } from "@/lib/agent/tool";
 import { moneyFromMinor } from "@/lib/money";
@@ -122,7 +123,7 @@ export const sendPaymentReminder = defineTool({
   execute: async (input, ctx: ToolContext) => {
     const cleared = await clearedToRemind(input, ctx.paypal, ctx.runId);
     const { job, invoice } = cleared.job.ownerLine ? await applyOwnerLine(cleared.job, cleared.invoice, cleared.job.ownerLine, ctx.paypal) : cleared;
-    await ctx.paypal.invoicing.remind(invoice.id, { subject: `Reminder: invoice ${invoice.number}`, note: input.note, send_to_recipient: true });
+    await toolkitInvoicing(ctx).remind(invoice.id, `Reminder: invoice ${invoice.number}`, input.note);
     const latest = requireJob(job.id);
     saveJob({ ...latest, invoice: { ...invoice, paidEventId: latest.invoice?.paidEventId }, reminders: [...(latest.reminders ?? []), { sentAt: new Date().toISOString(), note: input.note, runId: ctx.runId }] });
     return { reminded: true, invoice_number: invoice.number, amount_due: formatCents(invoice.dueCents) };

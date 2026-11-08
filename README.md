@@ -66,13 +66,16 @@ All PayPal calls go to the **sandbox** (`https://api-m.sandbox.paypal.com`); the
 
 | PayPal API | Endpoint(s) | Where and why |
 |---|---|---|
-| Invoicing v2 | `POST /v2/invoicing/invoices`, `POST /v2/invoicing/invoices/{id}/send` | Creates the invoice from the checked job and sends it, after approval. The note says what, where and when; each item has a description, a date of service and its own tax |
+| Invoicing v2, through **PayPal Agent Toolkit** (`@paypal/agent-toolkit` 1.11) | `create_invoice` (`POST /v2/invoicing/invoices`), `send_invoice` (`POST /v2/invoicing/invoices/{id}/send`) | The toolkit's invoicing tools create the invoice from the checked job and send it, after approval. The note says what, where and when; each item has a description, a date of service and its own tax |
+| Invoicing v2 | `PUT /v2/invoicing/invoices/{id}` | Puts the due date on the toolkit's draft (its `create_invoice` has no payment term), and adds a late fee the owner set themselves |
+| Invoicing v2 | `DELETE /v2/invoicing/invoices/{id}` | Deletes the draft if PayPal's total isn't the approved one, so nothing reaches the customer |
 | Invoicing v2 | `GET /v2/invoicing/invoices/{id}` | Reads the invoice back, so the screen shows PayPal's number, status, amount due and payment |
-| Invoicing v2 | `POST /v2/invoicing/invoices/{id}/remind` | Sends the reminder the person approved |
+| Invoicing v2, through PayPal Agent Toolkit | `send_invoice_reminder` (`POST /v2/invoicing/invoices/{id}/remind`) | Sends the reminder the person approved |
+| Invoicing v2 | `POST /v2/invoicing/invoices/{id}/payments` | Records a deposit the owner says was paid, before the reminder |
 | Invoicing v2 | `GET /v2/invoicing/invoices` | Reads the trade's past invoices into the price book, on request |
 | Webhooks | `POST /v1/notifications/verify-webhook-signature` | Verifies PayPal's events. `INVOICING.INVOICE.PAID`, `REFUNDED` and `CANCELLED` update the job when `PAYPAL_WEBHOOK_ID` is set. The event only says something changed, so the status comes from a fresh read |
 
-**Safety around money:** the send and the reminder go through a guard. It enforces a per-action cap, a daily cap, a payee allowlist and idempotency, and it waits for a person every time, whatever the amount. The allowlist means invoices can only go to made-up `@example.com` addresses: type a real one and the guard refuses, and the page says what to do instead. Before sending, the app compares PayPal's own total with the approved total, and stops if they differ by a cent. The server works out the open checks again, so skipping the screen gets a refusal. Every decision goes to a hash-chained, append-only audit log.
+**Safety around money:** the send and the reminder go through a guard. It enforces a per-action cap, a daily cap, a payee allowlist and idempotency, and it waits for a person every time, whatever the amount. The allowlist means invoices can only go to made-up `@example.com` addresses: type a real one and the guard refuses, and the page says what to do instead. The toolkit has no spend limits or human gate of its own, so its tools only run inside the guarded, approved step. Before sending, the app compares PayPal's own total on the draft with the approved total; if they differ by a cent, it deletes the draft and says so. The server works out the open checks again, so skipping the screen gets a refusal. Every decision goes to a hash-chained, append-only audit log.
 
 ## How AI is used
 

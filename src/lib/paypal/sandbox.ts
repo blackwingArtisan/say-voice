@@ -190,6 +190,7 @@ export class SandboxPayPal implements PayPalApi {
     update: (id, body, query) =>
       this.request("invoicing.update", { id, body, query: { send_to_recipient: false, send_to_invoicer: false, ...query }, prefer: "return=representation" }),
     remind: (id, body) => this.request("invoicing.remind", { id, body: body ?? { send_to_recipient: true } }),
+    delete: (id) => this.request("invoicing.delete", { id }),
     cancel: (id, body) => this.request("invoicing.cancel", { id, body: body ?? { send_to_recipient: true } }),
     get: (id) => this.request("invoicing.get", { id }),
     list: (query) => this.request("invoicing.list", { query: { page: 1, page_size: 20, total_required: true, ...query } }),
