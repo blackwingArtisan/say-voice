@@ -4,7 +4,7 @@
  * calling itself desktop Chrome, as the test config's does, it shows an inline form instead, so this
  * context uses the browser's own user agent.
  */
-import { expect, type Browser, type Frame } from "@playwright/test";
+import { expect, type Browser, type Frame, type Page } from "@playwright/test";
 
 export async function payAsGuest(browser: Browser, payerUrl: string) {
   const { userAgent } = await (await browser.newBrowserCDPSession()).send("Browser.getVersion");
@@ -38,7 +38,20 @@ export async function payAsGuest(browser: Browser, payerUrl: string) {
 
   // PayPal closes its window once the card is taken. The invoice page may say "Payment successful",
   // redraw as the paid invoice, or not change at all, so the caller re-reads the invoice from PayPal.
-  await checkout.waitForEvent("close", { timeout: 90_000 }).catch(() => undefined);
+  await untilCheckoutCloses(checkout);
   if (!checkout.isClosed()) throw new Error(`PayPal's checkout didn't finish: ${(await checkout.locator("body").innerText()).slice(0, 400)}`);
   await context.close();
+}
+
+/**
+ * Waits up to 90 s for PayPal's checkout window to close. PayPal can stop first on "We can't verify
+ * your address" (the test address isn't a real one); its Continue keeps the address as entered.
+ */
+export async function untilCheckoutCloses(checkout: Page) {
+  const keepAddress = checkout.getByRole("button", { name: /^continue$/i });
+  const until = Date.now() + 90_000;
+  while (!checkout.isClosed() && Date.now() < until) {
+    if (await keepAddress.isVisible().catch(() => false)) await keepAddress.click().catch(() => undefined);
+    await checkout.waitForEvent("close", { timeout: 2_000 }).catch(() => undefined);
+  }
 }
