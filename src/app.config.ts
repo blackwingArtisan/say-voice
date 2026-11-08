@@ -30,7 +30,7 @@ export const appConfig = {
       "You say the job in the van, check each number against your own words, and a PayPal invoice goes out before you drive off. Speech is never trusted with money: code does every sum.",
     proof: [
       { figure: "6 of 20", body: "test clips where an AI model stated a wrong total. Here code adds up every cent, and the AI never states one." },
-      { figure: "$600", body: "a real roofer's job, sent through PayPal's sandbox with what was fixed on every line (below, as the customer saw it)." },
+      { figure: "$600", body: "a real roofer's job, sent through PayPal's sandbox with what was fixed on every line (below, as the customer's PayPal page shows it)." },
     ],
     whyNot: "Why not Housecall Pro or Jobber? No suite to set up. Your words sit beside every number, a price book stops a wrong price whoever said it, and nothing reaches a customer until you approve the exact amount.",
     primaryCta: { label: "Start a job", href: "/jobs" },

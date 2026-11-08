@@ -8,7 +8,7 @@ The site is on free hosting, so the first visit can take a minute.
 
 **For one-person trades who bill from the van.** In testing, an AI model stated a wrong total on **6 of 20** spoken jobs, so here code does every sum and the AI never states one. A working roofer's **$600** roof repair went out through it, with what was fixed on every line:
 
-![A real roofer's $600 job, as the customer saw it on PayPal](public/proof/roofer-invoice.png)
+![A real roofer's $600 job on PayPal's sandbox, under the trade's name, as the customer's page shows it (customer and trade name illustrative)](public/proof/roofer-invoice.png)
 
 **Why not Housecall Pro or Jobber?** No suite to set up. Your words sit beside every number, a price book stops a wrong price whoever said it (you or the speech model), and nothing reaches a customer until you approve the exact amount.
 

@@ -4,8 +4,10 @@
  * The job is the known trap: "fifty" heard as "fifteen". The confirm screen has to catch it.
  */
 import { expect, test, type Page } from "@playwright/test";
-import { checkCount, fixElementPrice, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, settleAiNotes, startSample, visitorHeaders } from "./flow";
-import { PLUS_TAX_AMOUNTS, PLUS_TAX_TRANSCRIPT, SAMPLE_AMOUNTS } from "../../src/lib/say/sample";
+import { checkCount, fixElementPrice, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, settleAiNotes, startSample, visitorHeaders, openNewJob, settleChecks } from "./flow";
+import { PLUS_TAX_AMOUNTS, PLUS_TAX_TRANSCRIPT, SAMPLE_AMOUNTS, ROOFER_AMOUNTS, ROOFER_CUSTOMER, ROOFER_DESCRIPTION, ROOFER_TRANSCRIPT } from "../../src/lib/say/sample";
+import { readInvoiceFromPayPal } from "./paypal-reread";
+import { appConfig } from "../../src/app.config";
 import type { PriceEntry } from "../../src/lib/say/price-book";
 
 const priceCount = async (page: Page) => {
@@ -368,4 +370,56 @@ test("a price or quantity that can't be read is named on its line, holds the tot
   await expect(page.getByTestId("input-problem")).toHaveCount(0);
   await expect(page.getByTestId("next-check")).toBeVisible(); // the misheard element is still there to check
   expect((await readJob(request, jobId(page))).status).toBe("review");
+});
+
+/**
+ * The roofer's real job goes out with the trade's name on it, and the numbers the roofer said:
+ * $400 labor, flat, and $200 material. On the sandbox it re-reads the invoice from PayPal and
+ * opens the customer's page. With ROOFER_PROOF=1 it saves that page as public/proof/roofer-invoice.png,
+ * the landing page's proof.
+ */
+test("the roofer's job goes out under the trade's name, with the roofer's own numbers", async ({ page, request }) => {
+  test.setTimeout(240_000);
+  const { live, sandbox } = await kitStatus(request);
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
+
+  await paceAiCalls(2);
+  await openNewJob(page);
+  const today = await page.evaluate(() => new Date().toLocaleDateString("en-CA"));
+  const made = await page.request.post("/api/jobs", { headers: await visitorHeaders(page), data: { source: "mic", today, customer: ROOFER_CUSTOMER, transcript: ROOFER_TRANSCRIPT, speech: { mocked: true, model: "Speech mock" } } });
+  expect(made.ok()).toBe(true);
+  const { id } = await made.json();
+  await page.goto(`/jobs/${id}`);
+  await expect(page.getByTestId("invoice-line")).toHaveCount(2);
+  await settleAiNotes(page);
+  await settleChecks(page);
+  await expect(page.getByTestId("invoice-total")).toHaveText(money(ROOFER_AMOUNTS.totalCents));
+
+  const done = await sendAndVerify(page, request, ROOFER_AMOUNTS.totalCents, "roofer");
+  expect(done.lines.map((l) => [l.quantityMilli, l.unitCents])).toEqual([[1000, ROOFER_AMOUNTS.laborCents], [1000, ROOFER_AMOUNTS.materialCents]]);
+  if (!live) expect(done.lines.map((l) => l.description)).toEqual(Object.values(ROOFER_DESCRIPTION.lines));
+
+  if (sandbox) {
+    const invoice = await readInvoiceFromPayPal(done.invoice!.id);
+    expect(invoice.invoicer?.business_name).toBe(appConfig.tradeName);
+    expect(invoice.amount.value).toBe("600.00");
+    expect(invoice.items.map((i) => [i.quantity, i.unit_amount.value])).toEqual([["1", "400.00"], ["1", "200.00"]]);
+    console.log(`PayPal re-read: roofer invoice ${invoice.id} number ${invoice.detail.invoice_number} ${invoice.status} USD ${invoice.amount.value} from ${invoice.invoicer?.business_name}`);
+
+    // What the roofer's customer opens: the trade's name at the top, what was fixed on every line.
+    const payer = await page.context().newPage();
+    await payer.setViewportSize({ width: 900, height: 1000 });
+    await payer.goto(done.invoice!.payerUrl!, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await expect(payer.getByText(appConfig.tradeName).first()).toBeVisible({ timeout: 45_000 });
+    await expect(payer.getByText("$600.00").first()).toBeVisible();
+    if (!live) for (const text of ["Roof leak repair", "valley liner"]) await expect(payer.getByText(text, { exact: false }).first()).toBeVisible();
+    if (process.env.ROOFER_PROOF) {
+      await payer.locator("#acceptAllButton").click({ timeout: 5_000 }).catch(() => undefined);
+      await payer.locator("#bannerCloseButton").click({ timeout: 2_000 }).catch(() => undefined);
+      await payer.waitForTimeout(1_500);
+      await payer.screenshot({ path: "public/proof/roofer-invoice.png", fullPage: false });
+    }
+    await payer.close();
+  }
+  expect((await readJob(request, id)).status).toBe("sent");
 });

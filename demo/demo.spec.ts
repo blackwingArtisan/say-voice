@@ -68,12 +68,12 @@ test("demo", async ({ browser }) => {
   };
   const clock = new DemoClock(175);
 
-  // Open: the roofer's real invoice, as the customer saw it.
+  // Open: the roofer's real job, as the customer's PayPal page shows it.
   await page.goto("/");
   await imageCard(
     page,
     "/proof/roofer-invoice.png",
-    "A real roofer's job, as the customer saw it",
+    "A real roofer's job, as the customer's PayPal page shows it",
     600,
   );
   await caption(
