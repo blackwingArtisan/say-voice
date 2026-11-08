@@ -365,7 +365,8 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
                   number={i + 1}
                   problems={lineProblems.filter((p) => p.lineKey === line.key)}
                   heardLine={heardLine}
-                  checks={onRow}
+                  // A words note goes once it's kept; the other notes stay on the row as a record of what was let stand.
+                  checks={onRow.filter((check) => check.kind !== "words" || openOnRow.includes(check))}
                   open={openOnRow.length > 0}
                   heard={heardFor(job.transcript, heardLine ?? { quantityMilli: row.quantityMilli, unitCents: row.unitCents })}
                   lineTotal={row.valid ? totals.lines[i].lineCents : null}

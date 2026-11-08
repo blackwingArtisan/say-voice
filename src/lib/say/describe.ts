@@ -10,6 +10,7 @@ import { generateObject } from "@/lib/ai";
 import { modelLabel } from "@/lib/ai/config";
 import { formatCents, formatQuantity } from "./money";
 import { PLUS_TAX_DESCRIPTION, PLUS_TAX_TRANSCRIPT, SAMPLE_DESCRIPTION, SAMPLE_TRANSCRIPT } from "./sample";
+import { WORDY_DESCRIPTION, WORDY_TRANSCRIPT } from "./sample-wordy";
 import { heardFor } from "./spoken";
 import type { AiWording, JobDetails, JobFlag, JobLine } from "./types";
 import { checkedServiceDate, cleanText, hasLink, lineNumbers, MAX_DESCRIPTION, MAX_SITE, MAX_SUMMARY, saidNumbers, strayNumbers, truncate, withoutRepeatedSentences, withoutRepeatedTail } from "./wording";
@@ -54,6 +55,12 @@ export function describePrompt(transcript: string, lines: JobLine[], today: stri
     })
     .join("\n");
   return `Today is ${today}.\n\nDictated job note:\n"""\n${transcript}\n"""\n\nLine items:\n${items}`;
+}
+
+/** Mock fixture shaped like live AI output: descriptions with words that weren't said, on both lines. */
+function wordyMockDescription(transcript: string, lines: JobLine[]): Description | null {
+  if (transcript.trim() !== WORDY_TRANSCRIPT) return null;
+  return { ...WORDY_DESCRIPTION, parts_heard: [], lines: lines.map((line) => ({ id: line.key, description: WORDY_DESCRIPTION.lines[line.name] ?? "" })) };
 }
 
 /** Mock fixtures: the sample and the tax job have their own, anything else gets the words heard by each price. */
@@ -142,7 +149,7 @@ export async function describeJob(transcript: string, lines: JobLine[], today: s
     maxTokens: 4000,
     effort: "medium",
     feature: "job description",
-    mock: () => mockDescription(transcript, lines, today),
+    mock: () => wordyMockDescription(transcript, lines) ?? mockDescription(transcript, lines, today),
   });
   return { ...applyDescription(res.data, lines, transcript, today), ai: { mocked: res.mocked, model: res.model ? modelLabel(res.model) : undefined, costUsd: res.costUsd } };
 }
