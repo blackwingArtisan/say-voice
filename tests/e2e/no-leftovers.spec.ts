@@ -105,7 +105,7 @@ test("the trade's screens carry no mode badges, AI spend or debug ids until For 
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: width > 400 ? 1000 : 844 });
     await page.goto("/");
-    await expect(page.getByTestId("hero-preview")).toBeVisible();
+    await expect(page.getByTestId("hero-lead")).toBeVisible();
     await expectCleanChrome(page, `/ at ${width}`);
     await page.goto("/jobs");
     await expect(page.getByTestId(/^contact-(?!other)/).first()).toBeVisible();

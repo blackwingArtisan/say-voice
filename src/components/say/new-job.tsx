@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Sparkles, UserPlus } from "lucide-react";
+import { Loader2, Mic, Sparkles, UserPlus } from "lucide-react";
 import { ApiError, useKit } from "@/components/kit/kit-provider";
 import { PageHeader } from "@/components/shell/app-shell";
 import { useToast } from "@/components/toast";
@@ -66,6 +66,8 @@ export function NewJob() {
   const [phase, setPhase] = useState<"ready" | "hearing" | "reading">("ready");
   const [heard, setHeard] = useState<string | null>(null);
   const [take, setTake] = useState<Take | null>(null);
+  // Recorded before a customer was picked: held here until one is.
+  const [waiting, setWaiting] = useState<Blob | null>(null);
   const [problem, setProblem] = useState<TakeProblem | null>(null);
   const [sampleWait, setSampleWait] = useState<{ until: number; text: string } | null>(null);
   const [now, setNow] = useState(0);
@@ -114,15 +116,29 @@ export function NewJob() {
       .catch(() => undefined);
   }, [kitFetch, toast]);
 
-  // On a phone the recorder sits below the contact list, and that's the next thing to reach.
+  // The recorder comes first. A take recorded before the customer is picked waits for one, then reads.
   const recorder = useRef<HTMLDivElement>(null);
+  const customers = useRef<HTMLDivElement>(null);
   function pick(id: string) {
     setPicked(id);
-    recorder.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    const chosen = contacts.find((c) => c.id === id);
+    if (waiting && chosen) {
+      recorder.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      readWaiting({ name: chosen.name, email: chosen.email });
+    }
   }
 
   const contact = contacts.find((c) => c.id === picked);
   const customer: JobCustomer | null = contact ? { name: contact.name, email: contact.email } : picked === OTHER && typedName.trim() && /.+@.+\..+/.test(typedEmail) ? { name: typedName.trim(), email: typedEmail.trim() } : null;
+
+  function readWaiting(to: JobCustomer) {
+    if (!waiting) return;
+    const recorded = { audio: waiting, customer: to };
+    setWaiting(null);
+    setTake(recorded);
+    void saveTake(recorded);
+    void readTake(recorded);
+  }
 
   async function readTake(start: Take) {
     let current = start;
@@ -148,6 +164,7 @@ export function NewJob() {
         setHeard(null);
         setTake(null);
         setPicked(null);
+        setWaiting(null);
         setTypedName("");
         setTypedEmail("");
       };
@@ -160,7 +177,11 @@ export function NewJob() {
   }
 
   function readAudio(audio: Blob) {
-    if (!customer) return;
+    if (!customer) {
+      setWaiting(audio);
+      customers.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return;
+    }
     const recorded = { audio, customer };
     setTake(recorded);
     void saveTake(recorded); // before the upload, so nothing that happens to it can lose the take
@@ -193,16 +214,59 @@ export function NewJob() {
   const waitLeft = sampleWait ? Math.max(0, Math.ceil((sampleWait.until - now) / 1000)) : 0;
   return (
     <>
-      <PageHeader title="New job" description="Say what you did before you drive off. You check every number before anything goes to the customer." />
-      <YourBusiness
-        onContacts={(list, added) => {
-          setContacts(list);
-          pick(added.id);
-        }}
-      />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader title="1. Pick the customer" description="Names come from here, never from speech." />
+      <PageHeader title="New job" description="Say what you did before you drive off. You check every number before it goes." />
+      {/* On a phone: record, then who it's for, then the sample. On a desktop the customers sit beside the recorder. */}
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+        <div className="contents lg:block lg:space-y-6">
+          <Card ref={recorder} className="order-1" data-testid="record-card">
+            <CardHeader title="Say the job" description="Hours, parts, prices, tax. Talk it through like you would to the office." />
+            <CardBody className="space-y-3">
+              {working ? (
+                <div className="space-y-3" data-testid="job-progress">
+                  <p className="flex items-center gap-2 text-sm font-medium text-zinc-700">
+                    <Loader2 className="size-4 animate-spin text-brand" />
+                    {phase === "hearing" ? "Listening to your recording..." : "Reading the job..."}
+                  </p>
+                  {heard ? <p className="rounded-lg bg-zinc-50 px-3 py-2 text-sm leading-relaxed text-zinc-600">{heard}</p> : null}
+                </div>
+              ) : take && problem ? (
+                <KeptTake take={take} problem={problem} onRetry={() => void readTake(take)} onDiscard={discardTake} />
+              ) : waiting ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-800" data-testid="take-waiting">
+                  <span>Recorded. Pick who it&apos;s for and it reads the job.</span>
+                  <button type="button" onClick={() => setWaiting(null)} className="text-xs font-medium text-zinc-600 underline hover:text-zinc-900" data-testid="discard-waiting">
+                    Record again
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <Recorder onRecorded={readAudio} onError={(message) => toast({ title: "No recording", description: message, variant: "warning", durationMs: 7000 })} />
+                  <p className="text-center text-xs text-zinc-500" data-testid="record-for">
+                    {customer ? <>For <span className="font-medium text-zinc-800">{customer.name}</span></> : "Pick the customer before or after."}
+                  </p>
+                </>
+              )}
+            </CardBody>
+          </Card>
+          <Card className="order-3">
+            <CardBody className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-zinc-900">No mic handy?</p>
+                <p className="text-sm text-zinc-500">Run a real recorded job through the whole flow.</p>
+              </div>
+              <Button variant="secondary" icon={<Sparkles className="size-4" />} disabled={working || waitLeft > 0} onClick={trySample} data-testid="try-sample">
+                {waitLeft > 0 ? `Try again in ${waitLeft}s` : "Try a sample job"}
+              </Button>
+              {waitLeft > 0 ? (
+                <p role="status" className="w-full rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900" data-testid="sample-wait">
+                  {sampleWait!.text} Try again in <span className="font-mono tabular-nums" data-testid="sample-wait-seconds">{waitLeft}</span> {waitLeft === 1 ? "second" : "seconds"}.
+                </p>
+              ) : null}
+            </CardBody>
+          </Card>
+        </div>
+        <Card ref={customers} className={cn("order-2", waiting && "ring-2 ring-brand")}>
+          <CardHeader title={waiting ? "Who was that for?" : "Who's it for?"} description={waiting ? "Pick the customer and it reads the job." : "Names come from here, never from speech."} />
           <CardBody className="space-y-2">
             <div className="grid gap-2 sm:grid-cols-2">
               {contacts.map((c) => (
@@ -222,49 +286,21 @@ export function NewJob() {
                 </Field>
               </div>
             ) : null}
+            {waiting && customer ? (
+              <Button className="w-full" icon={<Mic className="size-4" />} onClick={() => readWaiting(customer)} data-testid="read-waiting">
+                Read it for {customer.name}
+              </Button>
+            ) : null}
           </CardBody>
         </Card>
-
-        <div className="space-y-6">
-          <Card ref={recorder}>
-            <CardHeader title="2. Say the job" description="Hours, parts, prices, tax. Talk it through like you would to the office." />
-            <CardBody className="space-y-3">
-              {working ? (
-                <div className="space-y-3" data-testid="job-progress">
-                  <p className="flex items-center gap-2 text-sm font-medium text-zinc-700">
-                    <Loader2 className="size-4 animate-spin text-brand" />
-                    {phase === "hearing" ? "Listening to your recording..." : "Reading the job..."}
-                  </p>
-                  {heard ? <p className="rounded-lg bg-zinc-50 px-3 py-2 text-sm leading-relaxed text-zinc-600">{heard}</p> : null}
-                </div>
-              ) : take && problem ? (
-                <KeptTake take={take} problem={problem} onRetry={() => void readTake(take)} onDiscard={discardTake} />
-              ) : (
-                <>
-                  <Recorder disabled={!customer} onRecorded={readAudio} onError={(message) => toast({ title: "No recording", description: message, variant: "warning", durationMs: 7000 })} />
-                  {!customer ? <p className="text-center text-xs text-zinc-500">Pick the customer first.</p> : null}
-                </>
-              )}
-            </CardBody>
-          </Card>
-          <Card>
-            <CardBody className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-zinc-900">No mic handy?</p>
-                <p className="text-sm text-zinc-500">Run a real recorded job through the whole flow.</p>
-              </div>
-              <Button variant="secondary" icon={<Sparkles className="size-4" />} disabled={working || waitLeft > 0} onClick={trySample} data-testid="try-sample">
-                {waitLeft > 0 ? `Try again in ${waitLeft}s` : "Try a sample job"}
-              </Button>
-              {waitLeft > 0 ? (
-                <p role="status" className="w-full rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900" data-testid="sample-wait">
-                  {sampleWait!.text} Try again in <span className="font-mono tabular-nums" data-testid="sample-wait-seconds">{waitLeft}</span> {waitLeft === 1 ? "second" : "seconds"}.
-                </p>
-              ) : null}
-            </CardBody>
-          </Card>
-        </div>
       </div>
+      <YourBusiness
+        className="mt-6"
+        onContacts={(list, added) => {
+          setContacts(list);
+          pick(added.id);
+        }}
+      />
       {jobs.length ? (
         <Card className="mt-6">
           <CardHeader title="Your recent jobs" />

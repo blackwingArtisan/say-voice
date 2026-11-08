@@ -1,5 +1,6 @@
 import { ArrowRight, Check, Mic, ShieldCheck, Sparkles } from "lucide-react";
 import { appConfig } from "@/app.config";
+import { PhoneFold } from "./phone-fold";
 import { ButtonLink } from "../ui/button";
 import { AppLogo } from "../shell/app-logo";
 
@@ -48,7 +49,7 @@ export function Hero() {
     <section className="relative overflow-hidden">
       <div className="bg-grid absolute inset-0 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]" aria-hidden />
       <div className="absolute -top-40 left-1/2 h-[480px] w-[900px] -translate-x-1/2 rounded-full bg-brand-200/40 blur-3xl" aria-hidden />
-      <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-16 sm:px-6 lg:grid-cols-[1.1fr_1fr] lg:pt-24">
+      <div className="relative mx-auto grid max-w-6xl items-center gap-8 px-4 pb-8 pt-8 sm:px-6 lg:grid-cols-[1.1fr_1fr] lg:gap-12 lg:pb-20 lg:pt-24">
         <div>
           <p className="max-w-xl text-lg leading-snug text-zinc-800" data-testid="hero-lead">
             <strong className="font-mono text-3xl font-semibold tabular-nums text-zinc-950 sm:text-4xl">{l.lead.figure}</strong> {l.lead.body}{" "}
@@ -91,7 +92,12 @@ export function Hero() {
             <ShieldCheck className="size-4 shrink-0 translate-y-0.5 text-emerald-600" /> {l.whyNot}
           </p>
         </div>
-        <RooferInvoice />
+        {/* On a phone the invoice folds to a row, under the buttons. */}
+        <PhoneFold name="preview" title="See a real job's PayPal invoice" className="-mx-4 border-t border-zinc-200 sm:-mx-6 lg:mx-0 lg:border-0">
+          <div className="px-4 pt-4 sm:px-6 lg:p-0">
+            <RooferInvoice />
+          </div>
+        </PhoneFold>
       </div>
     </section>
   );

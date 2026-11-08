@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, UserPlus } from "lucide-react";
+import { Building2, ChevronDown, UserPlus } from "lucide-react";
 import { ApiError, useKit } from "@/components/kit/kit-provider";
 import { useToast } from "@/components/toast";
 import { Button, Card, CardBody, Input } from "@/components/ui";
+import { cn } from "@/components/ui/cn";
 import type { Contact } from "@/lib/say/contacts";
 
 interface BusinessView {
@@ -15,10 +16,11 @@ interface BusinessView {
 }
 
 /**
- * Your business, in one card: the name your customers see on PayPal's invoice, and a customer of
- * your own. Both stay with this browser, like the price book.
+ * Your business, in one card folded below the recorder: the name your customers see on PayPal's
+ * invoice, and a customer of your own. Both stay with this browser, like the price book.
  */
-export function YourBusiness({ onContacts }: { onContacts: (contacts: Contact[], added: Contact) => void }) {
+export function YourBusiness({ onContacts, className }: { onContacts: (contacts: Contact[], added: Contact) => void; className?: string }) {
+  const [open, setOpen] = useState(false);
   const { kitFetch } = useKit();
   const { toast } = useToast();
   const [business, setBusiness] = useState<BusinessView | null>(null);
@@ -68,8 +70,17 @@ export function YourBusiness({ onContacts }: { onContacts: (contacts: Contact[],
   }
 
   return (
-    <Card className="mb-6" data-testid="business-card">
-      <CardBody className="grid gap-5 lg:grid-cols-2">
+    <Card className={className} data-testid="business-card" data-open={open || undefined}>
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-2 px-5 py-4 text-left" data-testid="business-toggle">
+        <Building2 className="size-4 shrink-0 text-brand" />
+        <span className="min-w-0 flex-1 text-sm">
+          <span className="font-semibold text-zinc-900">Your business</span>
+          <span className="text-zinc-500"> and adding a customer</span>
+          <span className="block truncate text-xs text-zinc-500">Invoices go out as {business?.tradeName ?? "…"}</span>
+        </span>
+        <ChevronDown className={cn("size-4 shrink-0 text-zinc-400 transition-transform", open && "rotate-180")} />
+      </button>
+      <CardBody className="grid gap-5 border-t border-zinc-100 lg:grid-cols-2" hidden={!open}>
         <form
           className="space-y-2"
           onSubmit={(e) => {

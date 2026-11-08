@@ -602,6 +602,9 @@ test("your business: the trade name you set is the one PayPal shows, and a custo
 
   await openNewJob(page);
   const card = page.getByTestId("business-card");
+  // Folded below the recorder until opened.
+  await expect(card.getByTestId("trade-name-input")).toBeHidden();
+  await card.getByTestId("business-toggle").click();
   await expect(card.getByTestId("trade-name-current")).toHaveText(appConfig.tradeName); // the demo trade until you put your own
   await card.getByTestId("trade-name-input").fill(tradeName);
   await card.getByTestId("trade-name-save").click();
@@ -679,4 +682,60 @@ test("on a phone the catch sits under your words without scrolling, What happene
   await page.getByTestId("what-happened-toggle").click();
   await expect(page.getByTestId("plain-steps")).toBeVisible();
   await expect(page.getByTestId("plain-step").first()).toBeVisible();
+});
+
+test("record first: the record button leads /jobs at phone and desktop width, Your business folds below it, and the phone pins the total and checks", async ({ page, request }) => {
+  const { live } = await kitStatus(request);
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
+  const top = async (testId: string) => (await page.getByTestId(testId).first().boundingBox())!.y;
+  for (const [width, height] of [[390, 844], [1440, 1000]]) {
+    await page.setViewportSize({ width, height });
+    await openNewJob(page);
+    const record = page.getByTestId("record-start");
+    await expect(record).toBeInViewport();
+    await expect(record).toBeEnabled();
+    // Nothing a person can press comes before it.
+    const firstControl = await page.evaluate(() => {
+      const controls = [...document.querySelectorAll("main button, main a, main input")].filter((el) => (el as HTMLElement).offsetParent !== null);
+      return controls.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top || a.getBoundingClientRect().left - b.getBoundingClientRect().left)[0]?.getAttribute("data-testid");
+    });
+    expect(firstControl, `first control at ${width}`).toBe("record-start");
+    expect(await top("record-start")).toBeLessThan(await top("business-card"));
+    // On a phone, who it's for comes next, before the sample.
+    if (width < 1024) expect(await top("contact-other")).toBeLessThan(await top("try-sample"));
+    await expect(page.getByTestId("trade-name-input")).toBeHidden();
+    await expect(page.getByTestId("add-customer-name")).toBeHidden();
+    await page.screenshot({ path: `screenshots/record-first-${width}.png` });
+  }
+
+  // The landing at phone width: about two screens.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await expect(page.getByTestId("hero-lead")).toBeVisible();
+  const landing = await page.evaluate(() => document.documentElement.scrollHeight);
+  console.log(`Landing at 390 wide: ${landing}px, ${(landing / 844).toFixed(2)} screens of 844`);
+  await page.screenshot({ path: "screenshots/landing-phone.png", fullPage: true });
+  expect(landing).toBeLessThan(844 * 2.5);
+  // Each section below the hero is one row on a phone, and a link into one opens it.
+  await expect(page.getByTestId("compare")).toBeHidden();
+  await page.getByRole("link", { name: "How it works" }).first().click();
+  await expect(page.getByTestId("fold-how")).toHaveAttribute("data-open", "true");
+  await expect(page.locator("#how")).toBeInViewport();
+  await page.getByTestId("fold-real-jobs-toggle").click();
+  await expect(page.getByTestId("real-jobs")).toBeVisible();
+
+  // On the phone confirm screen the total and what's left to check stay at the top as you scroll.
+  await startSample(page);
+  const pinned = page.getByTestId("pinned-summary");
+  await expect(pinned).toBeInViewport();
+  await expect(page.getByTestId("pinned-total")).toHaveText("$75.00");
+  await expect(page.getByTestId("pinned-checks")).toHaveAttribute("data-state", "open");
+  await page.mouse.wheel(0, 1500);
+  await expect.poll(async () => (await pinned.boundingBox())!.y).toBeLessThan(80);
+  await expect(pinned).toBeInViewport();
+  await page.getByTestId("pinned-checks").click();
+  await page.getByTestId("invoice-line").nth(1).getByTestId("use-usual").click();
+  await expect(page.getByTestId("pinned-total")).toHaveText("$110.00");
+  await settleAiNotes(page);
+  await expect(page.getByTestId("pinned-checks")).toHaveAttribute("data-state", "clear");
 });
