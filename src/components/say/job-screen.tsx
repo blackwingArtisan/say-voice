@@ -15,12 +15,14 @@ import { ReminderCard, type OwnerLineAsk } from "./reminder";
 import { Result } from "./result";
 import { WhatHappened } from "./what-happened";
 
+/** Which models heard and read the job. A stand-in (mock) model isn't named on the trade's screen; For judges shows the modes. */
 function sourceLine(job: JobView): string {
-  const reader = job.ai.mocked ? "AI mock" : (job.ai.model ?? "Claude");
+  const reader = job.ai.mocked ? null : (job.ai.model ?? "Claude");
   if (job.example) return "Sample job, recorded earlier, with a saved Claude reading.";
   if (job.source === "sample" && job.ai.saved) return "Sample job, recorded earlier. Today's AI budget is used up, so this is a saved Claude reading.";
-  if (job.source === "sample") return `Sample job, recorded earlier. Read by ${reader}.`;
-  return `Heard by ${job.speech?.model ?? "speech to text"}. Read by ${reader}.`;
+  if (job.source === "sample") return reader ? `Sample job, recorded earlier. Read by ${reader}.` : "Sample job, recorded earlier.";
+  const hearer = job.speech?.mocked ? null : (job.speech?.model ?? "speech to text");
+  return [hearer ? `Heard by ${hearer}.` : null, reader ? `Read by ${reader}.` : null].filter(Boolean).join(" ");
 }
 
 export function JobScreen() {
