@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 /**
  * Demo recording (npm run demo:record, which runs scripts/demo-record.sh). Builds the app, starts it
- * and records demo/demo.spec.ts at phone width. The spec makes its own browser context, so the video
+ * and records demo/demo.spec.ts at 1280x720 (16:9; the finisher makes it 1920x1080). The spec makes its own browser context, so the video
  * settings live there. The spec plays DEMO_VOICE_WAV as the microphone, so the speech model
  * really hears it. Mock PayPal and AI unless DEMO_PAYPAL_MODE=sandbox and DEMO_AI_MODE=live.
  */

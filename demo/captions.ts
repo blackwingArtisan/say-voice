@@ -56,8 +56,9 @@ export async function imageCard(page: Page, src: string, label: string, ms: numb
     ({ src, label, band }) => {
       const el = document.createElement("div");
       el.id = "__demo_image";
-      el.innerHTML = `<div style="font:700 15px/1.3 ui-sans-serif,system-ui;letter-spacing:.06em;text-transform:uppercase;color:#fdba74;margin-bottom:12px">${label}</div><img src="${src}" style="width:100%;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.5)">`;
-      Object.assign(el.style, { position: "fixed", inset: `0 0 ${band}px 0`, zIndex: "2147483646", display: "flex", flexDirection: "column", justifyContent: "center", padding: "20px", background: "#0b1020" });
+      el.innerHTML = `<div style="font:700 15px/1.3 ui-sans-serif,system-ui;letter-spacing:.06em;text-transform:uppercase;color:#fdba74;margin-bottom:12px">${label}</div><img src="${src}" style="max-width:100%;min-height:0;flex:0 1 auto;object-fit:contain;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.5)">`;
+      // Fits a portrait phone or a 16:9 frame: the image keeps its shape inside what the caption band leaves.
+      Object.assign(el.style, { position: "fixed", inset: `0 0 ${band}px 0`, zIndex: "2147483646", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px", background: "#0b1020" });
       document.body.appendChild(el);
     },
     { src, label, band: BAND_PX },
