@@ -31,6 +31,13 @@ export async function tradeHistoryReady(request: APIRequestContext, timeoutMs = 
   return false;
 }
 
+/** With AI and speech live, no screen may say "mock": not the badges, not the "Heard by" line, nothing. */
+export async function expectNoMockWords(page: Page) {
+  await expect(page.locator("main")).toBeVisible();
+  const text = await page.locator("body").innerText();
+  expect(text.match(/.{0,40}\bmock\b.{0,40}/i)?.[0] ?? null).toBeNull();
+}
+
 /** A local live run spends on the one mic clip only. A deployed copy always runs the sample flow. */
 export const keepToOneCall = (live: boolean) => live && !process.env.E2E_BASE_URL;
 

@@ -5,6 +5,8 @@ import { Mic, Square } from "lucide-react";
 import { Button } from "@/components/ui";
 
 const MAX_SECONDS = 120;
+/** Bars in the level trace while recording. */
+const LEVEL_BARS = 36;
 
 // The sealed speech tests measured raw audio, so the browser's own clean-up stays off.
 const CAPTURE: MediaTrackConstraints = { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false };
@@ -34,13 +36,24 @@ export function Recorder({ disabled, onRecorded, onError }: { disabled?: boolean
     audio.createMediaStreamSource(stream).connect(analyser);
     const samples = new Float32Array(analyser.fftSize);
     let peak = 0;
-    const draw = () => {
+    let lastBar = 0;
+    let loudest = 0;
+    const draw = (time: number) => {
       analyser.getFloatTimeDomainData(samples);
       const now = samples.reduce((max, sample) => Math.max(max, Math.abs(sample)), 0);
       peak = Math.max(peak, now);
-      if (level.current) {
-        level.current.style.width = `${Math.min(100, now * 140)}%`;
-        level.current.dataset.peak = peak.toFixed(3);
+      loudest = Math.max(loudest, now);
+      const box = level.current;
+      if (box) {
+        box.dataset.peak = peak.toFixed(3);
+        // A new bar every 80 ms, scrolling left: the last few seconds of your voice, so it's plain the mic hears you.
+        if (time - lastBar > 80) {
+          lastBar = time;
+          const bars = Array.from(box.children) as HTMLElement[];
+          for (let i = 0; i < bars.length - 1; i++) bars[i].style.height = bars[i + 1].style.height;
+          if (bars.length) bars[bars.length - 1].style.height = `${Math.max(8, Math.min(100, loudest * 160))}%`;
+          loudest = 0;
+        }
       }
       if (session.current) session.current.frame = requestAnimationFrame(draw);
     };
@@ -113,8 +126,10 @@ export function Recorder({ disabled, onRecorded, onError }: { disabled?: boolean
           <span className="font-mono text-sm tabular-nums text-zinc-700" data-testid="record-time">
             {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
           </span>
-          <div className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-100">
-            <div ref={level} data-testid="mic-level" className="h-full w-0 rounded-full bg-brand" />
+          <div ref={level} data-testid="mic-level" aria-hidden className="flex h-10 flex-1 items-center gap-[3px] overflow-hidden rounded-lg bg-zinc-50 px-2">
+            {Array.from({ length: LEVEL_BARS }, (_, i) => (
+              <span key={i} className="w-full min-w-[2px] rounded-full bg-brand" style={{ height: "8%" }} />
+            ))}
           </div>
         </div>
         <Button size="lg" variant="dark" className="w-full" icon={<Square className="size-4" />} onClick={() => session.current?.recorder.stop()} data-testid="record-stop">

@@ -6,7 +6,7 @@
  *   await caption(page, "The buyer approves a $120 hold with PayPal");
  *   await highlight(page, page.getByTestId("run-agent"));
  */
-import type { Locator, Page } from "@playwright/test";
+import type { Frame, Locator, Page } from "@playwright/test";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -18,6 +18,12 @@ export async function caption(page: Page, text: string, opts: { ms?: number; wai
   const ms = opts.ms ?? Math.min(6000, 1400 + text.length * 45);
   await page.evaluate(
     ({ text, band }) => {
+      // With the phone on stage, the caption sits beside it in big type instead of in the band.
+      const side = document.getElementById("__demo_side");
+      if (side) {
+        side.textContent = text;
+        return;
+      }
       let el = document.getElementById("__demo_caption");
       if (!el) {
         const style = document.createElement("style");
@@ -44,7 +50,7 @@ export async function caption(page: Page, text: string, opts: { ms?: number; wai
 export async function bringIntoView(target: Locator) {
   await target.evaluate((el, band) => {
     const r = el.getBoundingClientRect();
-    const room = window.innerHeight - band;
+    const room = window.innerHeight - (window.top === window ? band : 0);
     window.scrollBy({ top: r.top + Math.min(r.height, room) / 2 - room / 2 - 20, behavior: "instant" });
   }, BAND_PX);
   await sleep(250);
@@ -99,13 +105,13 @@ export async function titleCard(page: Page, title: string, subtitle = "", ms = 3
   await sleep(450);
 }
 
-/** Pulsing outline around an element so viewers know where to look. */
-export async function highlight(page: Page, target: Locator, ms = 1600) {
+/** Pulsing outline around an element so viewers know where to look. Drawn in the element's own document, so it lines up inside the phone frame too. */
+export async function highlight(_page: Page, target: Locator, ms = 1600) {
   await bringIntoView(target);
-  const box = await target.boundingBox();
-  if (!box) return;
-  await page.evaluate(
-    ({ box, ms }) => {
+  const drawn = await target
+    .evaluate((node, ms) => {
+      const box = node.getBoundingClientRect();
+      if (!box.width && !box.height) return false;
       const el = document.createElement("div");
       Object.assign(el.style, {
         position: "absolute", left: `${box.x - 6 + window.scrollX}px`, top: `${box.y - 6 + window.scrollY}px`, width: `${box.width + 12}px`, height: `${box.height + 12}px`,
@@ -117,10 +123,52 @@ export async function highlight(page: Page, target: Locator, ms = 1600) {
         el.style.opacity = "0";
         setTimeout(() => el.remove(), 300);
       }, ms);
+      return true;
+    }, ms)
+    .catch(() => false);
+  if (drawn) await sleep(Math.min(ms, 900));
+}
+
+/** Size of the phone on stage, in CSS pixels: an iPhone-sized viewport. */
+export const PHONE = { width: 390, height: 844 };
+
+/**
+ * Puts the app on a phone in the middle of the frame, with the captions beside it in big type.
+ * Returns the phone's frame: drive the app through it. Same origin, so the microphone stand-in
+ * and the visitor carry over.
+ */
+export async function phoneStage(page: Page, src: string): Promise<Frame> {
+  await page.evaluate(
+    ({ src, phone }) => {
+      document.getElementById("__demo_caption")?.style.setProperty("display", "none");
+      const stage = document.createElement("div");
+      stage.id = "__demo_stage";
+      const pad = 12;
+      const scale = Math.min(1, (window.innerHeight - 28) / (phone.height + pad * 2));
+      Object.assign(stage.style, {
+        position: "fixed", inset: "0", zIndex: "2147483640", display: "grid", gridTemplateColumns: `${Math.round((phone.width + pad * 2) * scale) + 120}px 1fr`,
+        alignItems: "center", background: "radial-gradient(ellipse at 30% 20%, #1f2937, #0b1020 70%)", paddingLeft: "70px",
+      });
+      stage.innerHTML = `<div style="width:${(phone.width + pad * 2) * scale}px;height:${(phone.height + pad * 2) * scale}px"><div id="__demo_phone" style="width:${phone.width + pad * 2}px;height:${phone.height + pad * 2}px;transform:scale(${scale});transform-origin:top left;background:#0a0a0a;border-radius:54px;padding:${pad}px;box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 0 0 2px #2a2a2a"><iframe name="phone" src="${src}" style="width:${phone.width}px;height:${phone.height}px;border:0;border-radius:42px;background:#fff;display:block"></iframe></div></div><div id="__demo_side" style="color:#fff;font:600 30px/1.35 ui-sans-serif,system-ui,-apple-system,sans-serif;padding-right:70px;max-width:620px"></div>`;
+      document.body.appendChild(stage);
     },
-    { box, ms },
+    { src, phone: PHONE },
   );
-  await sleep(Math.min(ms, 900));
+  let frame: Frame | null = null;
+  for (let i = 0; i < 100 && !frame; i++) {
+    frame = page.frame({ name: "phone" });
+    if (!frame) await sleep(100);
+  }
+  if (!frame) throw new Error("The phone frame didn't attach.");
+  await frame.waitForLoadState("domcontentloaded");
+  return frame;
+}
+
+export async function closePhoneStage(page: Page) {
+  await page.evaluate(() => {
+    document.getElementById("__demo_stage")?.remove();
+    document.getElementById("__demo_caption")?.style.removeProperty("display");
+  });
 }
 
 /** Keeps the video under Devpost's 3-minute limit. */

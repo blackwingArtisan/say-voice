@@ -4,6 +4,7 @@
  * promises nothing goes out until a person approves it.
  */
 import { expect, test } from "@playwright/test";
+import { expectNoMockWords, kitStatus } from "./flow";
 
 test("nothing from the starter kit is left for a judge to find", async ({ page, request }) => {
   await page.goto("/");
@@ -74,4 +75,18 @@ test("real jobs: only what the proof shows, with no quotes and no real names", a
   expect(text).not.toMatch(/Pat Rivera|Sam Ortiz|\d+ ?\d* ?th Street|@/);
   expect(text).toContain("Customer names on the invoices are made up.");
   await block.screenshot({ path: "screenshots/real-jobs.png" });
+});
+
+test("with AI and speech live, no page says mock", async ({ page, request }) => {
+  const { live, speechLive } = await kitStatus(request);
+  test.skip(!live || !speechLive, "Only a run with live AI and live speech can show this");
+  for (const path of ["/", "/jobs", "/prices", "/activity"]) {
+    await page.goto(path);
+    await expectNoMockWords(page);
+  }
+  // The finished sample, read by the live model, every visitor's first job.
+  await expect.poll(async () => ((await (await request.get("/api/jobs")).json()) as { example: unknown }).example !== null, { timeout: 90_000, intervals: [1_000] }).toBe(true);
+  await page.goto("/jobs/job_sample");
+  await expect(page.getByTestId("invoice-amount")).toBeVisible();
+  await expectNoMockWords(page);
 });

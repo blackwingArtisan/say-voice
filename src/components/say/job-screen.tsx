@@ -17,6 +17,7 @@ import { WhatHappened } from "./what-happened";
 
 function sourceLine(job: JobView): string {
   const reader = job.ai.mocked ? "AI mock" : (job.ai.model ?? "Claude");
+  if (job.example) return "Sample job, recorded earlier, with a saved Claude reading.";
   if (job.source === "sample" && job.ai.saved) return "Sample job, recorded earlier. Today's AI budget is used up, so this is a saved Claude reading.";
   if (job.source === "sample") return `Sample job, recorded earlier. Read by ${reader}.`;
   return `Heard by ${job.speech?.model ?? "speech to text"}. Read by ${reader}.`;
