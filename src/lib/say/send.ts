@@ -8,6 +8,7 @@ import { appConfig } from "@/app.config";
 import { sendJobInvoice } from "@/agents/tools/send-job-invoice";
 import { runTool, type ToolCallResult } from "@/lib/agent/execute";
 import { Guard } from "@/lib/agent/guard";
+import { getEnv } from "@/lib/env";
 import { withContext } from "@/lib/events/bus";
 import { HttpError } from "@/lib/http";
 import { toMinor } from "@/lib/money";
@@ -33,7 +34,7 @@ export interface CheckedJob {
 function failureReason(result: ToolCallResult): string {
   const outcome = result.outcome;
   if (outcome?.status === "denied" && outcome.code === "APPROVAL_DENIED") return "You declined, so nothing was sent.";
-  if (outcome?.status === "denied" && outcome.code === "COUNTERPARTY_NOT_ALLOWED") return TEST_ADDRESS_REFUSED;
+  if (outcome?.status === "denied" && outcome.code === "COUNTERPARTY_NOT_ALLOWED") return getEnv().paypalMode === "sandbox" ? `${TEST_ADDRESS_REFUSED} The next screen has a link to what the customer sees.` : TEST_ADDRESS_REFUSED;
   if (outcome?.status === "denied") return outcome.reason;
   if (outcome?.status === "failed") return (outcome.error as Error)?.message ?? "PayPal call failed.";
   return result.content;
