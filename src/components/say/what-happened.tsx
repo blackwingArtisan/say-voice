@@ -18,37 +18,51 @@ const ICON: Record<PlainTone, { icon: typeof Check; className: string }> = {
 const time = (ts: string) => new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
 /**
- * What happened, in plain words. The calls behind it (PayPal's endpoints, HTTP status,
+ * What happened, in plain words, folded to the latest step until opened. The calls behind it (PayPal's endpoints, HTTP status,
  * debug ids, the guard's rules, the AI's cost) sit behind one Details toggle.
  */
 export function WhatHappened({ steps }: { steps: TimelineStep[] }) {
+  // Folded to the latest step by default, so the words and the numbers lead the screen.
+  const [open, setOpen] = useState(false);
   const [details, setDetails] = useState(false);
   const plain = plainSteps(steps);
+  const latest = plain.at(-1);
+  const row = (step: (typeof plain)[number], testId: string) => {
+    const { icon: Icon, className } = ICON[step.tone];
+    return (
+      <li key={step.id} className="flex items-start gap-2.5 text-sm text-zinc-800" data-testid={testId} data-tone={step.tone}>
+        <span className={cn("mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full ring-1", className)}>
+          <Icon className={cn("size-3", step.tone === "working" && "animate-spin")} />
+        </span>
+        <span className="min-w-0 flex-1 break-words">{step.text}</span>
+        <span className="shrink-0 text-xs tabular-nums text-zinc-400">{time(step.at)}</span>
+      </li>
+    );
+  };
   return (
-    <div className="space-y-3" data-testid="what-happened">
+    <div className="space-y-3" data-testid="what-happened" data-open={open || undefined}>
+      {!plain.length ? <p className="text-sm text-zinc-500">Each step shows here as it happens.</p> : null}
+      {latest && !open ? <ol data-testid="what-happened-latest">{row(latest, "plain-step-latest")}</ol> : null}
       {plain.length ? (
-        <ol className="space-y-2" data-testid="plain-steps">
-          {plain.map((step) => {
-            const { icon: Icon, className } = ICON[step.tone];
-            return (
-              <li key={step.id} className="flex items-start gap-2.5 text-sm text-zinc-800" data-testid="plain-step" data-tone={step.tone}>
-                <span className={cn("mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full ring-1", className)}>
-                  <Icon className={cn("size-3", step.tone === "working" && "animate-spin")} />
-                </span>
-                <span className="min-w-0 flex-1 break-words">{step.text}</span>
-                <span className="shrink-0 text-xs tabular-nums text-zinc-400">{time(step.at)}</span>
-              </li>
-            );
-          })}
+        <ol className="space-y-2" data-testid="plain-steps" hidden={!open}>
+          {plain.map((step) => row(step, "plain-step"))}
         </ol>
-      ) : (
-        <p className="text-sm text-zinc-500">Each step shows here as it happens.</p>
-      )}
-      <button type="button" onClick={() => setDetails((d) => !d)} aria-expanded={details} className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-zinc-800" data-testid="details-toggle">
-        <ChevronDown className={cn("size-3.5 transition-transform", details && "rotate-180")} />
-        {details ? "Hide details" : "Details"}
-      </button>
-      {details ? (
+      ) : null}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        {plain.length > 1 ? (
+          <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="inline-flex min-h-8 items-center gap-1 text-xs font-medium text-zinc-600 hover:text-zinc-900" data-testid="what-happened-toggle">
+            <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
+            {open ? "Show less" : `All ${plain.length} steps`}
+          </button>
+        ) : null}
+        {open || plain.length <= 1 ? (
+          <button type="button" onClick={() => setDetails((d) => !d)} aria-expanded={details} className="inline-flex min-h-8 items-center gap-1 text-xs font-medium text-zinc-500 hover:text-zinc-800" data-testid="details-toggle">
+            <ChevronDown className={cn("size-3.5 transition-transform", details && "rotate-180")} />
+            {details ? "Hide details" : "Details"}
+          </button>
+        ) : null}
+      </div>
+      {details && (open || plain.length <= 1) ? (
         <div className="space-y-2" data-testid="technical-details">
           <p className="text-xs text-zinc-500">The calls behind each step: PayPal&apos;s endpoints with their debug ids, the guard&apos;s decisions, and what each AI call cost.</p>
           <ToolCallTimeline steps={steps} className="max-h-[420px]" />

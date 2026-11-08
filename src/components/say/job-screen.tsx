@@ -135,7 +135,8 @@ export function JobScreen() {
               <Transcript text={job.transcript} />
             </CardBody>
           </Card>
-          <Card className="order-3">
+          {/* On a phone the Send bar is fixed to the bottom while the job is in review, so the last card keeps clear of it. */}
+          <Card className={!sent && job.status === "review" ? "order-3 mb-24 lg:mb-0" : "order-3"}>
             <CardHeader title="What happened" />
             <CardBody>
               <WhatHappened steps={timelineSteps} />
