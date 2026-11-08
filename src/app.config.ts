@@ -46,7 +46,7 @@ export const appConfig = {
      */
     compare: {
       title: "What the others don't do",
-      note: "\u201cWe couldn't find\u201d means the page linked under that product doesn't say it, not that the product can't do it.",
+      note: "\u201cWe couldn't find\u201d means the page we link to for that product doesn't say it, not that the product can't do it.",
       products: [
         { name: "Housecall Pro", source: { label: "Voice invoicing press release, 16 Sep 2025", href: "https://contractingbusiness.com/industry-news/press-release/55316860/housecall-pro-brings-ai-powered-voice-activated-invoicing-to-the-trades" } },
         { name: "Jobber", source: { label: "Jobber AI Voice and Chat (Beta) help, updated 28 Oct 2026", href: "https://help.getjobber.com/en/articles/jobber-ai-voice-and-chat-beta/" } },
@@ -96,7 +96,7 @@ export const appConfig = {
           invoice: "PayPal sandbox invoice #0135",
           lines: "2 of 2 lines right first time: the part $329.00 taxed, labor 2 h at $60.00.",
           caught: [
-            "Tax was said with no rate. Speech heard Iowa as \u201clowa\u201d; it still found Iowa's rates from the state tables, and 7% was picked.",
+            "Tax was said with no rate. Speech spelled Iowa with a lowercase L (\u201clowa\u201d); it still found Iowa's rates from the state tables, and 7% was picked.",
             "The street address came through split by speech and was read back joined, for a check.",
             "The part wasn't named, so it was listed as \u201cDryer part\u201d with a note to check.",
           ],

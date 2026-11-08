@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { hasMicClip, MIC_CLIP } from "./fake-mic";
-import { auditedActions, jobId, kitStatus, paceAiCalls, proposeReminder, readJob, sendAndVerify, settleChecks, totalOnScreen } from "./flow";
+import { auditedActions, expectNoMockWords, jobId, kitStatus, paceAiCalls, proposeReminder, readJob, sendAndVerify, settleChecks, totalOnScreen } from "./flow";
 
 /** Decodes the take with ffmpeg, so a silent or empty recording can't pass. A live recording has no duration header. */
 function measure(file: string): { seconds: number; peakDb: number } {
@@ -69,6 +69,11 @@ test("records with the real microphone path, then reaches a sent invoice", async
   expect(job.source).toBe("mic");
   expect(job.speech?.mocked).toBe(!speechLive);
   expect(job.ai.mocked).toBe(!live);
+  // What the judges saw in round 5: "Heard by Speech mock. Read by AI mock." On a live run nothing says mock.
+  if (live && speechLive) {
+    await expect(page.getByText(/^Heard by .+\. Read by .+\.$/)).toBeVisible();
+    await expectNoMockWords(page);
+  }
   console.log(`Heard: ${job.transcript}`);
   console.log(`Extracted: ${JSON.stringify({ lines: job.lines, taxRateMilli: job.taxRateMilli, dueDate: job.dueDate, flags: job.flags })}`);
   await page.screenshot({ path: `screenshots/mic-confirm-${live ? "live-ai" : "mock-ai"}.png`, fullPage: true });

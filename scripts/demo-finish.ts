@@ -83,11 +83,11 @@ function main() {
   const probe = spawnSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_type,codec_name,width,height,duration:format=duration", "-of", "compact", target], { encoding: "utf8" }).stdout;
   const total = Number(/format\|duration=([\d.]+)/.exec(probe)?.[1] ?? 0);
   console.log(`[demo] wrote ${target}\n${probe.trim()}\n[demo] ${cuts.length} waits cut (${sec(cutBefore(t.endMs, cuts))}s); voice starts at ${sec(voiceAtMs)}s (the record press)`);
-  if (total >= 180) {
-    console.error(`[demo] ${total}s is over Devpost's 3-minute limit.`);
+  if (total >= 150) {
+    console.error(`[demo] ${total}s is over the 2:30 target (Devpost allows 3:00).`);
     process.exit(1);
   }
-  if (total < 95 || total > 125) console.warn(`[demo] ${total.toFixed(1)}s: the target is about 100 to 120 seconds.`);
+  if (total < 90) console.warn(`[demo] ${total.toFixed(1)}s: shorter than expected; check every scene is there.`);
 }
 
 if (process.argv[1]?.endsWith("demo-finish.ts")) main();
