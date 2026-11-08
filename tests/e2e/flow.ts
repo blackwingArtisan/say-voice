@@ -61,7 +61,8 @@ async function pressAll(buttons: Locator) {
   while (await buttons.count()) {
     const before = await buttons.count();
     await buttons.first().click();
-    await expect(buttons).toHaveCount(before - 1);
+    // One press can settle more than one button's note (all the words notes on a row), never none.
+    await expect.poll(() => buttons.count()).toBeLessThan(before);
   }
 }
 
