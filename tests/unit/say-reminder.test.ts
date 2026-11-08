@@ -188,7 +188,8 @@ describe("the reminder tools behind the gate", () => {
     approvals.decide(approvals.list({ runId, state: "pending" })[0].id, "approved", "tester");
     expect((await running).status).toBe("executed");
     expect(remind).toHaveBeenCalledTimes(1);
-    expect(remind.mock.calls[0][1]).toMatchObject({ note, send_to_recipient: true });
+    // Through PayPal's Agent Toolkit: its send_invoice_reminder, which PayPal sends to the customer.
+    expect(remind.mock.calls[0][1]).toMatchObject({ note, subject: expect.stringMatching(/^Reminder: invoice /) });
     expect(requireJob(job.id).reminders).toMatchObject([{ note, runId }]);
     expect(viewJob(requireJob(job.id)).reminderRun).toBeNull();
   });

@@ -56,6 +56,8 @@ export interface PayPalApi {
     send(invoiceId: string, body?: T.InvoiceNotificationRequest): Promise<T.Link>;
     /** Replaces the whole invoice (PayPal has no partial update). Works on a draft and on a sent, unpaid one. */
     update(invoiceId: string, body: T.CreateInvoiceRequest, query?: { send_to_recipient?: boolean; send_to_invoicer?: boolean }): Promise<T.Invoice>;
+    /** Only a draft (or scheduled) invoice can be deleted; a sent one is cancelled instead. */
+    delete(invoiceId: string): Promise<void>;
     remind(invoiceId: string, body?: T.InvoiceNotificationRequest): Promise<void>;
     cancel(invoiceId: string, body?: T.InvoiceNotificationRequest): Promise<void>;
     get(invoiceId: string): Promise<T.Invoice>;

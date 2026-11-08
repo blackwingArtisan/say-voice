@@ -168,7 +168,8 @@ export async function sendAndVerify(page: Page, request: APIRequestContext, tota
 
   expect(await auditedActions(request, "send_job_invoice")).toEqual(expect.arrayContaining(["approval.requested", "approval.approved", "tool.executed"]));
   await expect(page.getByTestId("plain-step").filter({ hasText: "PayPal sent the invoice to the customer" })).toHaveCount(1);
-  await expectPlainWords(page);
+  // On the sandbox, PayPal's Agent Toolkit drafted and sent it: its calls are behind Details.
+  await expectPlainWords(page, sandbox ? /Agent Toolkit · create_invoice[\s\S]*Agent Toolkit · send_invoice/ : /\/v2\/invoicing/);
 
   if (sandbox) {
     // Straight from PayPal, not through the app.

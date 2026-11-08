@@ -8,7 +8,9 @@ import { appConfig } from "@/app.config";
 import { defineTool } from "@/lib/agent/tool";
 import { centsToValue, computeTotals, formatCents, formatQuantity, formatRate } from "@/lib/say/money";
 import { moneyFromMinor, toMinor } from "@/lib/money";
+import { invoiceReplaceBody } from "@/lib/paypal/invoice-body";
 import type { CreateInvoiceRequest } from "@/lib/paypal/types";
+import { toolkitInvoicing } from "@/lib/say/toolkit-invoicing";
 import { MAX_DESCRIPTION, MAX_SITE, MAX_SUMMARY, truncate } from "@/lib/say/wording";
 
 export const SEND_JOB_INVOICE = "send_job_invoice";
@@ -81,11 +83,18 @@ export const sendJobInvoice = defineTool({
   }),
   execute: async (i, ctx) => {
     if (computeTotals(i.lines, i.tax_rate_milli).totalCents !== i.total_cents) throw new Error("The items don't add up to the approved total, so nothing was sent.");
-    const draft = await ctx.paypal.invoicing.create(invoiceRequest(i));
+    const request = invoiceRequest(i);
+    const toolkit = toolkitInvoicing(ctx);
+    // PayPal's Agent Toolkit drafts it. Its create_invoice has no due date, so the draft gets one by update.
+    const id = await toolkit.create(request);
+    const draft = await ctx.paypal.invoicing.update(id, invoiceReplaceBody(await ctx.paypal.invoicing.get(id), { detail: { payment_term: request.detail.payment_term } }));
     const drafted = toMinor(draft.amount.value, "USD");
     // PayPal does its own arithmetic. A customer must never see a number the person didn't approve.
-    if (drafted !== i.total_cents) throw new Error(`PayPal worked this out as ${formatCents(drafted)}, not the ${formatCents(i.total_cents)} you approved. Nothing was sent.`);
-    await ctx.paypal.invoicing.send(draft.id);
-    return { invoice_id: draft.id };
+    if (drafted !== i.total_cents) {
+      const gone = await ctx.paypal.invoicing.delete(id).then(() => true, () => false);
+      throw new Error(`PayPal worked this out as ${formatCents(drafted)}, not the ${formatCents(i.total_cents)} you approved. ${gone ? "The draft was deleted, so nothing was sent." : "Nothing was sent."}`);
+    }
+    await toolkit.send(id);
+    return { invoice_id: id };
   },
 });

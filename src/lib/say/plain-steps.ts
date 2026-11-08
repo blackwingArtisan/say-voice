@@ -36,6 +36,7 @@ const PAYPAL_WORDS: Record<string, [doing: string, done: string]> = {
   "invoicing.list": ["Reading your past PayPal invoices", "Read your past PayPal invoices"],
   "invoicing.remind": ["PayPal is sending the reminder", "PayPal sent the reminder"],
   "invoicing.cancel": ["Cancelling the invoice on PayPal", "Cancelled the invoice on PayPal"],
+  "invoicing.delete": ["Deleting the draft on PayPal", "Deleted the draft on PayPal, so the customer got nothing"],
   "invoicing.generateNextNumber": ["Getting the next invoice number", "Got the next invoice number"],
   "toolkit.create_invoice": ["Making the invoice on PayPal", "PayPal made the invoice (a draft, not sent yet)"],
   "toolkit.send_invoice": ["PayPal is sending the invoice", "PayPal sent the invoice to the customer"],

@@ -35,6 +35,9 @@ test.describe("the reminder agent", () => {
     await expect(page.getByTestId("reminder-sent")).toBeInViewport({ ratio: 1 });
     await expect(page.getByTestId("result-headline")).not.toBeInViewport();
     await page.screenshot({ path: "screenshots/reminder-sent-phone.png", fullPage: true });
+    // PayPal sends it. On the sandbox, through the Agent Toolkit's send_invoice_reminder, shown behind Details.
+    await expect(page.getByTestId("plain-step").filter({ hasText: "PayPal sent the reminder" })).toHaveCount(1);
+    if ((await kitStatus(request)).sandbox) await expectPlainWords(page, /Agent Toolkit · send_invoice_reminder/);
   });
 
   test("code refuses a figure the invoice doesn't have before any card, and the corrected note goes out", async ({ page, request }) => {

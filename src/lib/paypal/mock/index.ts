@@ -85,6 +85,8 @@ interface PayoutRecord {
 interface InvoiceRecord {
   invoice: T.Invoice;
   reminders: { day: string; count: number };
+  /** Dev helper: cents this invoice's arithmetic comes out off by (simulateInvoiceArithmetic). */
+  skewMinor?: number;
 }
 interface DisputeRecord {
   dispute: T.Dispute;
@@ -108,6 +110,8 @@ export interface MockState {
   senderBatchIds: Record<string, string>;
   invoices: Record<string, InvoiceRecord>;
   invoiceSeq: number;
+  /** Dev helper: cents the next drafted invoice comes out off by (simulateInvoiceArithmetic). */
+  invoiceSkewMinor?: number;
   disputes: Record<string, DisputeRecord>;
   setupTokens: Record<string, SetupTokenRecord>;
   paymentTokens: Record<string, T.PaymentToken>;
@@ -219,6 +223,12 @@ export class MockPayPal implements PayPalApi {
   }
   private iso(at = this.now()) {
     return new Date(at).toISOString().replace(/\.\d{3}Z$/, "Z");
+  }
+  /** Dev helper: the next invoice PayPal drafts comes out this many cents off what its items add up to. */
+  simulateInvoiceArithmetic(minor: number) {
+    this.syncFromDisk();
+    this.state.invoiceSkewMinor = minor;
+    this.save();
   }
   /** Dev helper: move the mock clock forward (honor period, expiry, payout progress). */
   advanceTime(ms: number) {
@@ -1061,6 +1071,12 @@ export class MockPayPal implements PayPalApi {
     };
   }
 
+  private skewInvoice(inv: T.Invoice, minor: number) {
+    const cur = inv.amount.currency_code;
+    inv.amount = { ...inv.amount, value: fromMinor(toMinor(inv.amount.value, cur) + minor, cur) };
+    inv.due_amount = moneyFromMinor(toMinor((inv.due_amount ?? inv.amount).value, cur) + minor, cur);
+  }
+
   private invoiceLinks(inv: T.Invoice): T.Link[] {
     const base = `${API}/v2/invoicing/invoices/${inv.id}`;
     const links: T.Link[] = [{ href: base, rel: "self", method: "GET" }];
@@ -1130,8 +1146,11 @@ export class MockPayPal implements PayPalApi {
           ...this.computeInvoice(body),
           links: [],
         };
+        const skewMinor = this.state.invoiceSkewMinor;
+        this.state.invoiceSkewMinor = undefined;
+        if (skewMinor) this.skewInvoice(invoice, skewMinor);
         invoice.links = this.invoiceLinks(invoice);
-        this.state.invoices[id] = { invoice, reminders: { day: "", count: 0 } };
+        this.state.invoices[id] = { invoice, reminders: { day: "", count: 0 }, ...(skewMinor ? { skewMinor } : {}) };
         this.emit("INVOICING.INVOICE.CREATED", { invoice }, `An invoice ${number} was created`);
         return invoice;
       }, 201),
@@ -1172,6 +1191,7 @@ export class MockPayPal implements PayPalApi {
           ...(inv.payments ? { payments: inv.payments } : {}),
           links: [],
         };
+        if (rec.skewMinor) this.skewInvoice(next, rec.skewMinor);
         next.links = this.invoiceLinks(next);
         rec.invoice = next;
         return next;
@@ -1203,6 +1223,15 @@ export class MockPayPal implements PayPalApi {
         inv.status = "CANCELLED";
         inv.links = this.invoiceLinks(inv);
         this.emit("INVOICING.INVOICE.CANCELLED", { invoice: inv }, `Invoice ${inv.detail.invoice_number} cancelled`);
+        return undefined;
+      }, 204),
+
+    delete: (id) =>
+      this.io("invoicing.delete", undefined, (ctx) => {
+        ctx.status = 204;
+        const inv = this.getInvoiceRec(id).invoice;
+        if (!["DRAFT", "SCHEDULED"].includes(inv.status)) throw unprocessable("INVALID_INVOICE_STATUS", `A ${inv.status} invoice cannot be deleted; cancel it instead.`, "invoicing/v2");
+        delete this.state.invoices[id];
         return undefined;
       }, 204),
 

@@ -91,14 +91,33 @@ describe("sending through the approval gate", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it("refuses to send when PayPal's total differs from the approved one", async () => {
+  it("refuses to send when PayPal's total differs from the approved one, and deletes the draft", async () => {
     const send = vi.spyOn(paypal.invoicing, "send");
-    const create = paypal.invoicing.create.bind(paypal.invoicing);
-    vi.spyOn(paypal.invoicing, "create").mockImplementation(async (body) => ({ ...(await create(body)), amount: { currency_code: "USD", value: "110.01" } }));
+    const remove = vi.spyOn(paypal.invoicing, "delete");
+    paypal.simulateInvoiceArithmetic(1);
     decideNext("approved");
     const out = await guard.run(sendJobInvoice, job, ctx);
-    expect(out.status).toBe("failed");
+    expect(out).toMatchObject({ status: "failed", error: { message: expect.stringContaining("PayPal worked this out as $110.01, not the $110.00 you approved. The draft was deleted") } });
     expect(send).not.toHaveBeenCalled();
+    expect(remove).toHaveBeenCalledTimes(1);
+    await expect(paypal.invoicing.get(remove.mock.calls[0][0])).rejects.toMatchObject({ status: 404 });
+    expect((await paypal.invoicing.list({ page: 1, page_size: 50 })).items).toHaveLength(0);
+  });
+
+  it("drafts and sends through PayPal's Agent Toolkit, with the due date and the trade's name on it", async () => {
+    const create = vi.spyOn(paypal.invoicing, "create");
+    const update = vi.spyOn(paypal.invoicing, "update");
+    const send = vi.spyOn(paypal.invoicing, "send");
+    decideNext("approved");
+    const out = await guard.run(sendJobInvoice, job, ctx);
+    expect(out.status).toBe("executed");
+    // The toolkit's create_invoice builds the draft from its flat fields: no payment term in them.
+    expect(create.mock.calls[0][0].detail.payment_term).toBeUndefined();
+    expect(create.mock.calls[0][0].invoicer?.business_name).toBe(appConfig.tradeName);
+    expect(update.mock.calls[0][1].detail.payment_term).toEqual({ term_type: "DUE_ON_DATE_SPECIFIED", due_date: "2026-11-15" });
+    expect(send).toHaveBeenCalledTimes(1);
+    const sent = await paypal.invoicing.get(send.mock.calls[0][0]);
+    expect(sent).toMatchObject({ status: "SENT", amount: { value: "110.00" }, detail: { payment_term: { due_date: "2026-11-15" } } });
   });
 
   it("blocks a customer outside the allowed test addresses", async () => {

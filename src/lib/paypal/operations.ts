@@ -36,6 +36,7 @@ export const OPERATIONS = {
   "invoicing.update": { method: "PUT", path: "/v2/invoicing/invoices/{id}", label: "Update invoice", money: true },
   "invoicing.send": { method: "POST", path: "/v2/invoicing/invoices/{id}/send", label: "Send invoice", money: true },
   "invoicing.remind": { method: "POST", path: "/v2/invoicing/invoices/{id}/remind", label: "Send reminder" },
+  "invoicing.delete": { method: "DELETE", path: "/v2/invoicing/invoices/{id}", label: "Delete draft invoice" },
   "invoicing.cancel": { method: "POST", path: "/v2/invoicing/invoices/{id}/cancel", label: "Cancel invoice" },
   "invoicing.get": { method: "GET", path: "/v2/invoicing/invoices/{id}", label: "Get invoice" },
   "invoicing.list": { method: "GET", path: "/v2/invoicing/invoices", label: "List invoices" },
