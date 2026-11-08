@@ -568,6 +568,33 @@ test("a first visit opens on a finished sample job: sent, paid and labelled Samp
   expect(entries.length).toBeGreaterThan(0);
 });
 
+test("activity reads job by job: each job with its amount and status, its steps under it, and the ledger and webhooks behind Details", async ({ page, request }) => {
+  const { live } = await kitStatus(request);
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
+  const done = await sentSample(page, request);
+  const invoice = done.invoice!;
+
+  await page.goto("/activity");
+  const group = page.locator(`[data-testid="activity-job"][data-job="${done.id}"]`);
+  await expect(group).toBeVisible();
+  const head = group.getByTestId("activity-job-head");
+  await expect(head).toContainText(done.customer.name);
+  await expect(head).toContainText(`Invoice ${invoice.number}`);
+  await expect(group.getByTestId("activity-job-amount")).toHaveText(money(invoice.totalCents));
+  await expect(group.getByTestId("activity-job-status")).toContainText(/Sent|Paid|Unpaid/);
+  // The job's own steps, the approval among them, sit under it.
+  await expect(group.getByTestId("activity-row").first()).toBeVisible();
+  await expect(group.getByTestId("activity-row").filter({ hasText: /approved/i }).first()).toBeVisible();
+  await page.screenshot({ path: "screenshots/activity-by-job.png", fullPage: true });
+  await expect(head).toHaveAttribute("href", `/jobs/${done.id}`);
+
+  // The ledger and the webhooks are still one tap away.
+  await page.getByTestId("details-toggle").click();
+  await expect(page.getByTestId("technical-details")).toContainText("Audit log");
+  await expect(page.getByTestId("ledger")).toContainText(invoice.id, { timeout: 15_000 });
+  await expect(page.getByTestId("technical-details")).toContainText("Webhooks");
+});
+
 test("your business: the trade name you set is the one PayPal shows, and a customer you add is there to pick", async ({ page, request }) => {
   const { live, sandbox } = await kitStatus(request);
   test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
