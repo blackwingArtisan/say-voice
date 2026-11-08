@@ -28,7 +28,8 @@ export function ModeBadges({ className, vertical }: { className?: string; vertic
         {speech.mode === "live" ? speech.model : "Speech mock"}
       </span>
       {ai.mode === "live" ? (
-        <span className="inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1 text-zinc-600 ring-1 ring-inset ring-zinc-200" title="Today's AI spend vs. AI_DAILY_CAP_USD">
+        <span className="inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1 text-zinc-600 ring-1 ring-inset ring-zinc-200" title="What the AI has cost today, against the most it may spend in a day" data-testid="ai-spend">
+          <span className="font-medium text-zinc-500">AI today</span>
           <span className="h-1.5 w-12 overflow-hidden rounded-full bg-zinc-200">
             <span className="block h-full rounded-full bg-violet-500" style={{ width: `${pct}%` }} />
           </span>

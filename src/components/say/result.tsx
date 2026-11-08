@@ -13,8 +13,8 @@ function PaidBanner({ invoice, customer }: { invoice: SentInvoice; customer: str
   return (
     <div className="rounded-xl bg-emerald-50 px-4 py-3 text-emerald-900" data-testid="paid-banner">
       <p className="text-lg font-semibold">{byHand ? "Marked as paid" : `Paid: ${formatCents(invoice.paidCents ?? invoice.totalCents)} from ${customer}`}</p>
-      <p className="mt-0.5 text-sm" data-testid="paid-source">
-        {byHand ? "Someone recorded this by hand. No money came through PayPal." : invoice.paidEventId ? `PayPal's INVOICING.INVOICE.PAID event said so (${invoice.paidEventId}), and a fresh read from PayPal agrees.` : "Read straight from PayPal: the invoice is PAID."}
+      <p className="mt-0.5 text-sm" data-testid="paid-source" title={invoice.paidEventId ? `PayPal event ${invoice.paidEventId}` : undefined}>
+        {byHand ? "Someone recorded this by hand. No money came through PayPal." : invoice.paidEventId ? "PayPal told the app the moment it was paid, and a fresh read from PayPal agrees." : "Read straight from PayPal: the invoice is paid."}
       </p>
       {invoice.paymentId ? (
         <p className="mt-1 break-all text-xs">

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { CircleAlert } from "lucide-react";
 import { ApprovalPrompt } from "@/components/agent/approval-prompt";
-import { ToolCallTimeline } from "@/components/agent/tool-call-timeline";
 import { useKit } from "@/components/kit/kit-provider";
 import { useTimeline } from "@/components/kit/use-timeline";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -12,8 +11,9 @@ import { useToast } from "@/components/toast";
 import { Card, CardBody, CardHeader, EmptyState, SkeletonCard } from "@/components/ui";
 import { isPaid, type JobView } from "@/lib/say/types";
 import { checkedJob, Confirm, draftFrom, Transcript, type Draft } from "./confirm";
-import { ReminderCard } from "./reminder";
+import { ReminderCard, type OwnerLineAsk } from "./reminder";
 import { Result } from "./result";
+import { WhatHappened } from "./what-happened";
 
 function sourceLine(job: JobView): string {
   const reader = job.ai.mocked ? "AI mock" : (job.ai.model ?? "Claude");
@@ -96,10 +96,10 @@ export function JobScreen() {
     }
   }
 
-  async function askForReminder(ask: string) {
+  async function askForReminder(ask: string, ownerLine?: OwnerLineAsk) {
     setBusy(true);
     try {
-      setJob(await kitFetch<JobView>(`/api/jobs/${id}/remind`, { json: ask.trim() ? { ask } : {} }));
+      setJob(await kitFetch<JobView>(`/api/jobs/${id}/remind`, { json: { ...(ask.trim() ? { ask } : {}), ...(ownerLine ? { ownerLine } : {}) } }));
     } catch (e) {
       toast({ title: "Could not draft a reminder", description: (e as Error).message, variant: "error", durationMs: 8000 });
     } finally {
@@ -133,7 +133,7 @@ export function JobScreen() {
           <Card className="order-3">
             <CardHeader title="What happened" />
             <CardBody>
-              <ToolCallTimeline steps={timelineSteps} className="max-h-[360px]" />
+              <WhatHappened steps={timelineSteps} />
             </CardBody>
           </Card>
         </div>
