@@ -33,8 +33,10 @@ export async function payAsGuest(browser: Browser, payerUrl: string) {
   // The switch can sit outside the checkout window's viewport, where even a forced click is refused, so it's clicked in the page.
   if ((await createAccount.count()) && (await createAccount.isChecked())) await createAccount.evaluate((el: HTMLInputElement) => el.click());
   if (await createAccount.count()) await expect(createAccount).not.toBeChecked();
-  await checkout.getByRole("button", { name: "Pay now as guest" }).click();
+  // PayPal has labelled this button both "Pay now as guest" and, with the switch off, "Pay Now".
+  await checkout.getByRole("button", { name: /^pay now( as guest)?$/i }).click();
 
-  await expect(page.getByText("Payment successful")).toBeVisible({ timeout: 60_000 });
+  // The invoice page then says "Payment successful", or now redraws as the paid invoice.
+  await expect(page.getByText(/^(Payment successful|Total paid)$/).first()).toBeVisible({ timeout: 60_000 });
   await context.close();
 }
