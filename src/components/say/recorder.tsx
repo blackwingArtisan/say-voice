@@ -58,7 +58,7 @@ export function Recorder({ disabled, onRecorded, onError }: { disabled?: boolean
 
   async function start() {
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      onError("This browser can't record here. Try the sample job, or open the app over HTTPS.");
+      onError("This browser can't record here. Try Chrome or Safari, or the sample job below.");
       return;
     }
     setState("starting");
@@ -89,8 +89,16 @@ export function Recorder({ disabled, onRecorded, onError }: { disabled?: boolean
       setState("recording");
     } catch (e) {
       setState("idle");
-      const denied = e instanceof DOMException && e.name === "NotAllowedError";
-      onError(denied ? "The microphone is blocked. Allow it in the browser, or try the sample job." : `The microphone didn't start: ${(e as Error).message}`);
+      const name = e instanceof DOMException ? e.name : "";
+      onError(
+        name === "NotAllowedError" || name === "SecurityError"
+          ? "The microphone is blocked. Allow it in the browser's address bar, or try the sample job below."
+          : name === "NotFoundError" || name === "OverconstrainedError"
+            ? "No microphone was found. Plug one in or use a phone, or try the sample job below."
+            : name === "NotReadableError"
+              ? "Another app is using the microphone. Close it and press record again, or try the sample job below."
+              : "The microphone didn't start in this browser. Try Chrome or Safari, or the sample job below.",
+      );
     }
   }
 

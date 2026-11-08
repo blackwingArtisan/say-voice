@@ -10,7 +10,7 @@ import { getMockPayPal } from "@/lib/paypal";
 import { MockPayPal } from "@/lib/paypal/mock";
 import { requireJob, saveJob, viewJob } from "@/lib/say/jobs";
 import { syncInvoice } from "@/lib/say/paid";
-import { MAX_REMINDERS_A_DAY, noteProblem, whyNoReminder } from "@/lib/say/reminder-rules";
+import { figuresWith, MAX_REMINDERS_A_DAY, markupProblem, noteProblem, ownerLineProblem, plainAsk, whyNoReminder } from "@/lib/say/reminder-rules";
 import type { Job, SentInvoice } from "@/lib/say/types";
 
 const invoiceAt = (status: string): SentInvoice => ({ id: "INV2", number: "0001", status, totalCents: 11_000, dueCents: 11_000, readAt: "2026-11-01T00:00:00.000Z" });
@@ -63,6 +63,60 @@ describe("what a reminder may say", () => {
   it("refuses links", () => {
     expect(noteProblem("Pay here: https://pay-me-now.example", invoice)).toContain("link");
     expect(noteProblem("Pay at pay-me-now.com please", invoice)).toContain("link");
+  });
+});
+
+describe("what the customer reads is plain words", () => {
+  const invoice = { dueCents: 11_000, totalCents: 15_000 };
+
+  it("refuses HTML, markdown and emoji the AI writes", () => {
+    expect(noteProblem("Hi Derek, <b>$110.00</b> is due.", invoice)).toContain("HTML");
+    expect(noteProblem("Hi Derek, &nbsp;$110.00 is due.", invoice)).toContain("HTML");
+    expect(noteProblem("Hi Derek, **$110.00** is due.", invoice)).toContain("formatting");
+    expect(noteProblem("# Reminder\nHi Derek, $110.00 is due.", invoice)).toContain("formatting");
+    expect(noteProblem("Hi Derek:\n- $110.00 due", invoice)).toContain("formatting");
+    expect(noteProblem("Hi Derek, see [PayPal](paypal) for $110.00.", invoice)).toContain("formatting");
+    expect(noteProblem("Hi Derek, $110.00 is due 😀", invoice)).toContain("emoji");
+    expect(noteProblem("Thanks! 👍🏽", invoice)).toContain("emoji");
+    expect(markupProblem("Hi Derek, invoice 0042 for $110.00 is still open. Thanks!")).toBeNull();
+  });
+
+  it("refuses a late fee or a deposit the person didn't add, even with no figure", () => {
+    expect(noteProblem("Hi Derek, $110.00 is due. There is also a late fee.", invoice)).toContain("late fee you didn't set");
+    expect(noteProblem("Hi Derek, a $25 late fee applies.", invoice)).toContain("late fee you didn't set");
+    expect(noteProblem("Hi Derek, interest will be charged.", invoice)).toContain("late fee");
+    expect(noteProblem("Hi Derek, a penalty applies after Friday.", invoice)).toContain("late fee");
+    expect(noteProblem("Hi Derek, thanks for the deposit.", invoice)).toContain("deposit");
+  });
+
+  it("lets the person's own late fee through, with the new amount due", () => {
+    const fee = figuresWith(invoice, { kind: "late_fee", cents: 2_500 });
+    expect(fee).toMatchObject({ dueCents: 13_500, totalCents: 17_500 });
+    expect(noteProblem("Hi Derek, invoice 0042 for $135.00 is still open. That includes the $25.00 late fee.", fee)).toBeNull();
+    expect(noteProblem("Hi Derek, $110.00 is still open, plus a late fee.", fee)).toContain("$110.00"); // the old amount is wrong once the fee is on
+    expect(noteProblem("Hi Derek, $135.00 is open. That includes the $30.00 late fee.", fee)).toContain("$30.00");
+    expect(noteProblem("Hi Derek, thanks for the deposit.", fee)).toContain("deposit");
+  });
+
+  it("lets the person's own deposit through, with what's left", () => {
+    const deposit = figuresWith(invoice, { kind: "deposit", cents: 4_000 });
+    expect(deposit).toMatchObject({ dueCents: 7_000, totalCents: 15_000 });
+    expect(noteProblem("Hi Derek, thanks for the $40.00 deposit; $70.00 is left on invoice 0042.", deposit)).toBeNull();
+    expect(noteProblem("Hi Derek, a late fee applies.", deposit)).toContain("late fee");
+  });
+
+  it("checks the person's own line too", () => {
+    expect(ownerLineProblem({ kind: "late_fee", cents: 0 }, invoice)).toContain("above $0");
+    expect(ownerLineProblem({ kind: "late_fee", cents: 20_000 }, invoice)).toContain("typo");
+    expect(ownerLineProblem({ kind: "deposit", cents: 11_000 }, invoice)).toContain("less than");
+    expect(ownerLineProblem({ kind: "deposit", cents: 4_000 }, invoice)).toBeNull();
+    expect(ownerLineProblem({ kind: "late_fee", cents: 2_500 }, invoice)).toBeNull();
+  });
+
+  it("takes the markup out of what the person typed, so it can go in word for word", () => {
+    expect(plainAsk("Add a $25 late fee. <b>bold</b> **x** 😀")).toBe("Add a $25 late fee. bold x");
+    expect(plainAsk("## Thanks [for](http://x) the work")).toBe("Thanks for the work");
+    expect(plainAsk("   ")).toBe("");
   });
 });
 
@@ -184,6 +238,63 @@ describe("the reminder tools behind the gate", () => {
     const outcome = await guard.run(sendPaymentReminder, { job_id: job.id, note }, ctx());
     expect(outcome.status).toBe("failed");
     expect(remind).not.toHaveBeenCalled();
+  });
+
+  it("puts the person's late fee on PayPal's invoice before the reminder, and checks PayPal's new total", async () => {
+    saveJob({ ...requireJob(job.id), lines: [{ key: "l", name: "Labor", quantityMilli: 1000, unitCents: 11_000, taxed: false }], ownerLine: { kind: "late_fee", cents: 2_500 } });
+    const read = await readJobInvoice.execute({ job_id: job.id }, { runId, actor: "a", paypal, idempotencyKey: "", requestId: "" });
+    expect(read).toMatchObject({ amount_due: "$135.00", late_fee: "$25.00" });
+    const asked = new Promise<{ summary: string }>((resolve) => {
+      const off = approvals.onChange((a) => {
+        if (a.state === "pending" && a.runId === runId) {
+          off();
+          resolve(a as unknown as { summary: string });
+        }
+      });
+    });
+    const feeNote = "Hi Derek, invoice 0001 for $135.00 is still open. That includes the $25.00 late fee.";
+    const running = guard.run(sendPaymentReminder, { job_id: job.id, note: feeNote }, ctx());
+    const card = await asked;
+    expect(JSON.stringify(card)).toContain("Add a $25.00 late fee");
+    expect((await paypal.invoicing.get(job.invoice!.id)).amount.value).toBe("110.00"); // nothing changes until the person says yes
+    approvals.decide(approvals.list({ runId, state: "pending" })[0].id, "approved", "tester");
+    expect((await running).status).toBe("executed");
+    const onPayPal = await paypal.invoicing.get(job.invoice!.id);
+    expect(onPayPal.amount.value).toBe("135.00");
+    expect(onPayPal.items.map((i) => i.name)).toEqual(["Labor", "Late fee"]);
+    expect(remind).toHaveBeenCalledTimes(1);
+    const after = requireJob(job.id);
+    expect(after.invoice).toMatchObject({ totalCents: 13_500, dueCents: 13_500 });
+    expect(after.lines.map((l) => l.name)).toEqual(["Labor", "Late fee"]);
+    expect(after.ownerLine).toBeUndefined();
+    expect(after.ownerLinesApplied).toMatchObject([{ kind: "late_fee", cents: 2_500 }]);
+  });
+
+  it("records the person's deposit on PayPal's invoice before the reminder", async () => {
+    saveJob({ ...requireJob(job.id), ownerLine: { kind: "deposit", cents: 4_000 } });
+    decideNext("approved");
+    const outcome = await guard.run(sendPaymentReminder, { job_id: job.id, note: "Hi Derek, thanks for the $40.00 deposit. $70.00 is left on invoice 0001." }, ctx());
+    expect(outcome.status).toBe("executed");
+    const onPayPal = await paypal.invoicing.get(job.invoice!.id);
+    expect(onPayPal).toMatchObject({ status: "PARTIALLY_PAID", due_amount: { value: "70.00" } });
+    expect(requireJob(job.id).invoice).toMatchObject({ totalCents: 11_000, dueCents: 7_000 });
+  });
+
+  it("stops the reminder if PayPal's new total isn't the one code worked out", async () => {
+    saveJob({ ...requireJob(job.id), ownerLine: { kind: "late_fee", cents: 2_500 } });
+    const real = paypal.invoicing.update;
+    vi.spyOn(paypal.invoicing, "update").mockImplementation((id, body, q) => real(id, { ...body, items: [...body.items, { name: "Extra", quantity: "1", unit_amount: { currency_code: "USD", value: "1.00" } }] }, q));
+    decideNext("approved");
+    const outcome = await guard.run(sendPaymentReminder, { job_id: job.id, note: "Hi Derek, $135.00 is open, with the $25.00 late fee." }, ctx());
+    expect(outcome.status).toBe("failed");
+    expect(remind).not.toHaveBeenCalled();
+  });
+
+  it("never shows the person a note with a fee they didn't add", async () => {
+    const outcome = await guard.run(sendPaymentReminder, { job_id: job.id, note: "Hi Derek, $110.00 is open. A late fee applies after Friday." }, ctx());
+    expect(outcome.status).toBe("failed");
+    expect(approvals.list({ runId })).toEqual([]);
+    expect(requireJob(job.id).refusedNotes?.at(-1)?.reason).toContain("late fee you didn't set");
   });
 
   it("reads what PayPal says is owed", async () => {
