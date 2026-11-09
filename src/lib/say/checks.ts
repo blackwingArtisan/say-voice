@@ -4,15 +4,15 @@
  * number changes or the person says it's right. Nothing here reads a confidence score: recognizer
  * confidence told us nothing in testing.
  */
-import { lineCents, formatCents } from "./money";
+import { lineCents, formatCents, formatQuantity } from "./money";
 import { isPriceDoubt } from "./flags";
-import { farFromUsual, findEntry, itemKey, MIN_SAMPLES, provenance, soundAlike, usualCents, type PriceEntry } from "./price-book";
+import { farFromUsual, farQuantity, findEntry, itemKey, MIN_SAMPLES, provenance, soundAlike, usualCents, type PriceEntry } from "./price-book";
 import { findMissingAmounts, findNumbers, heardFor } from "./spoken";
 import { rateChoices, rateSpoken, stateFor, taxSaid, type RateChoice } from "./tax";
 import type { AiWording, JobDetails, JobFlag, JobLine } from "./types";
 import { inventedWords, isGenericName, wordsKey } from "./wording";
 
-export type CheckKind = "far" | "alike" | "flag" | "unheard" | "missing" | "vague" | "words" | "tax";
+export type CheckKind = "far" | "alike" | "qty" | "flag" | "unheard" | "missing" | "vague" | "words" | "tax";
 
 /** Checks only an edit can close: a generic line needs words, not a tap. */
 const MUST_FIX: CheckKind[] = ["vague"];
@@ -28,6 +28,8 @@ export interface Check {
   usualCents?: number;
   /** Far-off prices, and day-one sound-alikes: a different price that sounds like the one heard. */
   alikeCents?: number;
+  /** A far-off quantity: the count every one of the trade's PayPal invoices had for this item. */
+  usualQuantityMilli?: number;
   excerpt?: string;
   /** Unsaid words: which text they're in. */
   field?: "summary" | "site" | "description";
@@ -117,6 +119,20 @@ function alikeCheck(line: JobLine, book: PriceEntry[], transcript: string): Chec
   };
 }
 
+/** A count far from the one the trade's PayPal invoices always had for this item: "ten heating element" when it's always been one. */
+function quantityCheck(line: JobLine, book: PriceEntry[]): Check | null {
+  const far = farQuantity(line, book);
+  if (!far) return null;
+  const invoices = far.invoices === 1 ? "1 PayPal invoice" : `${far.invoices} PayPal invoices`;
+  return {
+    id: `qty:${line.key}:${line.quantityMilli}`,
+    kind: "qty",
+    lineKey: line.key,
+    text: `Quantity: usually ${formatQuantity(far.usualMilli)}, on all ${invoices} (last ${formatCents(far.lastCents)} each). This says ${formatQuantity(line.quantityMilli)}.`,
+    usualQuantityMilli: far.usualMilli,
+  };
+}
+
 const unchanged = (row: JobLine, before: JobLine) => row.unitCents === before.unitCents && row.quantityMilli === before.quantityMilli;
 
 /** Tax was said but no rate: hold the send until a rate is tapped or typed, or "No tax". */
@@ -159,6 +175,8 @@ export function findChecks({ transcript, heardLines, flags, lines, taxRateMilli,
   for (const line of lines) {
     const far = farCheck(line, book, transcript) ?? alikeCheck(line, book, transcript);
     if (far) checks.push(far);
+    const count = quantityCheck(line, book);
+    if (count) checks.push(count);
   }
   flags.forEach((flag, i) => {
     const row = lines.find((line) => line.key === flag.lineKey);

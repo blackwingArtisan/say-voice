@@ -198,3 +198,49 @@ describe("day one: no price history, and a price that sounds like another", () =
     expect(day1("Sump pump, fifteen dollars.", item("Sump pump", 5000)).filter((check) => check.kind === "alike")).toEqual([]);
   });
 });
+
+describe("a misheard quantity, held against the trade's PayPal invoices", () => {
+  // Six past PayPal invoices, each with one heating element at about $50: the seeded history's shape.
+  const paypalBook = (quantities: number[] | undefined, invoices = 6): PriceEntry[] => [
+    ...book.filter((entry) => entry.id !== "heating element"),
+    { id: "heating element", name: "Heating element", samples: [5000, 5000, 5000, 5200, 5000, 5000].slice(0, invoices), source: "learned", updatedAt: "now", paypal: { invoices, lastCents: 5000, lastAt: "2026-11-03", ...(quantities ? { quantities } : {}) } },
+  ];
+  const ones = [1000, 1000, 1000, 1000, 1000, 1000];
+  const withCount = (quantityMilli: number) => sample.lines.map((line) => (line.key === element.key ? { ...line, unitCents: 5000, quantityMilli } : line));
+  const transcript = "Derek Evans. Three quarters of an hour at eighty an hour, ten heating element at fifty dollars. No tax.";
+  const run = (quantityMilli: number, quantities: number[] | null = ones, invoices = 6) => findChecks({ ...base, transcript, flags: [], heardLines: withCount(quantityMilli), lines: withCount(quantityMilli), book: paypalBook(quantities ?? undefined, invoices) });
+
+  it("flags ten when every PayPal invoice had one, with where that comes from", () => {
+    const checks = run(10_000);
+    expect(checks.map((check) => check.kind)).toEqual(["qty"]);
+    expect(checks[0].text).toBe("Quantity: usually 1, on all 6 PayPal invoices (last $50.00 each). This says 10.");
+    expect(checks[0].usualQuantityMilli).toBe(1000);
+    expect(checks[0].lineKey).toBe(element.key);
+  });
+
+  it("is clear once the count is put back, or when the person keeps it", () => {
+    expect(run(1000)).toEqual([]);
+    const checks = run(10_000);
+    expect(openChecks(checks, checks.map((check) => check.id))).toEqual([]);
+  });
+
+  it("leaves a plausible count alone: two of an item usually bought one at a time", () => {
+    expect(run(2000)).toEqual([]);
+  });
+
+  it("says nothing when the PayPal invoices didn't all have the same count", () => {
+    expect(run(10_000, [1000, 1000, 2000, 1000, 1000, 1000])).toEqual([]);
+  });
+
+  it("says nothing with too few invoices, or a history read before quantities were kept", () => {
+    expect(run(10_000, [1000], 1).filter((check) => check.kind === "qty")).toEqual([]); // one invoice: the price's own day-one check may still speak
+    expect(run(10_000, null)).toEqual([]);
+    expect(findChecks({ ...base, transcript, flags: [], heardLines: withCount(10_000), lines: withCount(10_000) })).toEqual([]); // demo prices only
+  });
+
+  it("never checks labor hours: they have no PayPal history here", () => {
+    const labor = sample.lines[0];
+    const lines = sample.lines.map((line) => (line.key === labor.key ? { ...line, quantityMilli: 10_000 } : line));
+    expect(findChecks({ ...base, transcript, flags: [], heardLines: lines, lines, book: paypalBook(ones) }).filter((check) => check.kind === "qty")).toEqual([]);
+  });
+});

@@ -135,6 +135,8 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
   const far = checks.find((check) => check.kind === "far");
   // Day one, no history: both readings of a sound-alike price, and no usual price.
   const alike = checks.find((check) => check.kind === "alike");
+  // A count far from the one the trade's PayPal invoices always had.
+  const count = checks.find((check) => check.kind === "qty");
   const learnedNote = parsedCents === null ? null : learnedDifference({ name: line.name, unitCents: parsedCents }, book);
   const settleable = checks.some((check) => canSettle(check) && check.kind !== "words");
   const applyPrice = (cents: number) => onChange({ price: (cents / 100).toFixed(2) });
@@ -174,6 +176,11 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
             <strong className="font-semibold">{label}: </strong>
             {check.text}
           </RowFlag>
+        ) : check.kind === "qty" ? (
+          <RowFlag key={check.id} testId="line-usual-qty" tone="red">
+            <strong className="font-semibold">{label}: </strong>
+            {check.text}
+          </RowFlag>
         ) : check.kind === "alike" ? (
           <RowFlag key={check.id} testId="line-alike" tone="red">
             <strong className="font-semibold">{label}: </strong>
@@ -206,13 +213,18 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
               Use {formatCents(far.usualCents)}
             </Button>
           ) : null}
+          {count?.usualQuantityMilli ? (
+            <Button className={cn(TAP, "flex-1")} onClick={() => onChange({ quantity: formatQuantity(count.usualQuantityMilli!) })} data-testid="use-usual-qty">
+              Make it {formatQuantity(count.usualQuantityMilli)}
+            </Button>
+          ) : null}
           {(far ?? alike)?.alikeCents ? (
             <Button variant="secondary" className={cn(TAP, "flex-1")} onClick={() => applyPrice((far ?? alike)!.alikeCents!)} data-testid="use-alike">
               Use {formatCents((far ?? alike)!.alikeCents!)}
             </Button>
           ) : null}
           <Button variant="secondary" className={cn(TAP, "flex-1")} icon={<CheckIcon className="size-4" />} onClick={onSettle} data-testid="keep-line">
-            {parsedCents ? `Keep ${formatCents(parsedCents)}` : "Looks right"}
+            {count && !far && !alike ? `Keep ${line.quantity}` : parsedCents ? `Keep ${formatCents(parsedCents)}` : "Looks right"}
           </Button>
         </div>
       ) : null}
@@ -271,7 +283,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
   const jobChecks = checks.filter((check) => !check.lineKey);
   const openJobChecks = open.filter((check) => !check.lineKey);
   const catches = open.flatMap((check) => {
-    const i = check.kind === "far" || check.kind === "alike" ? draft.lines.findIndex((line) => line.key === check.lineKey) : -1;
+    const i = check.kind === "far" || check.kind === "alike" || check.kind === "qty" ? draft.lines.findIndex((line) => line.key === check.lineKey) : -1;
     return i < 0 ? [] : [{ check, line: draft.lines[i], number: i + 1 }];
   });
 
@@ -377,13 +389,17 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
                       <Button className={cn(TAP, "flex-1")} onClick={() => updateLine(line.key, { price: (check.usualCents! / 100).toFixed(2) })} data-testid="catch-use-usual">
                         Use {formatCents(check.usualCents)}
                       </Button>
+                    ) : check.kind === "qty" && check.usualQuantityMilli ? (
+                      <Button className={cn(TAP, "flex-1")} onClick={() => updateLine(line.key, { quantity: formatQuantity(check.usualQuantityMilli!) })} data-testid="catch-use-usual-qty">
+                        Make it {formatQuantity(check.usualQuantityMilli)}
+                      </Button>
                     ) : check.kind === "alike" && check.alikeCents ? (
                       <Button className={cn(TAP, "flex-1")} onClick={() => updateLine(line.key, { price: (check.alikeCents! / 100).toFixed(2) })} data-testid="catch-use-alike">
                         Use {formatCents(check.alikeCents)}
                       </Button>
                     ) : null}
                     <Button variant="secondary" className={cn(TAP, "flex-1")} icon={<CheckIcon className="size-4" />} onClick={() => settle(open.filter((c) => c.lineKey === line.key && canSettle(c)).map((c) => c.id))} data-testid="catch-keep">
-                      {cents !== null ? `Keep ${formatCents(cents)}` : "Looks right"}
+                      {check.kind === "qty" ? `Keep ${line.quantity}` : cents !== null ? `Keep ${formatCents(cents)}` : "Looks right"}
                     </Button>
                   </div>
                 )}
@@ -478,7 +494,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
           <Button variant="secondary" className={TAP} icon={<Plus className="size-4" />} disabled={sending} data-testid="add-line" onClick={() => addLine()}>
             Add an item
           </Button>
-          <p className="text-sm text-zinc-500" data-testid="quantity-note">Read the quantities yourself. The price book only knows prices, so a misheard quantity shows up here and nowhere else.</p>
+          <p className="text-sm text-zinc-500" data-testid="quantity-note">Read the quantities yourself. The price book checks a count only for items your PayPal invoices always had the same number of.</p>
         </CardBody>
       </Card>
 
