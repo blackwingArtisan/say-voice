@@ -916,10 +916,16 @@ test("on a phone the catch sits under your words without scrolling, What happene
   await expect(page.getByTestId("plain-step").first()).toBeVisible();
 });
 
-test("record first: the record button leads /jobs at phone and desktop width, Your business folds below it, and the phone pins the total and checks", async ({ page, request }) => {
+test("record first: after the first visit's Your business step, the record button leads /jobs at phone and desktop width, Your business folds below it, and the phone pins the total and checks", async ({ page, request }) => {
   const { live } = await kitStatus(request);
   test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
   const top = async (testId: string) => (await page.getByTestId(testId).first().boundingBox())!.y;
+  // The first visit opens on the step; once it's done or skipped, the recorder leads.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openNewJob(page);
+  await expect(page.getByTestId("first-run")).toBeInViewport();
+  await page.getByTestId("first-run-skip").click();
+  await expect(page.getByTestId("first-run")).toHaveCount(0);
   for (const [width, height] of [[390, 844], [1440, 1000]]) {
     await page.setViewportSize({ width, height });
     await openNewJob(page);

@@ -13,7 +13,7 @@ import { HttpError } from "@/lib/http";
 import { toMinor } from "@/lib/money";
 import { getPayPal } from "@/lib/paypal";
 import type { PayPalApi } from "@/lib/paypal/api";
-import { tradeNameFor } from "./business";
+import { businessEmailFor, tradeNameFor } from "./business";
 import { findChecks, openChecks, placesToCheck } from "./checks";
 import { TEST_ADDRESS_REFUSED } from "./contacts";
 import { activeSends, requireJob, saveJob } from "./jobs";
@@ -96,6 +96,7 @@ async function send(id: string, channel: string) {
       total_cents: totalCents,
       kept_checks: job.acknowledged ?? [],
       business_name: tradeNameFor(job.visitor),
+      business_email: businessEmailFor(job.visitor),
       idempotency_key: job.id,
     },
     ctx,

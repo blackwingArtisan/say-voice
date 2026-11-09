@@ -19,6 +19,7 @@ import type { JobCustomer, JobView } from "@/lib/say/types";
 import { KeptTake } from "./kept-take";
 import { Recorder } from "./recorder";
 import { YourBusiness } from "./your-business";
+import { FirstRun } from "./first-run";
 import { clearTake, loadTake, saveTake, type Heard, type Take } from "./take-store";
 
 const OTHER = "other";
@@ -83,6 +84,8 @@ export function NewJob() {
   const { toast } = useToast();
   const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
+  // Saving the first-run step refreshes the Your business card under the recorder.
+  const [businessKey, setBusinessKey] = useState(0);
   const [jobs, setJobs] = useState<JobView[]>([]);
   const [example, setExample] = useState<JobView | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
@@ -262,6 +265,7 @@ export function NewJob() {
     <>
       {owed.sent ? <OwedLine owed={owed} /> : null}
       <PageHeader title="New job" description="Say what you did before you drive off. You check every number before it goes." />
+      <FirstRun onDone={() => setBusinessKey((k) => k + 1)} />
       {/* On a phone: record, then who it's for, then the sample. On a desktop the customers sit beside the recorder. */}
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
         <div className="contents lg:block lg:space-y-6">
@@ -347,6 +351,7 @@ export function NewJob() {
         </Card>
       </div>
       <YourBusiness
+        key={businessKey}
         className="mt-6"
         onContacts={(list, added) => {
           setContacts(list);

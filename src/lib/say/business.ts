@@ -8,6 +8,7 @@ import { collection } from "@/lib/store/collection";
 import { CONTACTS, isTestAddress, TEST_ADDRESS_RULE, type Contact } from "./contacts";
 
 export const TRADE_NAME_MAX = 80;
+export const BUSINESS_EMAIL_MAX = 120;
 /** A visitor's own customers, newest first, up to this many. */
 export const OWN_CONTACTS_MAX = 30;
 
@@ -15,6 +16,10 @@ export interface Business {
   id: string;
   visitor: string;
   tradeName?: string;
+  /** Where the trade's customers can ask: it ends the note on each invoice. */
+  email?: string;
+  /** The first-run step was done or skipped: it doesn't come back, even if the name is cleared later. */
+  firstRunDone?: boolean;
   contacts: Contact[];
   updatedAt: string;
 }
@@ -30,7 +35,16 @@ export const tradeNameFor = (visitor?: string) => businessOf(visitor)?.tradeName
 /** This visitor's customers first, then the demo ones. */
 export const contactsFor = (visitor?: string): Contact[] => [...(businessOf(visitor)?.contacts ?? []), ...CONTACTS];
 
-const save = (visitor: string, patch: Partial<Pick<Business, "tradeName" | "contacts">>) => {
+/** The trade's own email, for the note on its invoices. None until it gives one. */
+export const businessEmailFor = (visitor?: string) => businessOf(visitor)?.email;
+
+/** A first visit: no name of its own yet, and the step not skipped. */
+export const isFirstRun = (visitor?: string) => {
+  const business = businessOf(visitor);
+  return !business?.tradeName && !business?.firstRunDone;
+};
+
+const save = (visitor: string, patch: Partial<Pick<Business, "tradeName" | "email" | "firstRunDone" | "contacts">>) => {
   const now = businessOf(visitor) ?? { id: keyOf(visitor), visitor, contacts: [], updatedAt: "" };
   return businesses().upsert({ ...now, ...patch, updatedAt: new Date().toISOString() });
 };
@@ -46,6 +60,22 @@ export function setTradeName(visitor: string, raw: string): Business {
 }
 
 export class ContactProblem extends Error {}
+
+/** An email of the trade's own, or nothing. It is shown to its customers, never sent to. */
+export function cleanBusinessEmail(raw: string): string | undefined {
+  const email = raw.trim().toLowerCase();
+  if (!email) return undefined;
+  if (email.length > BUSINESS_EMAIL_MAX || !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email)) throw new ContactProblem("That email doesn't look complete.");
+  return email;
+}
+
+/** The first-run step: a name (and an email) of its own, or Skip, which keeps the demo name. */
+export function setBusiness(visitor: string, input: { tradeName?: string; email?: string; skip?: boolean }): Business {
+  if (input.skip) return save(visitor, { firstRunDone: true });
+  const email = input.email === undefined ? businessOf(visitor)?.email : cleanBusinessEmail(input.email);
+  const tradeName = input.tradeName === undefined ? businessOf(visitor)?.tradeName : cleanTradeName(input.tradeName) || undefined;
+  return save(visitor, { tradeName, email, firstRunDone: true });
+}
 
 export function addContact(visitor: string, input: { name: string; email: string; note?: string }): Contact {
   const name = input.name.replace(/\s+/g, " ").trim().slice(0, 80);
