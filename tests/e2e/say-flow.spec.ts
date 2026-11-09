@@ -42,6 +42,8 @@ test("sample job: catch the misheard price, fix it, approve, invoice sent", asyn
   await expect(page.getByTestId("invoice-total")).toHaveText(money(SAMPLE_AMOUNTS.heardTotalCents));
   await expect(page.getByTestId("missing-amount")).toHaveCount(0);
   await expect(page.getByTestId("flags-panel")).toContainText(checkCount);
+  // "New heating element" written as "replaced", or "runs hot again" as "tested", is a fair way to say it, not a check.
+  await expect(page.getByTestId("flags-panel")).not.toContainText(/"(replaced|replacement|swapped|installed|tested|checked)"/i);
 
   // The code's check names the usual price, and nothing can be sent until the person deals with it.
   await expect(element.getByTestId("line-usual")).toContainText("Usually $50.00");

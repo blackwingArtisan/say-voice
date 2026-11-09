@@ -128,13 +128,26 @@ export function unsaidWords(text: string, transcript: string): string[] {
 }
 
 /**
+ * Fair ways to say what was said: a work verb the AI may write when the speaker said the plain
+ * version. "New heating element" is a replaced one; "it heats up fine now" is a tested one. Each
+ * holds only when its cue was said, and covers the verb alone: a part or a job that wasn't said is
+ * still caught.
+ */
+const FAIR_PARAPHRASES: { words: RegExp; said: RegExp }[] = [
+  { words: /^(replac|swap|install|fitt?|chang)/, said: /\b(new|replac\w*|swap\w*|install\w*|put in|fitted|chang\w*)\b/i },
+  { words: /^(test|check|verif|confirm)/, said: /\b(tests?|tested|checks?|checked|runs?|running|works?|working|heats?|heating up|fine|drains?|draining|lights?|good now)\b/i },
+];
+
+export const fairParaphrase = (word: string, transcript: string) => FAIR_PARAPHRASES.some((p) => p.words.test(word.toLowerCase()) && p.said.test(transcript));
+
+/**
  * Words the AI wrote that weren't said and are still there. Words the person typed are theirs, so
- * only words that were in the AI's own text count.
+ * only words that were in the AI's own text count, and a fair way to say what was said doesn't.
  */
 export function inventedWords(current: string, aiWrote: string | undefined, transcript: string): string[] {
   if (!aiWrote) return [];
   const fromAi = new Set(contentWords(aiWrote));
-  return unsaidWords(current, transcript).filter((word) => fromAi.has(word));
+  return unsaidWords(current, transcript).filter((word) => fromAi.has(word) && !fairParaphrase(word, transcript));
 }
 
 /** A short stable id for a list of words, so a check closes when the words change. */
