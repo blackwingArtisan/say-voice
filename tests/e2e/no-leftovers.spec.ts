@@ -47,6 +47,27 @@ test("the landing page leads with billing accuracy and the trades' distrust of A
   console.log(`Landing at ${page.viewportSize()!.width} wide: ${await page.evaluate(() => document.documentElement.scrollHeight)}px`);
 });
 
+test("on a phone the landing leads with Start a job and the catch, and the figures follow; a wide screen keeps the lead on top", async ({ page }) => {
+  const top = async (testId: string) => (await page.getByTestId(testId).boundingBox())!.y;
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await expect(page.getByTestId("hero-start")).toBeInViewport();
+  await expect(page.getByTestId("hero-start")).toHaveAttribute("href", "/jobs");
+  const phone = { start: await top("hero-start"), catch: await top("catch-proof"), flag: await top("catch-proof-flag"), lead: await top("hero-lead"), who: await top("hero-who"), how: await top("fold-how") };
+  console.log(`Landing at 390 wide, tops: ${JSON.stringify(phone)}`);
+  expect(phone.start).toBeLessThan(phone.catch);
+  expect(phone.flag).toBeLessThan(phone.lead);
+  expect(phone.lead).toBeLessThan(phone.who);
+  expect(phone.who).toBeLessThan(phone.how);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: "screenshots/landing-phone-order.png", fullPage: true });
+
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(page.getByTestId("hero-lead")).toBeInViewport();
+  expect(await top("hero-lead")).toBeLessThan(await top("hero-start"));
+  expect(await top("hero-who")).toBeLessThan(await top("catch-proof"));
+});
+
 test("the landing page's headline is the price book from your PayPal invoices", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Fifty heard as fifteen? Your PayPal invoices catch it.");
