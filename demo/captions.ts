@@ -133,6 +133,12 @@ export async function highlight(_page: Page, target: Locator, ms = 1600) {
 export const PHONE = { width: 390, height: 844 };
 
 /**
+ * How much bigger than a whole phone fitted to the frame. At 1.5 the screen is half as big again,
+ * so the phone shows the top part of an iPhone's height and the app scrolls inside it.
+ */
+export const PHONE_ZOOM = 1.5;
+
+/**
  * Puts the app on a phone in the middle of the frame, with the captions beside it in big type.
  * Returns the phone's frame: drive the app through it. Same origin, so the microphone stand-in
  * and the visitor carry over.
@@ -144,7 +150,9 @@ export async function phoneStage(page: Page, src: string): Promise<Frame> {
       const stage = document.createElement("div");
       stage.id = "__demo_stage";
       const pad = 12;
-      const scale = Math.min(1, (window.innerHeight - 28) / (phone.height + pad * 2));
+      // A whole phone fitted to the frame, then zoomed: the screen keeps its width and gives up height.
+      const scale = Math.min(1, (window.innerHeight - 28) / (phone.height + pad * 2)) * phone.zoom;
+      phone.height = Math.floor((window.innerHeight - 28) / scale - pad * 2);
       Object.assign(stage.style, {
         position: "fixed", inset: "0", zIndex: "2147483640", display: "grid", gridTemplateColumns: `${Math.round((phone.width + pad * 2) * scale) + 120}px 1fr`,
         alignItems: "center", background: "radial-gradient(ellipse at 30% 20%, #1f2937, #0b1020 70%)", paddingLeft: "70px",
@@ -152,7 +160,7 @@ export async function phoneStage(page: Page, src: string): Promise<Frame> {
       stage.innerHTML = `<div style="width:${(phone.width + pad * 2) * scale}px;height:${(phone.height + pad * 2) * scale}px"><div id="__demo_phone" style="width:${phone.width + pad * 2}px;height:${phone.height + pad * 2}px;transform:scale(${scale});transform-origin:top left;background:#0a0a0a;border-radius:54px;padding:${pad}px;box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 0 0 2px #2a2a2a"><iframe name="phone" src="${src}" style="width:${phone.width}px;height:${phone.height}px;border:0;border-radius:42px;background:#fff;display:block"></iframe></div></div><div id="__demo_side" style="color:#fff;font:600 30px/1.35 ui-sans-serif,system-ui,-apple-system,sans-serif;padding-right:70px;max-width:620px"></div>`;
       document.body.appendChild(stage);
     },
-    { src, phone: PHONE },
+    { src, phone: { ...PHONE, zoom: PHONE_ZOOM } },
   );
   let frame: Frame | null = null;
   for (let i = 0; i < 100 && !frame; i++) {
@@ -162,6 +170,25 @@ export async function phoneStage(page: Page, src: string): Promise<Frame> {
   if (!frame) throw new Error("The phone frame didn't attach.");
   await frame.waitForLoadState("domcontentloaded");
   return frame;
+}
+
+/**
+ * Small chips naming the PayPal calls behind a scene (create_invoice, send_invoice, webhook PAID),
+ * in the top right corner. An empty list takes them away.
+ */
+export async function apiChips(page: Page, names: string[]) {
+  await page.evaluate((names) => {
+    let el = document.getElementById("__demo_chips");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "__demo_chips";
+      Object.assign(el.style, { position: "fixed", top: "16px", right: "18px", zIndex: "2147483647", display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "640px", pointerEvents: "none" });
+      document.body.appendChild(el);
+    }
+    el.innerHTML = names
+      .map((name) => `<span style="font:600 14px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#fff;background:#003087;border:1px solid #0070e0;border-radius:999px;padding:7px 12px;box-shadow:0 4px 14px rgba(0,0,0,.25)">${name}</span>`)
+      .join("");
+  }, names);
 }
 
 export async function closePhoneStage(page: Page) {

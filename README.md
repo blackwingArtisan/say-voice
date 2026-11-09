@@ -48,12 +48,12 @@ Say-Voice keeps the AI to listening. Code does the math, a price book catches wr
 
 ## What it does
 
-- Pick the customer from your contacts. Names never come from speech.
-- Press record and say the job: hours, parts, prices, tax.
+- Press record and say the job: hours, parts, prices, tax. The record button is the first thing on the screen.
+- Pick the customer from your contacts, before or after. Names never come from speech.
 - ElevenLabs Scribe v2 writes it down and Claude pulls out the line items.
 - Check the invoice. Your words sit beside every number, and everything is editable.
 - The invoice says what the job was, where and when, with a description on every line, so the customer knows exactly what they paid for (see **Clear invoices and tax** below).
-- The app holds the send until each worry is settled: a price far from what that item usually costs (fifty heard as fifteen shows "Usually $50.00, from 6 PayPal invoices, last $50.00", from the trade's own PayPal history), a doubt the AI flagged, or a spoken amount with no line item. Each takes one tap.
+- The app holds the send until each worry is settled: a price far from what that item usually costs (fifty heard as fifteen shows "Usually $50.00, from 6 PayPal invoices, last $50.00", from the trade's own PayPal history), a doubt the AI flagged, or a spoken amount with no line item. Each takes one tap. On day one, with no history for an item yet, a price said as one of the pairs speech mixes up (fifteen/fifty, thirteen/thirty, up to nineteen/ninety) still gets "Check this amount" with both readings, and no claim about a usual price.
 - Press send, then approve the exact amount. Nothing reaches the customer before that.
 - PayPal creates and sends the invoice. The result screen shows the real number and status, read back from PayPal.
 - If it's unpaid, an agent drafts a reminder from what PayPal says is owed. You can ask it to add something; it writes what you ask, and code refuses any figure PayPal's invoice doesn't have (a "$25 late fee", say) before an approval card ever appears, and shows you what it refused. You read the corrected words and approve them before PayPal sends it.
@@ -65,6 +65,8 @@ The **Prices** page is the price book: demo items, then the trade's past PayPal 
 If the app can't read a recording yet, you keep it. A refused upload, a lost signal or an empty AI or speech balance leaves the take in your browser with a clear message and **Try again**, even after a reload. Speech that was already heard isn't paid for twice. A recording with no words in it asks for a new one.
 
 No mic? **Try a sample job** runs a real recorded job through the same screens, including a mishearing to catch.
+
+The trade's screens carry no developer chrome. Which PayPal (sandbox or mock), which models and today's AI spend sit behind one small **For judges** disclosure (the sidebar, or the phone's menu); the PayPal calls with their debug ids are under **Details** on each job and on **Activity**.
 
 ## Clear invoices and tax
 
