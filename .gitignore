@@ -55,3 +55,5 @@ test-results-android/
 playwright-report/
 screenshots/
 .env.shared
+# Narration cues from the last take (demo/demo.spec.ts writes them)
+videos/voiceover.json
