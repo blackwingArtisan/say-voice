@@ -7,6 +7,7 @@ import { computeTotals, formatCents, formatQuantity } from "@/lib/say/money";
 import { saidToSentText } from "@/lib/say/said-to-sent";
 import { isPaid, type JobView, type SentInvoice } from "@/lib/say/types";
 import { PayNow } from "./pay-now";
+import { PayerView } from "./payer-view";
 
 const longDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
@@ -72,29 +73,34 @@ export function Result({ job, invoice, showLink, onCheck }: { job: JobView; invo
         </dl>
         {/* The QR comes before the details: the customer is standing there. */}
         {showLink && invoice.payerUrl && !isPaid(invoice) ? <PayNow url={invoice.payerUrl} dueCents={invoice.dueCents} customer={job.customer.name} qr={job.payQr} /> : null}
-        {invoice.note ? (
-          <p className="whitespace-pre-line rounded-xl bg-zinc-50 px-4 py-3 text-sm text-zinc-800" data-testid="result-note">
-            {invoice.note}
-          </p>
-        ) : null}
-        <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200">
-          {job.lines.map((line, i) => (
-            <li key={line.key} className="px-4 py-2 text-sm" data-testid="result-line">
-              <div className="flex items-baseline gap-3">
-                <span className="min-w-0 flex-1 break-words font-medium text-zinc-900">{line.name}</span>
-                <span className="shrink-0 text-right font-mono tabular-nums text-zinc-900" data-testid="result-line-amount">{formatCents(totals.lines[i].lineCents)}</span>
-              </div>
-              <p className="font-mono text-xs text-zinc-500">{formatQuantity(line.quantityMilli)} × {formatCents(line.unitCents)}</p>
-              {line.description ? <p className="mt-0.5 text-zinc-500" data-testid="result-description">{line.description}</p> : null}
-            </li>
-          ))}
-          {totals.taxCents ? (
-            <li className="flex justify-between px-4 py-2 text-sm text-zinc-600">
-              <span>Tax</span>
-              <span className="font-mono tabular-nums">{formatCents(totals.taxCents)}</span>
-            </li>
-          ) : null}
-        </ul>
+        {/* What the customer sees on PayPal, from PayPal's own record. An invoice read before the app kept PayPal's lines shows ours. */}
+        {invoice.items?.length ? <PayerView invoice={invoice} customer={job.customer.name} showLink={showLink} /> : (
+          <>
+            {invoice.note ? (
+              <p className="whitespace-pre-line rounded-xl bg-zinc-50 px-4 py-3 text-sm text-zinc-800" data-testid="result-note">
+                {invoice.note}
+              </p>
+            ) : null}
+            <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200">
+              {job.lines.map((line, i) => (
+                <li key={line.key} className="px-4 py-2 text-sm" data-testid="result-line">
+                  <div className="flex items-baseline gap-3">
+                    <span className="min-w-0 flex-1 break-words font-medium text-zinc-900">{line.name}</span>
+                    <span className="shrink-0 text-right font-mono tabular-nums text-zinc-900" data-testid="result-line-amount">{formatCents(totals.lines[i].lineCents)}</span>
+                  </div>
+                  <p className="font-mono text-xs text-zinc-500">{formatQuantity(line.quantityMilli)} × {formatCents(line.unitCents)}</p>
+                  {line.description ? <p className="mt-0.5 text-zinc-500" data-testid="result-description">{line.description}</p> : null}
+                </li>
+              ))}
+              {totals.taxCents ? (
+                <li className="flex justify-between px-4 py-2 text-sm text-zinc-600">
+                  <span>Tax</span>
+                  <span className="font-mono tabular-nums">{formatCents(totals.taxCents)}</span>
+                </li>
+              ) : null}
+            </ul>
+          </>
+        )}
         <div className="flex flex-wrap gap-3">
           <ButtonLink href="/jobs" data-testid="next-job">Start the next job</ButtonLink>
           {showLink && invoice.payerUrl && isPaid(invoice) ? (

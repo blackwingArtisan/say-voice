@@ -40,6 +40,17 @@ export interface JobCustomer {
 /** The pay-now QR: PayPal's own PNG (base64), or why PayPal didn't give one, so the screen draws it from PayPal's link and says so. */
 export type PayQr = { source: "paypal"; png: string; at: string } | { source: "local"; why: string; at: string };
 
+/** One line as PayPal shows it to the customer on its own invoice page. */
+export interface PayerItem {
+  name: string;
+  description?: string;
+  /** PayPal's quantity, as PayPal writes it ("0.75"). */
+  quantity: string;
+  unitCents: number;
+  /** The tax rate on this line, if PayPal has one ("7.25"). */
+  taxPercent?: string;
+}
+
 export interface SentInvoice {
   id: string;
   number: string;
@@ -56,6 +67,8 @@ export interface SentInvoice {
   /** The note to the customer and the tax, as PayPal has them. */
   note?: string;
   taxCents?: number;
+  /** The lines as PayPal holds them, read back with GET /v2/invoicing/invoices/{id}: what the customer's PayPal page lists. */
+  items?: PayerItem[];
   /** PayPal's record of the payment, once there is one. */
   paidCents?: number;
   paymentId?: string;
