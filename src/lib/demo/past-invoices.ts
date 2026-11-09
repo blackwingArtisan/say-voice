@@ -1,7 +1,8 @@
 /**
- * The demo trade's past PayPal invoices, from before it used this app: 18 jobs over the last four
+ * The demo trade's past PayPal invoices, from before it used this app: 23 jobs over the last four
  * months, to made-up example.com customers. Illustrative: the jobs, names and prices are invented
- * for the demo, in line with the sample job's prices. `npm run seed:history` puts them on the
+ * for the demo, in line with the sample job's prices. A heating element went for $47.50 to $55.00
+ * over them (the usual is still $50.00), and the later jobs fall on uneven days, as real ones do. `npm run seed:history` puts them on the
  * sandbox once (their ids go in src/lib/demo/past-invoices.json, so a second run adds nothing); mock PayPal
  * gets them on first use. "Learn from my PayPal invoices" then reads them back with
  * GET /v2/invoicing/invoices like any other invoice. Server only.
@@ -45,6 +46,12 @@ export const PAST_JOBS: PastJob[] = [
   { key: "p16", customer: c("Tariq", "Aziz"), daysAgo: 14, note: "Washer not draining: new drain pump", lines: [["Labor", "1", "80.00"], ["Drain pump", "1", "85.00"]], paid: false },
   { key: "p17", customer: c("Chloe", "Dubois"), daysAgo: 9, note: "Washer not filling: water inlet valve", lines: [["Labor", "1", "80.00"], ["Water inlet valve", "1", "46.00"]], paid: false },
   { key: "p18", customer: c("Ben", "Kowalski"), daysAgo: 5, note: "Dryer would not heat: new heating element", lines: [["Service call", "1", "95.00"], ["Heating element", "1", "50.00"]], paid: false },
+  // Added later, so the sandbox keeps the first 18 as they were sent.
+  { key: "p19", customer: c("Wes", "Harlow"), daysAgo: 81, note: "Dryer would not heat: element and thermal fuse, after-hours call", lines: [["Service call", "1", "110.00"], ["Heating element", "1", "55.00"], ["Thermal fuse", "1", "18.00"]], paid: true },
+  { key: "p20", customer: c("Mina", "Sato"), daysAgo: 66, note: "Dryer not heating: heating element (customer's own part order fell through)", lines: [["Labor", "1", "80.00"], ["Heating element", "1", "47.50"]], paid: true },
+  { key: "p21", customer: c("Owen", "Pryce"), daysAgo: 38, note: "Stacked dryer not heating: heating element, hard to reach", lines: [["Labor", "1.5", "80.00"], ["Heating element", "1", "54.00"]], paid: true },
+  { key: "p22", customer: c("Lena", "Fischer"), daysAgo: 25, note: "Dryer would not heat: heating element", lines: [["Service call", "1", "95.00"], ["Heating element", "1", "49.00"]], paid: true },
+  { key: "p23", customer: c("Abe", "Morales"), daysAgo: 17, note: "Washer not filling: water inlet valve", lines: [["Labor", "0.75", "80.00"], ["Water inlet valve", "1", "46.00"]], paid: false },
 ];
 
 const usd = (value: string) => ({ currency_code: "USD", value });

@@ -1,9 +1,17 @@
 /** A judge opens the shared site after a hundred test runs. It has to look like theirs. */
 import { expect, test } from "@playwright/test";
 import { kitStatus, sentSample, startSample, tradeHistoryReady } from "./flow";
+import { PAST_JOBS } from "../../src/lib/demo/past-invoices";
+
+/** Every past job with a heating element: the price varies around $50, and the newest was $50. */
+const ELEMENTS = PAST_JOBS.filter((j) => j.lines.some(([name]) => name === "Heating element")).length;
 
 test("one visitor's jobs and prices stay out of the next visitor's way", async ({ page, browser, request }) => {
-  test.skip((await kitStatus(request)).live, "Mock only: the live check spends on the one mic clip");
+  const status = await kitStatus(request);
+  test.skip(status.live, "Mock only: the live check spends on the one mic clip");
+  // Mock PayPal holds exactly the seeded history. The shared sandbox holds more of the trade's invoices, newest 25 kept.
+  const elements = status.paypal === "mock" ? String(ELEMENTS) : "\\d+";
+  const count = (rest: string) => new RegExp(`^from ${elements} PayPal invoices, last \\$50\\.00${rest}$`);
   // Every visitor's book starts from the trade's past PayPal invoices, read once in the background.
   expect(await tradeHistoryReady(request)).toBe(true);
 
@@ -23,7 +31,7 @@ test("one visitor's jobs and prices stay out of the next visitor's way", async (
 
   await page.goto("/prices");
   await expect(page.getByTestId("price-row").filter({ hasText: "Sump pump labor" })).toBeVisible();
-  await expect(page.getByTestId("price-row").filter({ hasText: "Heating element" }).getByTestId("price-count")).toHaveText("from 6 PayPal invoices, last $50.00, and 1 sent here");
+  await expect(page.getByTestId("price-row").filter({ hasText: "Heating element" }).getByTestId("price-count")).toHaveText(count(", and 1 sent here"));
   await page.goto("/jobs");
   await expect(page.getByTestId("job-row")).toHaveCount(1);
 
@@ -37,7 +45,7 @@ test("one visitor's jobs and prices stay out of the next visitor's way", async (
   await judge.goto("/prices");
   await expect(judge.getByTestId("price-row").first()).toBeVisible();
   await expect(judge.getByTestId("price-row").filter({ hasText: "Sump pump labor" })).toHaveCount(0);
-  await expect(judge.getByTestId("price-row").filter({ hasText: "Heating element" }).getByTestId("price-count")).toHaveText("from 6 PayPal invoices, last $50.00");
+  await expect(judge.getByTestId("price-row").filter({ hasText: "Heating element" }).getByTestId("price-count")).toHaveText(count(""));
   await expect(judge.getByTestId("learned-from-paypal")).toContainText("Learned from the trade's last");
   await judge.goto("/jobs");
   await expect(judge.getByTestId("try-sample")).toBeVisible();
@@ -45,7 +53,7 @@ test("one visitor's jobs and prices stay out of the next visitor's way", async (
   await judge.screenshot({ path: "screenshots/fresh-visitor-jobs.png", fullPage: true });
 
   await startSample(judge);
-  await expect(judge.getByTestId("line-usual")).toContainText("Usually $50.00, from 6 PayPal invoices, last $50.00.");
+  await expect(judge.getByTestId("line-usual")).toContainText(new RegExp(`Usually \\$50\\.00, from ${elements} PayPal invoices, last \\$50\\.00\\.`));
   await next.close();
 });
 

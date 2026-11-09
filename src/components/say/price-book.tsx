@@ -79,7 +79,8 @@ export function PriceBook() {
         </Button>
         {history ? (
           <p className="text-sm text-zinc-700" data-testid="learned-from-paypal">
-            {history.own ? "Learned from your last" : "Learned from the trade's last"} {history.invoices} PayPal {history.invoices === 1 ? "invoice" : "invoices"} (read with GET /v2/invoicing/invoices). Labor rates come from the jobs you say.
+            {history.own ? "Learned from your last" : "Learned from the trade's last"} {history.invoices} PayPal {history.invoices === 1 ? "invoice" : "invoices"} (read with GET /v2/invoicing/invoices). Labor rates come from the jobs you say.{" "}
+            <span className="text-zinc-500" data-testid="history-illustrative">The demo trade&apos;s past invoices are illustrative: made-up jobs and customers on PayPal&apos;s sandbox.</span>
           </p>
         ) : null}
       </div>
