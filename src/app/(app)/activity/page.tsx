@@ -65,8 +65,12 @@ function StepList({ steps }: { steps: Step[] }) {
   );
 }
 
+/** Each job shows its newest steps; the rest wait behind "N more steps". */
+const SHOWN = 3;
+
 function JobCard({ group }: { group: JobGroup }) {
   const { job, steps } = group;
+  const [all, setAll] = useState(false);
   const total = job.invoice?.totalCents ?? computeTotals(job.lines, job.taxRateMilli).totalCents;
   const status = job.invoice?.status ?? (job.status === "awaiting_approval" ? "PENDING" : "DRAFT");
   return (
@@ -83,7 +87,13 @@ function JobCard({ group }: { group: JobGroup }) {
         </span>
       </Link>
       <div className="px-4">
-        <StepList steps={steps} />
+        <StepList steps={all ? steps : steps.slice(0, SHOWN)} />
+        {steps.length > SHOWN ? (
+          <button type="button" onClick={() => setAll((a) => !a)} aria-expanded={all} className="mb-2.5 inline-flex items-center gap-1 text-sm font-medium text-zinc-500 hover:text-zinc-900" data-testid="activity-more">
+            <ChevronDown className={cn("size-4 transition-transform", all && "rotate-180")} />
+            {all ? "Fewer steps" : `${steps.length - SHOWN} more ${steps.length - SHOWN === 1 ? "step" : "steps"}`}
+          </button>
+        ) : null}
       </div>
     </section>
   );
@@ -174,7 +184,7 @@ export default function ActivityPage() {
             <div className="mt-4">
               <button type="button" onClick={() => setShowOthers((o) => !o)} aria-expanded={showOthers} className="inline-flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900" data-testid="activity-others-toggle">
                 <ChevronDown className={cn("size-4 transition-transform", showOthers && "rotate-180")} />
-                {others.length} more {others.length === 1 ? "step" : "steps"} not tied to your jobs here (other visitors on this shared test site)
+                {others.length} more {others.length === 1 ? "step" : "steps"} from other visitors
               </button>
               {showOthers ? (
                 <div className="mt-2 rounded-xl border border-zinc-200 px-4" data-testid="activity-others">

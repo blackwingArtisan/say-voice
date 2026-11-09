@@ -93,3 +93,19 @@ describe("the confirm screen points out a price unlike the learned one", () => {
     expect(far?.text).toMatch(/^Usually \$85\.00, from 4 PayPal invoices, last \$85\.00\. This says \$15\.00\./);
   });
 });
+
+describe("the trade's history behind a pile of the app's own sends", () => {
+  it("is still found when hundreds of newer invoices were sent with this app", async () => {
+    const { getPayPal } = await import("@/lib/paypal");
+    const { learnFromPayPal } = await import("@/lib/say/paypal-history");
+    const paypal = getPayPal();
+    await learnFromPayPal(`v_${Math.random()}`); // puts the trade's past invoices on mock PayPal first
+    // A busy shared sandbox: 350 invoices sent with this app since, newest first in PayPal's list.
+    for (let i = 0; i < 350; i++) {
+      const draft = await paypal.invoicing.create({ detail: { currency_code: "USD", memo: APP_MEMO }, invoicer: { business_name: appConfig.tradeName }, primary_recipients: [{ billing_info: { email_address: "x@example.com" } }], items: [{ name: "Drain pump", quantity: "1", unit_amount: usd("85.00") }] });
+      await paypal.invoicing.send(draft.id);
+    }
+    const history = await learnFromPayPal(`v_${Math.random()}`);
+    expect(history.invoiceIds.length).toBeGreaterThanOrEqual(15);
+  }, 60_000);
+});

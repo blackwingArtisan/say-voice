@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, ArrowDown, Check as CheckIcon, Plus, Send, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowDown, Check as CheckIcon, ChevronDown, Plus, Send, Trash2 } from "lucide-react";
 import { Button, Card, CardBody, CardHeader, Field, Input, MoneyInput, Textarea } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 import { isTestAddress, TEST_ADDRESS_RULE } from "@/lib/say/contacts";
@@ -140,46 +140,28 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
   const applyPrice = (cents: number) => onChange({ price: (cents / 100).toFixed(2) });
   const problemOn = (field: InputProblem["field"]) => problems.find((p) => p.field === field);
   const bad = problems.length > 0;
+  // What was heard, the description and the tax sit behind a tap, unless this line has something to check.
+  // A line that comes up with a check stays open once it's dealt with, so the fix stays in view.
+  const [more, setMore] = useState(open || bad);
+  const showMore = more || open || bad;
   return (
-    <li id={`line-${line.key}`} data-testid="invoice-line" data-invalid={bad || undefined} className={cn("scroll-mt-20 space-y-2 rounded-xl border p-3", bad ? "border-red-300 bg-red-50/30" : open ? "border-amber-400 bg-amber-50/40" : "border-zinc-200")}>
-      <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Line {number}</p>
+    <li id={`line-${line.key}`} data-testid="invoice-line" data-invalid={bad || undefined} data-open={open || undefined} className={cn("scroll-mt-20 space-y-2 rounded-xl border p-3", bad ? "border-red-300 bg-red-50/30" : open ? "border-amber-400 bg-amber-50/40" : "border-zinc-200")}>
       <div className="flex items-center gap-2">
+        <span className="w-5 shrink-0 text-right text-xs max-sm:hidden font-medium tabular-nums text-zinc-400" aria-label={`Line ${number}`}>{number}</span>
         <Input aria-label="Item" aria-invalid={!!problemOn("name")} value={line.name} disabled={disabled} onChange={(e) => onChange({ name: e.target.value })} data-testid="line-name" className={cn("font-medium", problemOn("name") && INVALID)} />
         <Button variant="ghost" className="size-11 shrink-0 px-0" aria-label={`Remove ${label}`} disabled={disabled} onClick={onRemove} icon={<Trash2 className="size-4" />} />
       </div>
-      <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-2">
+      <div className="grid grid-cols-[4rem_auto_minmax(0,9rem)_minmax(5rem,1fr)] items-center gap-2 sm:pl-7">
         <Input aria-label={`Quantity for ${label}`} aria-invalid={!!problemOn("quantity")} inputMode="decimal" value={line.quantity} disabled={disabled} onChange={(e) => onChange({ quantity: e.target.value })} data-testid="line-quantity" className={cn("font-mono tabular-nums", problemOn("quantity") && INVALID)} />
+        <span className="text-sm text-zinc-400" aria-hidden>&times;</span>
         <MoneyInput aria-label={`Price for ${label}`} aria-invalid={!!problemOn("price")} value={line.price} disabled={disabled} onChange={(e) => onChange({ price: e.target.value })} data-testid="line-price" className={problemOn("price") ? "[&_input]:border-red-400 [&_input]:bg-red-50/50" : undefined} />
-        <span className={cn("w-[5.5rem] text-right font-mono text-[15px] font-semibold tabular-nums", lineTotal === null ? "text-red-700" : "text-zinc-900")} data-testid="line-total">
+        <span className={cn("text-right font-mono text-[15px] font-semibold tabular-nums", lineTotal === null ? "text-red-700" : "text-zinc-900")} data-testid="line-total">
           {lineTotal === null ? "--" : formatCents(lineTotal)}
         </span>
       </div>
       <FieldError problem={problemOn("name")} testId="line-name-error" />
       <FieldError problem={problemOn("quantity")} testId="line-quantity-error" />
       <FieldError problem={problemOn("price")} testId="line-price-error" />
-      <Textarea
-        aria-label={`Description for ${label}`}
-        placeholder="What this covers, for the customer"
-        rows={2}
-        maxLength={MAX_DESCRIPTION}
-        value={line.description}
-        disabled={disabled}
-        onChange={(e) => onChange({ description: e.target.value })}
-        data-testid="line-description"
-        className="min-h-0 text-[15px]"
-      />
-      <label className="flex min-h-11 items-center gap-2 text-sm text-zinc-700">
-        <input type="checkbox" className="size-5 accent-zinc-900" checked={line.taxed} disabled={disabled} onChange={(e) => onChange({ taxed: e.target.checked })} data-testid="line-taxed" />
-        Taxed
-        {line.taxed && lineTax ? <span className="font-mono tabular-nums text-zinc-500" data-testid="line-tax">+{formatCents(lineTax)} tax</span> : null}
-      </label>
-      {heard ? (
-        <p className="text-sm text-zinc-600" data-testid="line-heard">
-          <span className="font-medium text-zinc-500">Heard: </span>&ldquo;{heard}&rdquo;
-        </p>
-      ) : !heardLine ? (
-        <p className="text-sm text-zinc-500">Added by you.</p>
-      ) : null}
       {changedPrice ? <p className="text-sm font-medium text-emerald-700" data-testid="line-changed">You changed this from {formatCents(heardLine.unitCents)}.</p> : null}
       {learnedNote && !far ? (
         <p className="text-sm text-sky-800" data-testid="learned-note">
@@ -234,6 +216,39 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
           </Button>
         </div>
       ) : null}
+      {open || bad ? null : (
+        <button type="button" onClick={() => setMore((m) => !m)} aria-expanded={showMore} className="inline-flex min-h-8 sm:ml-7 items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800" data-testid="line-more">
+          <ChevronDown className={cn("size-4 transition-transform", showMore && "rotate-180")} />
+          {showMore ? "Less" : "What you said, description, tax"}
+        </button>
+      )}
+      {showMore ? (
+        <div className="space-y-2 sm:pl-7" data-testid="line-details">
+          <Textarea
+            aria-label={`Description for ${label}`}
+            placeholder="What this covers, for the customer"
+            rows={2}
+            maxLength={MAX_DESCRIPTION}
+            value={line.description}
+            disabled={disabled}
+            onChange={(e) => onChange({ description: e.target.value })}
+            data-testid="line-description"
+            className="min-h-0 text-[15px]"
+          />
+          <label className="flex min-h-11 items-center gap-2 text-sm text-zinc-700">
+            <input type="checkbox" className="size-5 accent-zinc-900" checked={line.taxed} disabled={disabled} onChange={(e) => onChange({ taxed: e.target.checked })} data-testid="line-taxed" />
+            Taxed
+            {line.taxed && lineTax ? <span className="font-mono tabular-nums text-zinc-500" data-testid="line-tax">+{formatCents(lineTax)} tax</span> : null}
+          </label>
+          {heard ? (
+            <p className="text-sm text-zinc-600" data-testid="line-heard">
+              <span className="font-medium text-zinc-500">Heard: </span>&ldquo;{heard}&rdquo;
+            </p>
+          ) : !heardLine ? (
+            <p className="text-sm text-zinc-500">Added by you.</p>
+          ) : null}
+        </div>
+      ) : null}
     </li>
   );
 }
@@ -265,6 +280,8 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
   // A due date or tax rate that can't be read opens them too, so "Show me" has a field to go to.
   const detailsNeedALook = open.some((check) => check.kind === "tax" || (check.kind === "words" && !check.lineKey)) || problems.some((p) => p.field === "due" || p.field === "tax");
   const folded = !editDetails && !detailsNeedALook;
+  // On a desktop it opens once the checks are clear: until then the numbers come first.
+  const foldedWide = folded && open.length > 0;
   const fold = folded ? "max-lg:hidden" : "";
   const updateDetails = (patch: Partial<JobDetails>) => setDraft({ ...draft, details: { ...draft.details, ...patch } });
   const setRate = (rateMilli: number) => setDraft({ ...draft, taxPercent: formatRate(rateMilli) });
@@ -318,6 +335,15 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
   return (
     <div className="space-y-6 pb-24 lg:pb-0">
       {pinSlot && pinned ? createPortal(pinned, pinSlot) : null}
+      {sending ? null : (
+        // On a desktop the total heads the column; on a phone it is pinned under the top bar.
+        <div className="hidden items-baseline justify-between gap-3 rounded-xl border border-zinc-200 bg-white px-5 py-4 lg:flex" data-testid="top-total">
+          <p className="text-[15px] font-semibold text-zinc-900">
+            Invoice for {draft.customer.name.trim() || "your customer"}
+          </p>
+          <p className="font-mono text-2xl font-semibold tabular-nums text-zinc-950">{holdTotal ? "--" : formatCents(totals.totalCents)}</p>
+        </div>
+      )}
       {problems.length && !sending ? (
         <div className="space-y-2" data-testid="input-problems">
           {problems.map((p) => (
@@ -417,38 +443,6 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
         <p className="text-sm text-zinc-500" data-testid="settled-note">You let {jobChecks.length - openJobChecks.length === 1 ? "1 warning" : `${jobChecks.length - openJobChecks.length} warnings`} stand.</p>
       ) : null}
 
-      {folded ? (
-        <Card className="lg:hidden" data-testid="details-summary">
-          <CardBody className="flex items-center gap-3">
-            <p className="min-w-0 flex-1 truncate text-sm text-zinc-700">
-              Due {dueLabel(draft.dueDate)}
-              {" · "}
-              {taxRateMilli ? `${formatRate(taxRateMilli)}% tax` : "No tax"}
-              {" · "}
-              <span className="font-medium text-zinc-900" data-testid="details-summary-text">{draft.details.summary.trim() || "No job summary"}</span>
-            </p>
-            <Button variant="secondary" className={TAP} disabled={sending} onClick={() => setEditDetails(true)} data-testid="edit-details">
-              Edit
-            </Button>
-          </CardBody>
-        </Card>
-      ) : null}
-
-      <Card className={fold}>
-        <CardHeader title="What the customer reads" description="What the job was, where and when. It goes at the top of the PayPal invoice." />
-        <CardBody className="grid gap-4 sm:grid-cols-2">
-          <Field label="Job summary" htmlFor="job-summary" className="sm:col-span-2">
-            <Input id="job-summary" maxLength={MAX_SUMMARY} placeholder="What the job was" value={draft.details.summary} disabled={sending} onChange={(e) => updateDetails({ summary: e.target.value })} data-testid="job-summary" />
-          </Field>
-          <Field label="Job site" htmlFor="job-site">
-            <Input id="job-site" maxLength={MAX_SITE} placeholder="Street address" value={draft.details.site} disabled={sending} onChange={(e) => updateDetails({ site: e.target.value })} data-testid="job-site" />
-          </Field>
-          <Field label="Date of service" htmlFor="service-date" hint={job.details?.serviceDate ? "From what you said." : "Nothing said, so none. Add one if you like."}>
-            <Input id="service-date" type="date" value={draft.details.serviceDate} disabled={sending} onChange={(e) => updateDetails({ serviceDate: e.target.value })} data-testid="service-date" />
-          </Field>
-        </CardBody>
-      </Card>
-
       <Card>
         <CardHeader title="Line items" description="Every number is yours to change. Totals are worked out by code, not by the AI." />
         <CardBody className="space-y-3">
@@ -524,6 +518,38 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
             ) : null}
           </dl>
         </div>
+      </Card>
+
+      {folded ? (
+        <Card className={foldedWide ? undefined : "lg:hidden"} data-testid="details-summary">
+          <CardBody className="flex items-center gap-3">
+            <p className="min-w-0 flex-1 truncate text-sm text-zinc-700">
+              Due {dueLabel(draft.dueDate)}
+              {" · "}
+              {taxRateMilli ? `${formatRate(taxRateMilli)}% tax` : "No tax"}
+              {" · "}
+              <span className="font-medium text-zinc-900" data-testid="details-summary-text">{draft.details.summary.trim() || "No job summary"}</span>
+            </p>
+            <Button variant="secondary" className={TAP} disabled={sending} onClick={() => setEditDetails(true)} data-testid="edit-details">
+              Edit
+            </Button>
+          </CardBody>
+        </Card>
+      ) : null}
+
+      <Card className={foldedWide ? "hidden" : fold}>
+        <CardHeader title="What the customer reads" description="What the job was, where and when. It goes at the top of the PayPal invoice." />
+        <CardBody className="grid gap-4 sm:grid-cols-2">
+          <Field label="Job summary" htmlFor="job-summary" className="sm:col-span-2">
+            <Input id="job-summary" maxLength={MAX_SUMMARY} placeholder="What the job was" value={draft.details.summary} disabled={sending} onChange={(e) => updateDetails({ summary: e.target.value })} data-testid="job-summary" />
+          </Field>
+          <Field label="Job site" htmlFor="job-site">
+            <Input id="job-site" maxLength={MAX_SITE} placeholder="Street address" value={draft.details.site} disabled={sending} onChange={(e) => updateDetails({ site: e.target.value })} data-testid="job-site" />
+          </Field>
+          <Field label="Date of service" htmlFor="service-date" hint={job.details?.serviceDate ? "From what you said." : "Nothing said, so none. Add one if you like."}>
+            <Input id="service-date" type="date" value={draft.details.serviceDate} disabled={sending} onChange={(e) => updateDetails({ serviceDate: e.target.value })} data-testid="service-date" />
+          </Field>
+        </CardBody>
       </Card>
 
       {sending ? null : (

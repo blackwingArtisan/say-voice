@@ -4,7 +4,7 @@
  * because mock mode never spends: the server's side of those is in tests/unit/say-take.test.ts.
  */
 import { expect, test, type Page } from "@playwright/test";
-import { kitStatus, readJob, jobId, settleChecks, auditedActions, expectPlainWords } from "./flow";
+import { kitStatus, readJob, jobId, settleChecks, auditedActions, expectPlainWords, showAllSteps } from "./flow";
 import { recordTake, uploads, useToneMic } from "./take-helpers";
 
 // Its own address, so this file's limit doesn't touch anything else in the run.
@@ -156,6 +156,8 @@ test("someone's real email is refused by the Guard, with what to do about it", a
   await expect(page.getByTestId("plain-step").filter({ hasText: "only sends to made-up @example.com addresses" })).toHaveCount(1);
   await expectPlainWords(page, /allowlist/i);
   await page.goto("/activity");
+  await expect(page.getByTestId("activity-row").first()).toBeVisible();
+  await showAllSteps(page);
   await expect(page.getByTestId("activity-row").filter({ hasText: "Invoice: stopped before anything was sent." }).first()).toBeVisible();
   await expectPlainWords(page, /Hash-chained/);
   await page.goto(`/jobs/${id}`);

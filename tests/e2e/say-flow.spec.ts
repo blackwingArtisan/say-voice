@@ -5,7 +5,7 @@
  */
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { checkCount, fixElementPrice, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, sentSample, settleAiNotes, startSample, tradeHistoryReady, visitorHeaders, openNewJob, settleChecks } from "./flow";
+import { checkCount, fixElementPrice, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, sentSample, settleAiNotes, startSample, tradeHistoryReady, visitorHeaders, openNewJob, settleChecks, showLineDetails, showAllSteps } from "./flow";
 import { PLUS_TAX_AMOUNTS, PLUS_TAX_TRANSCRIPT, SAMPLE_AMOUNTS, ROOFER_AMOUNTS, ROOFER_CUSTOMER, ROOFER_DESCRIPTION, ROOFER_TRANSCRIPT } from "../../src/lib/say/sample";
 import { readInvoiceFromPayPal } from "./paypal-reread";
 import { appConfig } from "../../src/app.config";
@@ -33,7 +33,10 @@ test("sample job: catch the misheard price, fix it, approve, invoice sent", asyn
   await expect(page.getByTestId("quantity-note")).toContainText("Read the quantities yourself");
   // A clear invoice: what the job was, and what each line covers. Nothing generic goes out bare.
   await expect(page.getByTestId("job-summary")).not.toHaveValue("");
-  for (const line of await page.getByTestId("invoice-line").all()) await expect(line.getByTestId("line-description")).not.toHaveValue("");
+  for (const line of await page.getByTestId("invoice-line").all()) {
+    await showLineDetails(line);
+    await expect(line.getByTestId("line-description")).not.toHaveValue("");
+  }
   await expect(page.getByTestId("line-vague")).toHaveCount(0);
   await expect(page.getByTestId("invoice-total")).toHaveText(money(SAMPLE_AMOUNTS.heardTotalCents));
   await expect(page.getByTestId("missing-amount")).toHaveCount(0);
@@ -189,8 +192,10 @@ test("adding an item the speaker didn't mention updates the total", async ({ pag
   await added.getByTestId("line-price").fill("12.50");
   await expect(page.getByTestId("invoice-total")).toHaveText(money(SAMPLE_AMOUNTS.heardTotalCents + 1250));
   // The speaker said "No tax on this one", so the heard lines start untaxed. Only the added fee is taxed: 10% of $12.50.
-  await expect(page.getByTestId("invoice-line").nth(0).getByTestId("line-taxed")).not.toBeChecked();
-  await expect(page.getByTestId("invoice-line").nth(1).getByTestId("line-taxed")).not.toBeChecked();
+  for (const i of [0, 1]) {
+    await showLineDetails(page.getByTestId("invoice-line").nth(i));
+    await expect(page.getByTestId("invoice-line").nth(i).getByTestId("line-taxed")).not.toBeChecked();
+  }
   await page.getByTestId("tax-rate").fill("10");
   await expect(page.getByTestId("tax-total")).toHaveText("$1.25");
 });
@@ -271,6 +276,8 @@ test("a clear invoice: what, where and when, a description per line, and tax on 
   await expect(page.getByTestId("job-site")).toHaveValue("12 Oak Lane");
   await expect(page.getByTestId("service-date")).toHaveValue(`${today.slice(0, 4)}-10-30`);
   const [pump, labor] = await page.getByTestId("invoice-line").all();
+  await showLineDetails(pump);
+  await showLineDetails(labor);
   await expect(pump.getByTestId("line-description")).toHaveValue("Drain pump for the washer");
   await expect(labor.getByTestId("line-description")).toHaveValue("Swapped the drain pump on the washer, an hour and a half");
 
@@ -577,6 +584,14 @@ test("activity reads job by job: each job with its amount and status, its steps 
   await page.goto("/activity");
   const group = page.locator(`[data-testid="activity-job"][data-job="${done.id}"]`);
   await expect(group).toBeVisible();
+  // The newest few steps show; the rest wait behind "N more steps".
+  const more = group.getByTestId("activity-more");
+  if (await more.count()) {
+    await expect(group.getByTestId("activity-row")).toHaveCount(3);
+    const hidden = Number((await more.innerText()).match(/\d+/)![0]);
+    await showAllSteps(page);
+    await expect(group.getByTestId("activity-row")).toHaveCount(3 + hidden);
+  } else expect(await group.getByTestId("activity-row").count()).toBeLessThanOrEqual(3);
   const head = group.getByTestId("activity-job-head");
   await expect(head).toContainText(done.customer.name);
   await expect(head).toContainText(`Invoice ${invoice.number}`);
@@ -739,3 +754,49 @@ test("record first: the record button leads /jobs at phone and desktop width, Yo
   await settleAiNotes(page);
   await expect(page.getByTestId("pinned-checks")).toHaveAttribute("data-state", "clear");
 });
+
+test("compact confirm: the total, the checks and the lines first; heard words behind a tap; Send in reach on a phone", async ({ page, request }) => {
+  const { live } = await kitStatus(request);
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
+
+  // A phone, 390 by 844: the total and the Send bar are on screen without scrolling.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await startSample(page);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(page.getByTestId("pinned-total")).toBeInViewport();
+  const sendBar = page.getByTestId("next-check").or(page.getByTestId("send-invoice"));
+  await expect(sendBar).toBeInViewport();
+  await expect(page.getByTestId("catch-card").first()).toBeInViewport();
+  await page.screenshot({ path: "screenshots/confirm-compact-390.png" });
+
+  // Each line reads as name, quantity x price and total. The line with a check shows what was heard; the other keeps it behind a tap.
+  const [labor, element] = await page.getByTestId("invoice-line").all();
+  await expect(element.getByTestId("line-heard")).toBeVisible();
+  if (!(await labor.getAttribute("data-open"))) {
+    await expect(labor.getByTestId("line-details")).toHaveCount(0);
+    await expect(labor.getByTestId("line-description")).toHaveCount(0);
+    await showLineDetails(labor);
+    await expect(labor.getByTestId("line-description")).toBeVisible();
+  }
+
+  // A desktop: the total heads the column, what you said sits still at the top of the left one, and what the customer reads waits for the checks.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.reload();
+  await expect(page.getByTestId("invoice-line").first()).toBeVisible();
+  await expect(page.getByTestId("top-total")).toBeInViewport();
+  await expect(page.getByTestId("flags-panel")).toBeInViewport();
+  await expect(page.getByTestId("invoice-line").first()).toBeInViewport();
+  const floats = await page.getByTestId("transcript").evaluate((el) => {
+    for (let at: Element | null = el; at; at = at.parentElement) if (getComputedStyle(at).position === "sticky") return true;
+    return false;
+  });
+  expect(floats).toBe(false);
+  await expect(page.getByTestId("details-summary")).toBeVisible();
+  await expect(page.getByTestId("job-summary")).toBeHidden();
+  await page.screenshot({ path: "screenshots/confirm-compact-1440.png" });
+  await fixElementPrice(page);
+  await expect(page.getByTestId("flags-panel")).toHaveCount(0);
+  await expect(page.getByTestId("job-summary")).toBeVisible();
+  await expect(page.getByTestId("details-summary")).toBeHidden();
+});
+

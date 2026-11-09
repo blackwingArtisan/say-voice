@@ -63,6 +63,18 @@ export async function openNewJob(page: Page) {
   await expect(page.getByTestId(/^contact-(?!other)/).first()).toBeVisible();
 }
 
+/** A line's heard words, description and tax sit behind a tap unless the line has a check open. */
+export async function showLineDetails(line: Locator) {
+  if (await line.getByTestId("line-details").count()) return;
+  await line.getByTestId("line-more").click();
+  await expect(line.getByTestId("line-details")).toBeVisible();
+}
+
+/** Activity shows each job's newest steps; this opens the rest. */
+export async function showAllSteps(page: Page) {
+  for (const more of await page.getByTestId("activity-more").all()) if ((await more.getAttribute("aria-expanded")) !== "true") await more.click();
+}
+
 /** Starts the sample job and lands on its confirm screen. */
 export async function startSample(page: Page) {
   await paceAiCalls();
