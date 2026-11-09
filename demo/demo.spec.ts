@@ -1,10 +1,11 @@
 /**
  * DEMO VIDEO (npm run demo:record). Landscape 16:9, under 1:45. It opens on the problem in one card
- * (fifteen said, fifty usual: misheard or misspoken, the trade decides), then the phone: the person saying the job, subtitled as it's said; who it
- * was for; the catch held in red at about 0:15; the PayPal invoices the usual price came from, held;
- * the Guard's approval card, held; PayPal's own QR code; the reminder agent's note refused by code, in
- * two beats on the phone; the customer paying on PayPal's page; Paid; Activity; and who it's for, with
- * the URL. Small chips name the PayPal calls behind each scene.
+ * (fifteen said, fifty usual: misheard or misspoken, the trade decides), then the phone: the person saying the job, subtitled as
+ * it's said; who it was for; the catch held in red at about 0:15; the list of PayPal invoices the usual price came from, on
+ * screen while it's said; the Guard's approval card, held; PayPal's own QR code; what the customer sees on PayPal, read back
+ * from PayPal; the reminder agent's note refused by code, in one readable beat; the customer paying on PayPal's page; Paid;
+ * Activity; day one, with no PayPal history; and who it's for, with the URL. Every narrated beat stays at least 4 s on screen.
+ * Small chips name the PayPal calls behind each scene.
  *
  * It reads the modes from /api/kit/status and says on screen when a part isn't live, so a mock
  * screen is never captioned as the real thing. With DEMO_REQUIRE_LIVE=1 (the take for judges) it
@@ -37,8 +38,14 @@ const HOLD_MS = 4_000;
 /** The catch, held in red, and the list of PayPal invoices its usual price came from (at least 4 s). */
 const CATCH_MS = 5_000;
 const RECEIPTS_MS = 4_600;
-/** Each of the refusal's two beats on the phone: what the agent wrote, then why code stopped it. */
-const REFUSAL_BEAT_MS = 3_800;
+/** The refusal: one readable beat, no longer than 5 s. */
+const REFUSAL_MS = 4_800;
+/** Every narrated beat stays on screen at least this long. */
+const BEAT_MS = 4_000;
+/** What the customer sees on PayPal, read back from PayPal. */
+const PAYER_VIEW_MS = 4_200;
+/** Day one: no PayPal history, and the sound-alike check still asks. */
+const DAY_ONE_MS = 5_000;
 /** The opening card: the problem, said before anything else. */
 const OPENING_MS = 4_300;
 /** Where a viewer can try it. */
@@ -149,7 +156,7 @@ test("demo", async ({ browser }) => {
   timeline.recordStopMs = at();
   await expect(phone.getByTestId("take-waiting")).toBeVisible();
   narrate(2, "The customer comes from contacts, never from speech.");
-  await point(page, liveSpeech ? "ElevenLabs Scribe v2 heard it. Then who it was for, from your contacts. Names never come from speech." : "Then who it was for, from your contacts. Names never come from speech.", contact, 3200);
+  await point(page, liveSpeech ? "ElevenLabs Scribe v2 heard it. Then who it was for, from your contacts. Names never come from speech." : "Then who it was for, from your contacts. Names never come from speech.", contact, BEAT_MS);
   await contact.click();
   await checkpoint("said");
   await caption(page, liveAi ? "Claude Sonnet 5.5 turns the words into line items. Code does every sum." : `Line items from the words. Code does every sum. (Not live in this take: ${notLive}.)`, { wait: false });
@@ -162,8 +169,8 @@ test("demo", async ({ browser }) => {
   // The amounts as the screen has them: the usual price from PayPal, and what was heard.
   const usual = spoken(amountIn(await phone.getByTestId("catch-use-usual").innerText()) ?? "");
   const heard = spoken(amountIn(await phone.getByTestId("catch-keep").innerText()) ?? "");
-  narrate(3, `The catch: it says ${heard}, your PayPal invoices say ${usual}. The send is held.`);
-  await held("catch", () => point(page, `Said: ${heard}. ${sandbox ? "Your PayPal invoices" : "The price book"} say ${usual}${heard === "$15" && usual === "$50" ? ', and "fifteen" sounds like "fifty"' : ""}. The send is held until you choose.`, catchCard, CATCH_MS + 800));
+  narrate(3, `The catch: you said ${heard}, your PayPal invoices say ${usual}. The send is held.`);
+  await held("catch", () => point(page, `Said: ${heard}. ${sandbox ? "Your PayPal invoices" : "The price book"} say ${usual}. Misheard or misspoken, the send is held until you choose.`, catchCard, CATCH_MS + 800));
 
   // Where the usual price comes from: "from 9 PayPal invoices" is a tap that lists them, each one PayPal's.
   const receiptsOpen = catchCard.getByTestId("receipts-open");
@@ -174,6 +181,9 @@ test("demo", async ({ browser }) => {
     const rows = await receipts.getByTestId("receipt").count();
     const ids = await receipts.getByTestId("receipt").evaluateAll((els) => els.map((el) => el.getAttribute("data-invoice-id")));
     console.log(`[demo] receipts: ${rows} PayPal invoices behind ${usual}: ${ids.join(", ")}`);
+    // The list itself in the phone's view, every row, while it's said: not the buttons under it.
+    await bringIntoView(receipts);
+    await expect(receipts.getByTestId("receipt").last()).toBeInViewport();
     if (sandbox) await apiChips(page, ["GET /v2/invoicing/invoices"]);
     narrate(4, `Where ${usual} comes from: ${rows} of the trade's own PayPal invoices.`);
     await held("receipts", () => point(page, sandbox ? `Where ${usual} comes from: ${rows} of the trade's own PayPal invoices, read with GET /v2/invoicing/invoices. Each one opens on PayPal.` : `Where ${usual} comes from: ${rows} past invoices. (PayPal isn't live in this take.)`, receipts, RECEIPTS_MS));
@@ -191,7 +201,7 @@ test("demo", async ({ browser }) => {
     while (await buttons.count()) await buttons.first().click();
   }
   narrate(5, "One tap. Code redoes the total in cents.");
-  await point(page, `One tap. Code works the total out again, in cents: ${before} became ${await phone.getByTestId("invoice-total").innerText()}.`, sendBar, 3400);
+  await point(page, `One tap. Code works the total out again, in cents: ${before} became ${await phone.getByTestId("invoice-total").innerText()}.`, sendBar, BEAT_MS);
   await checkpoint("caught");
 
   // The line the trade's own PayPal invoices usually have with this item, that nobody said. One tap adds it.
@@ -226,7 +236,7 @@ test("demo", async ({ browser }) => {
   console.log(`[demo] sent invoice ${sentJob.invoice.id} number ${sentJob.invoice.number} ${sentJob.invoice.status} $${(sentJob.invoice.totalCents / 100).toFixed(2)}, ${sentJob.lines.length} lines (PayPal ${status.paypal.mode})`);
   narrate(8, sandbox ? "PayPal's Agent Toolkit created and sent it." : "Created and sent.");
   if (sandbox) await apiChips(page, ["Agent Toolkit", "create_invoice", "send_invoice"]);
-  await point(page, sandbox ? "PayPal's Agent Toolkit created and sent it. Number and status are read back from PayPal." : "Created and sent. (PayPal isn't live in this take.)", phone.getByTestId("invoice-number"), 3000);
+  await point(page, sandbox ? "PayPal's Agent Toolkit created and sent it. Number and status are read back from PayPal." : "Created and sent. (PayPal isn't live in this take.)", phone.getByTestId("invoice-number"), BEAT_MS);
   await apiChips(page, []);
 
   // PayPal's own QR code for the invoice, from generate-qr-code. If PayPal didn't give one, the screen says so and so does this.
@@ -236,9 +246,18 @@ test("demo", async ({ browser }) => {
     console.log(`[demo] QR for ${sentJob.invoice.id}: ${fromPayPal ? "PayPal's own, from generate-qr-code" : `drawn here: ${await phone.getByTestId("pay-qr-source").innerText()}`}`);
     narrate(9, fromPayPal ? "PayPal made the QR code. The customer scans and pays." : "The customer scans the QR code and pays.");
     if (sandbox && fromPayPal) await apiChips(page, ["POST /v2/invoicing/invoices/{id}/generate-qr-code"]);
-    await held("qr", () => point(page, fromPayPal ? "Pay now: PayPal's own QR code for this invoice, from generate-qr-code. The customer scans it before the van leaves." : "Pay now: a QR code drawn here from PayPal's link. PayPal's own QR code didn't come back this time.", qr, 3800));
+    await held("qr", () => point(page, fromPayPal ? "Pay now: PayPal's own QR code for this invoice, from generate-qr-code. The customer scans it before the van leaves." : "Pay now: a QR code drawn here from PayPal's link. PayPal's own QR code didn't come back this time.", qr, BEAT_MS));
     await apiChips(page, []);
   }
+  // What the customer sees on PayPal: the trade name, the note, each line described, tax and total, read back from PayPal.
+  const payerView = phone.getByTestId("payer-view");
+  if (await payerView.count()) {
+    await bringIntoView(payerView);
+    narrate(10, "What the customer sees on PayPal: name, note, every line.");
+    if (sandbox) await apiChips(page, ["GET /v2/invoicing/invoices/{id}"]);
+    await held("payer-view", () => point(page, sandbox ? "What the customer sees on PayPal, read back from PayPal: the trade's name, the note, every line with its description, the tax and the total." : "What the customer sees, as the app reads it back. (PayPal isn't live in this take.)", payerView, PAYER_VIEW_MS));
+    await apiChips(page, []);
+  } else console.log("[demo] no payer view on the result, so that beat is skipped");
   const jobUrl = phone.url();
   await checkpoint("sent");
 
@@ -254,11 +273,9 @@ test("demo", async ({ browser }) => {
   });
   const reason = (await refused.first().getByTestId("reminder-refused-reason").innerText()).trim();
   console.log(`[demo] refused: ${reason}`);
-  narrate(10, "Asked for a $25 discount that isn't on the invoice, the agent wrote it in. Code refused it.");
-  await held("refusal", async () => {
-    await point(page, "Asked for a $25 early-payment discount that isn't on the invoice, the reminder agent wrote it into its note.", refused.first().locator("p.line-through"), REFUSAL_BEAT_MS);
-    await point(page, `Code refused the note before any approval card: ${reason}`, refused.first().getByTestId("reminder-refused-reason"), REFUSAL_BEAT_MS);
-  });
+  narrate(11, "The reminder agent wrote in a $25 discount. Code refused it.");
+  await bringIntoView(refused.first());
+  await held("refusal", () => point(page, `Refused: ${reason}`, refused.first().getByTestId("reminder-refused-reason"), REFUSAL_MS));
   // The corrected reminder is approved off camera, so the job is tidy when the customer pays.
   await cut(async () => {
     await phone.getByTestId("approval-prompt").getByTestId("approve-button").click();
@@ -287,8 +304,8 @@ test("demo", async ({ browser }) => {
       });
     })(),
   );
-  narrate(11, "The customer pays on PayPal's own page, as a guest with the test card.");
-  await caption(page, `The customer's PayPal invoice, from ${appConfig.tradeName}. They pay as a guest with PayPal's test card.`, { ms: 3600 });
+  narrate(12, "The customer pays on PayPal's own page, as a guest with the test card.");
+  await caption(page, `The customer's PayPal invoice, from ${appConfig.tradeName}. They pay as a guest with PayPal's test card.`, { ms: BEAT_MS });
   const cardButtons = () => page.frames().find((f) => f.url().includes("smart/buttons") && f.url().includes("style.color=black"));
   // Back to full size for the click (PayPal's buttons don't take a click through the zoom), out of sight.
   await cut(
@@ -376,7 +393,7 @@ test("demo", async ({ browser }) => {
     const viaWebhook = !!(await page.getByTestId("paid-source").getAttribute("title"))?.startsWith("PayPal event");
     if (sandbox && hosted && requireLive() && !viaWebhook) throw new Error("DEMO_REQUIRE_LIVE=1, but the hosted job turned Paid without PayPal's INVOICING.INVOICE.PAID webhook.");
     console.log(`[demo] paid ${viaWebhook ? "via the INVOICING.INVOICE.PAID webhook" : "read back with GET /v2/invoicing/invoices"}`);
-    narrate(12, !sandbox ? "Paid." : viaWebhook ? "Paid. PayPal's webhook marked it, with PayPal's transaction id." : "Paid, read back from PayPal, with its transaction id.");
+    narrate(13, !sandbox ? "Paid." : viaWebhook ? "Paid. PayPal's webhook marked it, with PayPal's transaction id." : "Paid, read back from PayPal, with its transaction id.");
     if (sandbox) await apiChips(page, [viaWebhook ? "webhook INVOICING.INVOICE.PAID" : `GET /v2/invoicing/invoices/${job?.invoice?.id ?? "{id}"}`]);
     await point(
       page,
@@ -388,12 +405,28 @@ test("demo", async ({ browser }) => {
     await checkpoint("paid");
 
     await cut(page.goto("/activity").then(() => expect(page.getByTestId("activity-job").first()).toBeVisible()));
-    narrate(13, "Activity shows every request and approval, job by job.");
-    await point(page, "Activity, job by job: amount, PayPal status, and every request, approval and result in plain words.", page.getByTestId("activity-job").first(), 4000);
+    narrate(14, "Activity shows every request and approval, job by job.");
+    await point(page, "Activity, job by job: amount, PayPal status, and every request, approval and result in plain words.", page.getByTestId("activity-job").first(), BEAT_MS);
+
+    // Day one: a trade with no PayPal history yet. The sound-alike check still asks.
+    const dayOne = await cut(async () => {
+      const frame = await phoneStage(page, "/jobs?try=day-one");
+      await frame.waitForURL(/\/jobs\/job_/, { timeout: 60_000 });
+      await expect(frame.getByTestId("day-one")).toBeVisible({ timeout: 30_000 });
+      return frame;
+    }, { lead: 0, tail: 300 });
+    const dayOneCatch = dayOne.getByTestId("catch-card").first();
+    await bringIntoView(dayOneCatch);
+    const dayOneAsks = (await dayOneCatch.locator("p").first().innerText()).replace(/^Line \d+, /, "");
+    console.log(`[demo] day one: ${dayOneAsks}`);
+    narrate(15, "Day one, no PayPal history: a sound-alike price still gets asked.");
+    await held("day-one", () => point(page, `Day one, no PayPal history yet: ${dayOneAsks}`, dayOneCatch, DAY_ONE_MS));
+    await checkpoint("day one");
+    await closePhoneStage(page);
 
     // Who it's for, and where to try it.
     const who = appConfig.landing.who;
-    narrate(14, `Say-Voice, for one-person trades. Try it at ${SITE.replace(/\./g, " dot ")}.`);
+    narrate(16, `Say-Voice, for one-person trades. Try it at ${SITE.replace(/\./g, " dot ")}.`);
     await titleCard(
       page,
       "Say-Voice",
