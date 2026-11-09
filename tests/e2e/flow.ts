@@ -84,7 +84,7 @@ export async function startSample(page: Page) {
   await expect(page.getByTestId("invoice-line").first()).toBeVisible();
 }
 
-/** Fifty heard as fifteen: takes the price book's one-tap fix, so the job is clear to send. */
+/** Fifteen said for a part that's usually fifty: takes the price book's one-tap fix, so the job is clear to send. */
 export async function fixElementPrice(page: Page) {
   const element = page.getByTestId("invoice-line").nth(1);
   // On a phone the catch is answered in its card under the words; on a desktop, on the row.
@@ -145,9 +145,12 @@ export async function proposeReminder(page: Page) {
   return prompt;
 }
 
+/** The For judges cookie: /api/audit and /api/paypal/ledger show the whole record, not one browser's jobs. */
+export const WHOLE_RECORD = { cookie: "say-judges=1" };
+
 /** What the audit log recorded for one tool, read from the app. */
 export async function auditedActions(request: APIRequestContext, tool: string, runId?: string) {
-  const audit = await (await request.get("/api/audit")).json();
+  const audit = await (await request.get("/api/audit", { headers: WHOLE_RECORD })).json();
   expect(audit.integrity.ok).toBe(true);
   return audit.entries.filter((e: { tool?: string; runId?: string }) => e.tool === tool && (!runId || e.runId === runId)).map((e: { action: string }) => e.action) as string[];
 }

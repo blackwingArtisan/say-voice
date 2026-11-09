@@ -29,7 +29,7 @@ export function priceBook(visitor?: string): PriceEntry[] {
     const seed = known ? undefined : findEntry(line.name, [...book.values()]);
     const base: PriceEntry[] = known ? [known] : seed ? [{ ...seed, samples: [] }] : [];
     for (const entry of learned(base, [line], when)) {
-      // Each invoice's quantity too, so a misheard count can be held against them. A history read before quantities were kept has none.
+      // Each invoice's quantity too, so a wrong count can be held against them. A history read before quantities were kept has none.
       const quantities = line.quantityMilli === undefined ? undefined : [...(known?.paypal?.quantities ?? []), line.quantityMilli];
       // Which invoices had it, so the book knows what's usually billed together. Once per invoice.
       const invoiceIds = line.invoiceId ? [...new Set([...(known?.paypal?.invoiceIds ?? []), line.invoiceId])] : undefined;

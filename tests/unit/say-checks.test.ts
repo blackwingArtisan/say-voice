@@ -32,13 +32,13 @@ describe("flat-rate labor", () => {
     expect(findChecks({ ...base, transcript, heardLines: lines, lines, flags: [] })[0]).toMatchObject({ kind: "far", usualCents: 8000 });
   });
 
-  it("still catches one hour at a misheard rate", () => {
+  it("still catches one hour at a wrong rate", () => {
     const lines = labor(1600);
     expect(findChecks({ ...base, transcript: "One hour at sixteen an hour.", heardLines: lines, lines, flags: [] })[0]).toMatchObject({ kind: "far", usualCents: 8000 });
   });
 });
 
-describe("the sample job, where fifty was heard as fifteen", () => {
+describe("the sample job, fifteen said for a usual fifty", () => {
   it("is stopped by code even when the AI flagged nothing", () => {
     const checks = findChecks({ ...base, flags: [] });
     expect(checks).toHaveLength(1);
@@ -91,7 +91,7 @@ describe("the sample job, where fifty was heard as fifteen", () => {
   });
 });
 
-describe("sixty heard as sixteen", () => {
+describe("sixteen said for a usual sixty", () => {
   const lines = [{ key: "a", name: "Labor", quantityMilli: 2000, unitCents: 1600, description: "As said" }];
   it("offers the sound-alike as well as the usual price", () => {
     const [check] = findChecks({ ...base, transcript: "Two hours at 16 hour.", heardLines: lines, lines, flags: [] });
@@ -199,7 +199,7 @@ describe("day one: no price history, and a price that sounds like another", () =
   });
 });
 
-describe("a misheard quantity, held against the trade's PayPal invoices", () => {
+describe("a wrong quantity, held against the trade's PayPal invoices", () => {
   // Six past PayPal invoices, each with one heating element at about $50: the seeded history's shape.
   const paypalBook = (quantities: number[] | undefined, invoices = 6): PriceEntry[] => [
     ...book.filter((entry) => entry.id !== "heating element"),

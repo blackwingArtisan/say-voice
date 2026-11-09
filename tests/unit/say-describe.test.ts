@@ -190,7 +190,7 @@ describe("tax said with no rate", () => {
     expect(taxSaid("Labor was eighty.")).toBe(false);
   });
 
-  it("matches the state, with Iowa heard as lowa, and never by a near spelling", () => {
+  it("matches the state, with Iowa written as lowa, and never by a near spelling", () => {
     expect(stateFor("plus tax for lowa")?.name).toBe("Iowa");
     expect(stateFor("plus Iowa tax")?.name).toBe("Iowa");
     expect(stateFor("on the main line, plus tax")).toBeNull();

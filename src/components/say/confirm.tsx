@@ -62,7 +62,7 @@ export function checkedJob(draft: Draft) {
   return { customer: draft.customer, lines: lines.map(({ key, name, quantityMilli, unitCents, description, taxed }) => ({ key, name, quantityMilli, unitCents, description, taxed })), taxRateMilli, details, dueDate: draft.dueDate, acknowledged: draft.acknowledged };
 }
 
-/** The transcript with every number marked, so a mishearing stands out against the rows. */
+/** The transcript with every number marked, so a wrong number stands out against the rows. */
 export function Transcript({ text }: { text: string }) {
   const parts = useMemo(() => {
     const out: ReactNode[] = [];

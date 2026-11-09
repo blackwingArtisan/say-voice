@@ -88,8 +88,8 @@ test("on a phone the landing is Start a job, the catch, three steps and the real
 
 test("the landing page's headline is the price book from your PayPal invoices, and How it's built says why not Housecall Pro or Jobber", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Fifty heard as fifteen? Your PayPal invoices catch it.");
-  await expect(page.locator("main")).toContainText("A price book learned from your own past PayPal invoices stops a sound-alike number");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Said fifteen, usually fifty? Your PayPal invoices catch it.");
+  await expect(page.locator("main")).toContainText("When a price you said is far from what your own past PayPal invoices charged for it, misheard or misspoken, the invoice waits and you pick.");
   await page.goto("/built");
   const whyNot = page.getByTestId("hero-why-not");
   await expect(whyNot).toContainText("Why not Housecall Pro or Jobber? Both have a price list of their own.");

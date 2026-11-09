@@ -1,6 +1,6 @@
 /**
  * DEMO VIDEO (npm run demo:record). Landscape 16:9, under 1:45. It opens on the problem in one card
- * (fifty heard as fifteen), then the phone: the person saying the job, subtitled as it's said; who it
+ * (fifteen said, fifty usual: misheard or misspoken, the trade decides), then the phone: the person saying the job, subtitled as it's said; who it
  * was for; the catch held in red at about 0:15; the PayPal invoices the usual price came from, held;
  * the Guard's approval card, held; PayPal's own QR code; the reminder agent's note refused by code, in
  * two beats on the phone; the customer paying on PayPal's page; Paid; Activity; and who it's for, with
@@ -122,8 +122,8 @@ test("demo", async ({ browser }) => {
 
   // Open on the problem, in the first 4 s: one card, said aloud. The page loading under it is cut.
   await cut(page.goto("/"), { lead: 0, tail: 0 });
-  narrate(1, "Fifty heard as fifteen. One wrong number costs you the customer.");
-  await titleCard(page, "Fifty heard as fifteen.", "One wrong number on an invoice costs you the customer.<br>So every price you say is checked against your own PayPal invoices.", OPENING_MS);
+  narrate(1, "Said fifteen. Usually fifty. Misheard or misspoken, you decide.");
+  await titleCard(page, "Said fifteen. Usually fifty.", "Misheard or misspoken, one wrong number on an invoice costs you the customer.<br>So every price you say is checked against your own PayPal invoices, and you decide.", OPENING_MS);
   const openingSec = at() / 1000;
 
   // Then the phone: the person presses record and says the job.
