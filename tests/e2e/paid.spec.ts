@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { jobId, keepToOneCall, kitStatus, readJob, sentSample } from "./flow";
 import { payAsGuest } from "./pay-as-guest";
 import { readInvoiceFromPayPal } from "./paypal-reread";
@@ -26,6 +26,8 @@ test.describe("getting paid", () => {
     await expect(page.getByRole("heading", { name: "Invoice paid" })).toBeVisible();
     await expect(page.getByTestId("reminder-card")).toHaveCount(0);
     await page.screenshot({ path: `screenshots/paid-${sandbox ? "sandbox" : "mock"}.png`, fullPage: true });
+    // What happened says it in plain words; the event name and its WH- id stay behind Details and on Activity.
+    expect(await plainView(page)).toContain("PayPal told us the customer paid");
 
     const job = await readJob(request, jobId(page));
     expect(job.invoice!.status).toBe("PAID");
@@ -56,6 +58,19 @@ test.describe("getting paid", () => {
     const job = await readJob(request, jobId(page));
     expect(job.reminderRunId).toBeUndefined();
     expect(job.invoice!.paidEventId).toBeUndefined();
+    expect(await plainView(page)).not.toMatch(RAW_EVENT);
     console.log(`PayPal re-read: invoice ${sent.invoice!.id} PAID, payment ${job.invoice!.paymentId}, no reminder started`);
   });
 });
+
+const RAW_EVENT = /INVOICING\.|PAYMENT\.|\bWH-/;
+
+/** The What happened panel as a person reads it, every step open and Details shut. Fails on an event name or id. */
+async function plainView(page: Page) {
+  const toggle = page.getByTestId("what-happened-toggle");
+  if ((await toggle.count()) && (await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  await expect(page.getByTestId("technical-details")).toHaveCount(0);
+  const text = await page.getByTestId("what-happened").innerText();
+  expect(text).not.toMatch(RAW_EVENT);
+  return text;
+}
