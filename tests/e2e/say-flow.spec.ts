@@ -310,11 +310,11 @@ test("works at phone width", async ({ page, request }) => {
   // One hand: the next step is always under the thumb, and it leads to whatever needs a look.
   await expect(page.getByTestId("next-check")).toBeInViewport();
   await page.getByTestId("next-check").click();
-  const element = page.getByTestId("invoice-line").nth(1);
-  await expect(element.getByTestId("use-usual")).toBeInViewport();
-  const fixes = await page.evaluate(() => [...document.querySelectorAll("[data-testid=use-usual],[data-testid=keep-line]")].map((el) => el.getBoundingClientRect().height));
+  const card = page.getByTestId("catch-card");
+  await expect(card.getByTestId("catch-use-usual")).toBeInViewport();
+  const fixes = await page.evaluate(() => [...document.querySelectorAll("[data-testid=catch-use-usual],[data-testid=catch-keep]")].map((el) => el.getBoundingClientRect().height));
   expect(Math.min(...fixes)).toBeGreaterThanOrEqual(44);
-  await element.getByTestId("use-usual").click();
+  await card.getByTestId("catch-use-usual").click();
   // The Send bar stays under the thumb, with the total on it.
   await expect(page.getByTestId("send-invoice")).toBeInViewport();
   await expect(page.getByTestId("send-invoice")).toContainText("$110.00");
@@ -744,13 +744,15 @@ test("day one, one tap from the landing: no PayPal history, and the sound-alike 
   await expect(page.getByTestId("day-one")).toContainText("Day one: no PayPal history yet");
   const element = page.getByTestId("invoice-line").nth(1);
   await expect(element.getByTestId("line-name")).toHaveValue("Heating element");
-  // No usual price to hold it against, so it asks the sound-alike question and claims nothing else.
-  await expect(element.getByTestId("line-alike")).toContainText('Check this amount: "fifteen" or "fifty"?');
-  await expect(element.getByTestId("line-alike")).toContainText("No past invoices for this item yet.");
   await expect(page.locator("[data-testid^=line-usual]")).toHaveCount(0);
   await expect(page.getByTestId("usually-with")).toHaveCount(0);
+  // One decision at a time on a phone: the labor rate's sound-alike first, then the element's.
+  await expect(page.getByTestId("catch-card")).toHaveCount(1);
+  await page.getByTestId("catch-card").filter({ hasText: "Labor" }).getByTestId("catch-keep").click();
+  // No usual price to hold it against, so it asks the sound-alike question and claims nothing else.
   const elementCatch = page.getByTestId("catch-card").filter({ hasText: "Heating element" });
-  await expect(elementCatch).toContainText('"fifteen" or "fifty"?');
+  await expect(elementCatch).toContainText('Check this amount: "fifteen" or "fifty"?');
+  await expect(elementCatch).toContainText("No past invoices for this item yet.");
   await expect(elementCatch.getByTestId("catch-use-alike")).toHaveText("Use $50.00");
   const view = (await (await request.get(`/api/jobs/${id}`, { headers: await visitorHeaders(page) })).json()) as { dayOne?: boolean; priceBook: unknown[] };
   expect(view.dayOne).toBe(true);
@@ -767,7 +769,7 @@ test("day one, one tap from the landing: no PayPal history, and the sound-alike 
   await page.waitForURL(/\/jobs\/job_[\w-]+$/, { timeout: 60_000 });
   expect(jobId(page)).not.toBe(id);
   await expect(page.getByTestId("day-one")).toHaveCount(0);
-  await expect(page.getByTestId("invoice-line").nth(1).getByTestId("line-usual")).toContainText("Usually $50.00");
+  await expect(page.getByTestId("catch-card")).toContainText("Usually $50.00");
   // Back from the job is a plain New job, not another sample.
   await page.goBack();
   await expect(page).toHaveURL(/\/jobs$/);
@@ -948,7 +950,7 @@ test("record first: the record button leads /jobs at phone and desktop width, Yo
   await expect.poll(async () => (await pinned.boundingBox())!.y).toBeLessThan(80);
   await expect(pinned).toBeInViewport();
   await page.getByTestId("pinned-checks").click();
-  await page.getByTestId("invoice-line").nth(1).getByTestId("use-usual").click();
+  await page.getByTestId("catch-card").getByTestId("catch-use-usual").click();
   await expect(page.getByTestId("pinned-total")).toHaveText("$110.00");
   await settleAiNotes(page);
   await expect(page.getByTestId("pinned-checks")).toHaveAttribute("data-state", "clear");
@@ -968,8 +970,12 @@ test("compact confirm: the total, the checks and the lines first; heard words be
   await expect(page.getByTestId("catch-card").first()).toBeInViewport();
   await page.screenshot({ path: "screenshots/confirm-compact-390.png" });
 
-  // Each line reads as name, quantity x price and total. The line with a check shows what was heard; the other keeps it behind a tap.
+  // Each line reads as name, quantity x price and total. On a phone what was heard sits behind a tap even on the line with the
+  // check: the catch card above already quotes it.
   const [labor, element] = await page.getByTestId("invoice-line").all();
+  await expect(element).toHaveAttribute("data-open", "true");
+  await expect(element.getByTestId("line-details")).toHaveCount(0);
+  await showLineDetails(element);
   await expect(element.getByTestId("line-heard")).toBeVisible();
   if (!(await labor.getAttribute("data-open"))) {
     await expect(labor.getByTestId("line-details")).toHaveCount(0);
@@ -1112,4 +1118,92 @@ test("Jobs opens on what you're owed, from PayPal's own amounts, and the result 
   await expect.poll(async () => (await readJob(request, sent.id)).invoice?.status, { timeout: 30_000 }).toBe("PAID");
   await page.reload();
   await expect(page.getByTestId("owed-line")).toHaveText("Nothing owed");
+});
+
+/** Where on screen an element is, and whether anything is drawn over its middle. */
+const coverage = (page: Page, testId: string) =>
+  page.evaluate((id) => {
+    const el = document.querySelector(`[data-testid=${id}]`);
+    if (!el) return "missing";
+    const box = el.getBoundingClientRect();
+    if (box.bottom > window.innerHeight || box.top < 0) return `out of view (${Math.round(box.top)} to ${Math.round(box.bottom)})`;
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return hit && el.contains(hit) ? "ok" : `covered by ${hit?.closest("[data-testid]")?.getAttribute("data-testid") ?? hit?.tagName}`;
+  }, testId);
+
+/** A day-one job with a third thing to check: a bare "Parts" line, which needs a description. */
+async function threeChecks(page: Page) {
+  await page.goto("/jobs?try=day-one");
+  await page.waitForURL(/\/jobs\/job_[\w-]+$/, { timeout: 60_000 });
+  await expect(page.getByTestId("invoice-line")).toHaveCount(2);
+  await page.getByTestId("add-line").click();
+  const parts = page.getByTestId("invoice-line").nth(2);
+  await parts.getByTestId("line-name").fill("Parts");
+  await parts.getByTestId("line-price").fill("12");
+  await expect(parts.getByTestId("line-vague")).toBeVisible();
+}
+
+const decisions = "[data-testid=catch-card], [data-testid=tax-check], [data-testid=missing-amount], [data-testid=job-flag], [data-testid=usually-with]";
+
+test("one decision at a time on a phone; on a desktop the Send bar never covers the Items and Tax breakdown", async ({ page, request }) => {
+  const { live } = await kitStatus(request);
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
+
+  // A phone with three things to check: one count at the top, one decision on screen, and the next once that one is settled.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await threeChecks(page);
+  await expect(page.getByTestId("pinned-checks")).toHaveText("3 to check");
+  const shown = page.locator(decisions).filter({ visible: true });
+  await expect(shown).toHaveCount(1);
+  await expect(shown).toContainText("Line 1, Labor");
+  // The count says it once: no section title repeating it, and the bottom bar doesn't count again.
+  await expect(page.getByTestId("flags-panel").getByText(/things? to check before you send/)).toBeHidden();
+  await expect(page.getByTestId("next-check")).toHaveText("Show me what to check");
+  // What was heard and the descriptions stay folded on a phone, even on the lines with a check.
+  for (const line of await page.getByTestId("invoice-line").all()) await expect(line.getByTestId("line-heard")).toHaveCount(0);
+  // The rows don't ask the catches again: their answers are in the card, one at a time.
+  await expect(page.locator("[data-testid=invoice-line] [data-testid=line-alike]")).toHaveCount(0);
+  await expect(page.locator("[data-testid=invoice-line] [data-testid=use-alike]")).toHaveCount(0);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: "screenshots/confirm-3-checks-390.png" });
+  await page.screenshot({ path: "screenshots/confirm-3-checks-390-full.png", fullPage: true });
+  const phoneHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+
+  await shown.getByTestId("catch-keep").click();
+  await expect(page.getByTestId("pinned-checks")).toHaveText("2 to check");
+  await expect(shown).toHaveCount(1);
+  await expect(shown).toContainText("Line 2, Heating element");
+  await shown.getByTestId("catch-use-alike").click();
+  await expect(page.getByTestId("pinned-checks")).toHaveText("1 to check");
+  // The last one is on its row, and the panel points there.
+  await expect(shown).toHaveCount(0);
+  await expect(page.getByTestId("look-below")).toBeVisible();
+  console.log(`Phone confirm, 3 checks: ${phoneHeight}px tall, ${(phoneHeight / 844).toFixed(2)} screens; one decision shown at a time`);
+
+  // The sample job on a phone: what usually goes with the element waits until the price is answered.
+  expect(await tradeHistoryReady(request)).toBe(true);
+  await startSample(page);
+  await expect(shown).toHaveCount(1);
+  await expect(page.getByTestId("usually-with")).toHaveCount(0);
+  await page.getByTestId("catch-card").getByTestId("catch-use-usual").click();
+  await settleAiNotes(page);
+  await expect(page.getByTestId("usually-with")).toBeVisible();
+
+  // A desktop, 1440 by 900, the same three checks: all on screen at once, and wherever the page is scrolled the breakdown
+  // sits whole beside the Send bar, nothing drawn over it.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await threeChecks(page);
+  await expect(page.getByTestId("next-check")).toContainText("3 things to check first");
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: "screenshots/confirm-3-checks-1440.png" });
+  const max = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+  for (const y of [0, Math.round(max / 2), max]) {
+    await page.evaluate((to) => window.scrollTo(0, to), y);
+    for (const id of ["subtotal", "tax-total", "invoice-total", "next-check"]) await expect.poll(() => coverage(page, id), { message: `${id} at scroll ${y}` }).toBe("ok");
+    // Send sits beside the breakdown, never over it.
+    const [breakdown, bar] = await Promise.all([page.getByTestId("totals").boundingBox(), page.getByTestId("send-bar").boundingBox()]);
+    const overlaps = breakdown!.x < bar!.x + bar!.width && bar!.x < breakdown!.x + breakdown!.width && breakdown!.y < bar!.y + bar!.height && bar!.y < breakdown!.y + breakdown!.height;
+    expect(overlaps).toBe(false);
+  }
+  console.log(`Desktop confirm, 3 checks: breakdown whole beside Send at scroll 0, ${Math.round(max / 2)} and ${max}`);
 });

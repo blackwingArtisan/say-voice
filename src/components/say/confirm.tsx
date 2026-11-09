@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { AlertTriangle, ArrowDown, Check as CheckIcon, ChevronDown, Plus, Send, Trash2 } from "lucide-react";
@@ -100,6 +100,17 @@ function RowFlag({ children, testId, tone = "amber" }: { children: ReactNode; te
 /** "Nov 22": the due date in the folded summary. */
 const dueLabel = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "not set");
 
+/** Below Tailwind's lg breakpoint the confirm screen is the phone layout: one decision at a time. */
+const PHONE_QUERY = "(max-width: 1023.98px)";
+function subscribePhone(onChange: () => void) {
+  const query = window.matchMedia(PHONE_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+export function useIsPhone() {
+  return useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE_QUERY).matches, () => false);
+}
+
 /** Tall enough for a thumb, in a van. */
 const TAP = "h-11";
 
@@ -114,7 +125,7 @@ function FieldError({ problem, testId }: { problem?: InputProblem; testId: strin
 
 const INVALID = "border-red-400 bg-red-50/50 focus:border-red-500 focus:ring-red-100";
 
-function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineTotal, lineTax, disabled, book, onChange, onRemove, onSettle, onSettleWords }: {
+function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineTotal, lineTax, disabled, book, phone, onChange, onRemove, onSettle, onSettleWords }: {
   line: EditLine;
   number: number;
   problems: InputProblem[];
@@ -126,6 +137,8 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
   lineTotal: number | null;
   lineTax: number;
   disabled: boolean;
+  /** On a phone what was heard and the description stay behind a tap even on a line with a check: the check is the one thing on screen. */
+  phone: boolean;
   onChange: (patch: Partial<EditLine>) => void;
   onRemove: () => void;
   onSettle: () => void;
@@ -145,9 +158,12 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
   const problemOn = (field: InputProblem["field"]) => problems.find((p) => p.field === field);
   const bad = problems.length > 0;
   // What was heard, the description and the tax sit behind a tap, unless this line has something to check.
-  // A line that comes up with a check stays open once it's dealt with, so the fix stays in view.
-  const [more, setMore] = useState(open || bad);
-  const showMore = more || open || bad;
+  // On a desktop a line that comes up with a check stays open once it's dealt with, so the fix stays in view.
+  const [more, setMore] = useState(bad || (open && !phone));
+  const forced = bad || (open && !phone);
+  const showMore = more || forced;
+  // On a phone an open price-book catch is answered in its card under your words, one at a time, so the row doesn't ask again.
+  const asked = (check: Check) => phone && open && (check.kind === "far" || check.kind === "alike" || check.kind === "qty");
   return (
     <li id={`line-${line.key}`} data-testid="invoice-line" data-invalid={bad || undefined} data-open={open || undefined} className={cn("scroll-mt-20 space-y-2 rounded-xl border p-3", bad ? "border-red-300 bg-red-50/30" : open ? "border-amber-400 bg-amber-50/40" : "border-zinc-200")}>
       <div className="flex items-center gap-2">
@@ -172,7 +188,7 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
           {learnedNote}
         </p>
       ) : null}
-      {checks.map((check) =>
+      {checks.filter((check) => !asked(check)).map((check) =>
         check.kind === "far" ? (
           <RowFlag key={check.id} testId="line-usual" tone="red">
             <strong className="font-semibold">{label}: </strong>
@@ -208,7 +224,7 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
           </RowFlag>
         ),
       )}
-      {open && settleable && !disabled ? (
+      {open && settleable && !disabled && !checks.every((check) => asked(check) || !canSettle(check) || check.kind === "words") ? (
         <div className="flex flex-wrap gap-2">
           {far?.usualCents ? (
             <Button className={cn(TAP, "flex-1")} onClick={() => applyPrice(far.usualCents!)} data-testid="use-usual">
@@ -230,7 +246,7 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
           </Button>
         </div>
       ) : null}
-      {open || bad ? null : (
+      {forced ? null : (
         <button type="button" onClick={() => setMore((m) => !m)} aria-expanded={showMore} className="inline-flex min-h-8 sm:ml-7 items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800" data-testid="line-more">
           <ChevronDown className={cn("size-4 transition-transform", showMore && "rotate-180")} />
           {showMore ? "Less" : "What you said, description, tax"}
@@ -288,6 +304,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
     const i = check.kind === "far" || check.kind === "alike" || check.kind === "qty" ? draft.lines.findIndex((line) => line.key === check.lineKey) : -1;
     return i < 0 ? [] : [{ check, line: draft.lines[i], number: i + 1 }];
   });
+  const phone = useIsPhone();
 
   // What the customer reads, the due date and the tax fold into one line until there's a reason to open them, so a
   // two-line job fits one desktop screen.
@@ -317,6 +334,10 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
   const addLine = (price = "", more: Partial<EditLine> = {}) => setDraft({ ...draft, lines: [...draft.lines, { key: freeKey(), name: "", quantity: "1", price, description: "", taxed: true, ...more }] });
   // What the trade's PayPal invoices usually bill with an item on this job, not said this time. It never holds the send.
   const nudges = sending ? [] : usuallyWith(draft.lines.map((line) => line.name), job.priceBook).filter((nudge) => !draft.acknowledged.includes(nudge.id));
+  // On a phone one decision is on screen at a time: the price book's catches, then the job's checks, then what usually goes with it.
+  // The next one comes up once the first is settled. A desktop shows them all.
+  const current = catches[0]?.check.id ?? openJobChecks[0]?.id ?? nudges[0]?.id;
+  const shown = (id: string) => !phone || id === current;
 
   function goToProblem() {
     const first = problems[0];
@@ -329,7 +350,9 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
   function goToNextCheck() {
     const first = open[0];
     if (!first) return;
-    document.getElementById(first.lineKey ? `line-${first.lineKey}` : "flags-panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // On a phone the decision on screen is in the panel under your words, whichever row it is about.
+    const inPanel = !first.lineKey || (phone && catches.length > 0);
+    document.getElementById(inPanel ? "flags-panel" : `line-${first.lineKey}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   // On a phone the total and what's left to check stay pinned at the top, in the job screen's slot.
@@ -367,12 +390,12 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
         </div>
       )}
       {job.dayOne && !sending ? (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700" data-testid="day-one">
-          <span className="min-w-0 flex-1">Day one: no PayPal history yet, so there&apos;s no usual price to hold these against. A price that sounds like another still gets asked about.</span>
-          <Link href="/prices" className="font-medium text-brand-700 underline underline-offset-2" data-testid="day-one-learn">
+        <p className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700" data-testid="day-one">
+          Day one: no PayPal history yet, so there&apos;s no usual price to hold these against. A price that sounds like another still gets asked about.{" "}
+          <Link href="/prices" className="font-medium whitespace-nowrap text-brand-700 underline underline-offset-2" data-testid="day-one-learn">
             Learn from my PayPal invoices
           </Link>
-        </div>
+        </p>
       ) : null}
       {problems.length && !sending ? (
         <div className="space-y-2" data-testid="input-problems">
@@ -386,11 +409,12 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
       ) : null}
       {toCheck ? (
         <div className="scroll-mt-20 space-y-2" id="flags-panel" data-testid="flags-panel">
-          <p className="flex items-center gap-2 text-[15px] font-semibold text-amber-900">
+          {/* On a phone the count is in the pinned bar at the top; the decision itself is the one thing here. */}
+          <p className="hidden items-center gap-2 text-[15px] font-semibold text-amber-900 lg:flex">
             <AlertTriangle className="size-5 text-amber-600" /> {toCheck === 1 ? "1 thing to check before you send" : `${toCheck} things to check before you send`}
           </p>
-          {toCheck > openJobChecks.length + catches.length ? <p className="text-sm text-amber-900">Look for the marked items below.</p> : null}
-          {catches.map(({ check, line, number }) => {
+          {toCheck > openJobChecks.length + catches.length && !(phone && current) ? <p className="text-sm text-amber-900" data-testid="look-below">Look for the marked items below.</p> : null}
+          {catches.filter(({ check }) => shown(check.id)).map(({ check, line, number }) => {
             const cents = parseDollars(line.price);
             return (
               // On a phone the price book's catch comes up here, right under your words, not a screen further down.
@@ -424,7 +448,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
               </div>
             );
           })}
-          {openJobChecks.map((check) =>
+          {openJobChecks.filter((check) => shown(check.id)).map((check) =>
             check.kind === "tax" ? (
               <div key={check.id} className="space-y-2" data-testid="tax-check">
                 <RowFlag>{check.text}</RowFlag>
@@ -473,7 +497,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
           )}
         </div>
       ) : null}
-      {nudges.map((nudge) => (
+      {nudges.filter((nudge) => shown(nudge.id)).map((nudge) => (
         <div key={nudge.id} className="space-y-2 rounded-xl border border-sky-200 bg-sky-50/60 p-3" data-testid="usually-with">
           <p className="flex items-start gap-2 text-[15px] text-sky-950">
             <Plus className="mt-0.5 size-4 shrink-0 text-sky-700" />
@@ -517,6 +541,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
                   lineTax={row.valid ? totals.lines[i].taxCents : 0}
                   disabled={sending}
                   book={job.priceBook}
+                  phone={phone}
                   onChange={(patch) => updateLine(line.key, patch)}
                   onRemove={() => setDraft({ ...draft, lines: draft.lines.filter((l) => l.key !== line.key) })}
                   onSettle={() => settle(openOnRow.filter(canSettle).map((check) => check.id))}
@@ -547,27 +572,6 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
             <Input id="tax-rate" inputMode="decimal" aria-invalid={!!problemOn("tax")} value={draft.taxPercent} disabled={sending} onChange={(e) => setDraft({ ...draft, taxPercent: e.target.value })} data-testid="tax-rate" className={cn("font-mono tabular-nums", problemOn("tax") && INVALID)} />
           </Field>
         </CardBody>
-        <div className="border-t border-zinc-100 px-5 py-4">
-          <dl className="space-y-1 text-sm">
-            <div className="flex justify-between text-zinc-600">
-              <dt>Items</dt>
-              <dd className="font-mono tabular-nums" data-testid="subtotal">{holdTotal ? "--" : formatCents(totals.subtotalCents)}</dd>
-            </div>
-            <div className="flex justify-between text-zinc-600">
-              <dt>Tax</dt>
-              <dd className="font-mono tabular-nums" data-testid="tax-total">{holdTotal ? "--" : formatCents(totals.taxCents)}</dd>
-            </div>
-            <div className="flex items-baseline justify-between pt-1">
-              <dt className="text-[15px] font-semibold text-zinc-900">Total</dt>
-              <dd className="font-mono text-2xl font-semibold tabular-nums text-zinc-950" data-testid="invoice-total">{holdTotal ? "--" : formatCents(totals.totalCents)}</dd>
-            </div>
-            {holdTotal ? (
-              <p className="pt-1 text-right text-sm text-red-700" data-testid="total-held">
-                {lineProblems.length ? `No total until line ${lineProblems[0].line} has a ${lineProblems[0].field === "name" ? "name" : `valid ${lineProblems[0].field}`}.` : "No total until the tax rate is fixed."}
-              </p>
-            ) : null}
-          </dl>
-        </div>
       </Card>
 
       {folded ? (
@@ -602,29 +606,54 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
         </CardBody>
       </Card>
 
-      {sending ? null : (
-        // On a phone this sits under the thumb. On a desktop it follows the totals and stays at the bottom of the window until it gets there.
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-zinc-200 bg-white/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur lg:sticky lg:bottom-4 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
-          {blockedBy ? (
-            <div className="space-y-1.5">
-              <Button size="lg" className="w-full" icon={<Send className="size-4" />} disabled data-testid="send-invoice">
-                {blockedBy}
-              </Button>
-              <button type="button" className="w-full text-center text-sm font-medium text-red-700 underline underline-offset-2" onClick={goToProblem} data-testid="go-to-problem">
-                Show me
-              </button>
+      {/* Items, tax and total, with Send beside them. On a desktop the panel stays at the bottom of the window as you scroll,
+          one slim row, so the breakdown is always in view and Send never sits on top of it. */}
+      <div className="lg:sticky lg:bottom-4 lg:z-20 lg:flex lg:items-center lg:gap-4 lg:rounded-xl lg:border lg:border-zinc-200 lg:bg-white lg:p-3 lg:pl-5 lg:shadow-[0_8px_30px_-12px_rgba(24,24,27,0.25)]" data-testid="totals-panel">
+        <div className="rounded-xl border border-zinc-200 bg-white px-5 py-4 lg:min-w-0 lg:flex-1 lg:rounded-none lg:border-0 lg:p-0" data-testid="totals">
+          <dl className="space-y-1 text-sm lg:flex lg:flex-wrap lg:items-baseline lg:gap-x-5 lg:space-y-0">
+            <div className="flex justify-between gap-2 text-zinc-600">
+              <dt>Items</dt>
+              <dd className="font-mono tabular-nums" data-testid="subtotal">{holdTotal ? "--" : formatCents(totals.subtotalCents)}</dd>
             </div>
-          ) : toCheck ? (
-            <Button size="lg" variant="dark" className="w-full" icon={<ArrowDown className="size-4" />} onClick={goToNextCheck} data-testid="next-check">
-              {toCheck === 1 ? "1 thing to check first" : `${toCheck} things to check first`}
-            </Button>
-          ) : (
-            <Button size="lg" className="w-full" icon={<Send className="size-4" />} loading={busy} disabled={!checked} onClick={onSend} data-testid="send-invoice">
-              Send invoice for {formatCents(totals.totalCents)}
-            </Button>
-          )}
+            <div className="flex justify-between gap-2 text-zinc-600">
+              <dt>Tax</dt>
+              <dd className="font-mono tabular-nums" data-testid="tax-total">{holdTotal ? "--" : formatCents(totals.taxCents)}</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-2 pt-1 lg:pt-0">
+              <dt className="text-[15px] font-semibold text-zinc-900">Total</dt>
+              <dd className="font-mono text-2xl font-semibold tabular-nums text-zinc-950" data-testid="invoice-total">{holdTotal ? "--" : formatCents(totals.totalCents)}</dd>
+            </div>
+            {holdTotal ? (
+              <p className="pt-1 text-right text-sm text-red-700 lg:basis-full lg:pt-0 lg:text-left" data-testid="total-held">
+                {lineProblems.length ? `No total until line ${lineProblems[0].line} has a ${lineProblems[0].field === "name" ? "name" : `valid ${lineProblems[0].field}`}.` : "No total until the tax rate is fixed."}
+              </p>
+            ) : null}
+          </dl>
         </div>
-      )}
+        {sending ? null : (
+          // On a phone this sits under the thumb. On a desktop it sits under the breakdown, in the same panel, so it never covers it.
+          <div className="fixed inset-x-0 bottom-0 z-20 border-t border-zinc-200 bg-white/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur lg:static lg:w-80 lg:shrink-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none" data-testid="send-bar">
+            {blockedBy ? (
+              <div className="space-y-1.5">
+                <Button size="lg" className="w-full" icon={<Send className="size-4" />} disabled data-testid="send-invoice">
+                  {blockedBy}
+                </Button>
+                <button type="button" className="w-full text-center text-sm font-medium text-red-700 underline underline-offset-2" onClick={goToProblem} data-testid="go-to-problem">
+                  Show me
+                </button>
+              </div>
+            ) : toCheck ? (
+              <Button size="lg" variant="dark" className="w-full" icon={<ArrowDown className="size-4" />} onClick={goToNextCheck} data-testid="next-check">
+                {phone ? "Show me what to check" : toCheck === 1 ? "1 thing to check first" : `${toCheck} things to check first`}
+              </Button>
+            ) : (
+              <Button size="lg" className="w-full" icon={<Send className="size-4" />} loading={busy} disabled={!checked} onClick={onSend} data-testid="send-invoice">
+                Send invoice for {formatCents(totals.totalCents)}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
