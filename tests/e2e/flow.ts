@@ -109,10 +109,11 @@ export async function showAllSteps(page: Page) {
 
 /** Starts the sample job and lands on its confirm screen. */
 export async function startSample(page: Page) {
-  await paceAiCalls();
-  await openNewJob(page);
-  await page.getByTestId("try-sample").click();
-  await page.waitForURL(/\/jobs\/job_/);
+  // Paced, and a per-minute limit's countdown waited out once, like the landing's taps.
+  await openSample(page, async () => {
+    await openNewJob(page);
+    await page.getByTestId("try-sample").click();
+  });
   await expect(page.getByTestId("invoice-line").first()).toBeVisible();
 }
 
@@ -168,13 +169,29 @@ export async function sentSample(page: Page, request: APIRequestContext) {
   return readJob(request, jobId(page));
 }
 
-/** Asks the agent for a reminder and waits for its proposal. Returns the words the customer would read. */
+/**
+ * Asks the agent for a reminder and waits for its proposal. Returns the words the customer would read.
+ * The card always ends in one of three: the note to approve, "nothing was sent" with why (the agent
+ * stopped or ran past its 100 s), or the ask refused before it started (a per-minute AI limit on the
+ * hosted site, which this waits out once and asks again).
+ */
 export async function proposeReminder(page: Page) {
-  await paceAiCalls();
-  await page.getByTestId("ask-reminder").click();
   const prompt = page.getByTestId("approval-prompt");
-  await expect(prompt).toBeVisible({ timeout: 60_000 });
-  return prompt;
+  const refused = page.getByTestId("reminder-problem");
+  const stopped = page.getByTestId("reminder-nothing");
+  for (let attempt = 1; ; attempt++) {
+    await paceAiCalls();
+    await page.getByTestId("ask-reminder").click();
+    const seen = (locator: Locator, what: "prompt" | "refused" | "stopped") => locator.waitFor({ timeout: 110_000 }).then(() => what, () => "none" as const);
+    const outcome = await Promise.race([seen(prompt, "prompt"), seen(refused, "refused"), seen(stopped, "stopped")]);
+    if (outcome === "prompt") return prompt;
+    if (outcome === "none") throw new Error("The reminder card showed neither a note, nor why not, in 110 s");
+    const why = await (outcome === "refused" ? refused : stopped).innerText();
+    const wait = Number(/Try again in (\d+) seconds/.exec(why)?.[1]);
+    if (outcome === "stopped" || !wait || wait > 120 || attempt >= 2) throw new Error(`No reminder to approve: ${why}`);
+    console.log(`Reminder ask refused (try ${attempt}): ${why} Waiting ${wait}s, then asking again`);
+    await page.waitForTimeout((wait + 2) * 1000);
+  }
 }
 
 /** The For judges cookie: /api/audit and /api/paypal/ledger show the whole record, not one browser's jobs. */

@@ -59,3 +59,21 @@ export function explainSample(refusal: Refusal): string {
   if (refusal.type === "network") return "Couldn't reach the server. Check your signal, then try again.";
   return "Try again in a moment.";
 }
+
+/**
+ * Why a reminder didn't start, said on the reminder card (not a toast that's gone in seconds), so the
+ * person always sees either the note to approve or this. Server text only where this app wrote it.
+ */
+export function explainReminderAsk({ status, type, message, retryAfter, limit, per }: Refusal): string {
+  switch (type) {
+    case "rate_limited":
+      return `${limitSentence({ limit, per })} Try again in ${retryAfter ?? 60} seconds.`;
+    case "ai_credit":
+    case "ai_budget":
+      return "The AI is out of credit for now, so try again later.";
+    case "network":
+      return "Couldn't reach the server. Check your signal, then try again.";
+    default:
+      return (status === 409 || status === 422) && message ? message : "The reminder didn't start. Try again.";
+  }
+}

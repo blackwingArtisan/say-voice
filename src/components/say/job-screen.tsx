@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { CircleAlert } from "lucide-react";
 import { ApprovalPrompt } from "@/components/agent/approval-prompt";
-import { useKit } from "@/components/kit/kit-provider";
+import { ApiError, useKit } from "@/components/kit/kit-provider";
 import { useTimeline } from "@/components/kit/use-timeline";
 import { PageHeader } from "@/components/shell/app-shell";
 import { useToast } from "@/components/toast";
@@ -15,6 +15,7 @@ import { ReminderCard, type OwnerLineAsk } from "./reminder";
 import { Result } from "./result";
 import { cn } from "@/components/ui/cn";
 import { saidSize } from "@/lib/say/said";
+import { explainReminderAsk } from "@/lib/say/take-problem";
 import { WhatHappened } from "./what-happened";
 
 /** Which models heard and read the job. A stand-in (mock) model isn't named on the trade's screen; For judges shows the modes. */
@@ -37,6 +38,7 @@ export function JobScreen() {
   const [busy, setBusy] = useState(false);
   const [pinSlot, setPinSlot] = useState<HTMLDivElement | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [reminderProblem, setReminderProblem] = useState<string | null>(null);
   const decision = useRef<HTMLDivElement>(null);
   const reminder = useRef<HTMLDivElement>(null);
 
@@ -104,10 +106,13 @@ export function JobScreen() {
 
   async function askForReminder(ask: string, ownerLine?: OwnerLineAsk) {
     setBusy(true);
+    setReminderProblem(null);
     try {
       setJob(await kitFetch<JobView>(`/api/jobs/${id}/remind`, { json: { ...(ask.trim() ? { ask } : {}), ...(ownerLine ? { ownerLine } : {}) } }));
     } catch (e) {
-      toast({ title: "Could not draft a reminder", description: (e as Error).message, variant: "error", durationMs: 8000 });
+      // On the card, where the person is looking, until they ask again.
+      const body = e instanceof ApiError ? e.body.error : undefined;
+      setReminderProblem(explainReminderAsk(e instanceof ApiError ? { status: e.status, type: body?.type, message: e.message, retryAfter: body?.retry_after_seconds, limit: body?.limit, per: body?.per } : { type: "network" }));
     } finally {
       setBusy(false);
     }
@@ -164,7 +169,7 @@ export function JobScreen() {
           {sent ? (
             <div ref={reminder} className="scroll-mt-20 space-y-6">
               {approval}
-              <ReminderCard job={job} busy={busy} onAsk={askForReminder} />
+              <ReminderCard job={job} busy={busy} problem={reminderProblem} onAsk={askForReminder} />
             </div>
           ) : null}
           {sent ? null : <Confirm pinSlot={pinSlot} job={job} draft={draft} setDraft={setEdited} sending={job.status !== "review"} busy={busy} onSend={send} />}

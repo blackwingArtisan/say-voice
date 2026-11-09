@@ -126,6 +126,36 @@ test.describe("the reminder agent", () => {
     await expectPlainWords(page);
   });
 
+  test("an ask the site refuses before the agent starts says why on the card, and asking again drafts the note", async ({ page, request }) => {
+    test.setTimeout(150_000);
+    test.skip(!!process.env.E2E_BASE_URL, "screen behaviour, proven locally; it would spend the hosted site's AI allowance");
+    await sentSample(page, request);
+    // The hosted site's per-minute AI limit, as it answers: the card says it, not a toast that's gone in seconds.
+    let refusals = 1;
+    await page.route("**/api/jobs/*/remind", async (route) => {
+      if (refusals-- <= 0) return route.fallback();
+      await route.fulfill({ status: 429, headers: { "Retry-After": "3" }, json: { error: { type: "rate_limited", message: "Too many requests. Try again in 3s.", retry_after_seconds: 3, limit: 8, per: "minute" } } });
+    });
+    const prompt = await proposeReminder(page);
+    await expect(prompt).toBeVisible();
+    // Asking again cleared it.
+    await expect(page.getByTestId("reminder-problem")).toHaveCount(0);
+  });
+
+  test("the refusal itself reads plainly and stays until the person asks again", async ({ page, request }) => {
+    test.setTimeout(150_000);
+    test.skip(!!process.env.E2E_BASE_URL, "screen behaviour, proven locally; it would spend the hosted site's AI allowance");
+    await sentSample(page, request);
+    await page.route("**/api/jobs/*/remind", (route) => route.fulfill({ status: 429, json: { error: { type: "rate_limited", message: "Too many requests. Try again in 40s.", retry_after_seconds: 40, limit: 8, per: "minute" } } }));
+    await page.getByTestId("ask-reminder").click();
+    const problem = page.getByTestId("reminder-problem");
+    await expect(problem).toHaveText("Nothing was sent. This demo allows 8 AI requests a minute per person. Try again in 40 seconds.");
+    await page.waitForTimeout(9_000); // longer than a toast stays
+    await expect(problem).toBeVisible();
+    await expect(page.getByTestId("ask-reminder")).toBeEnabled();
+    await expect(page.getByTestId("approval-prompt")).toHaveCount(0);
+  });
+
   test("a declined reminder sends nothing", async ({ page, request }) => {
     test.setTimeout(150_000);
     await sentSample(page, request);
