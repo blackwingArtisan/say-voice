@@ -28,7 +28,9 @@ export function priceBook(visitor?: string): PriceEntry[] {
     for (const entry of learned(base, [line], when)) {
       // Each invoice's quantity too, so a misheard count can be held against them. A history read before quantities were kept has none.
       const quantities = line.quantityMilli === undefined ? undefined : [...(known?.paypal?.quantities ?? []), line.quantityMilli];
-      const next: PriceEntry = { ...entry, source: "learned", paypal: { invoices: (known?.paypal?.invoices ?? 0) + 1, lastCents: line.unitCents, lastAt: when, ...(quantities ? { quantities } : {}) } };
+      // Which invoices had it, so the book knows what's usually billed together. Once per invoice.
+      const invoiceIds = line.invoiceId ? [...new Set([...(known?.paypal?.invoiceIds ?? []), line.invoiceId])] : undefined;
+      const next: PriceEntry = { ...entry, source: "learned", paypal: { invoices: (known?.paypal?.invoices ?? 0) + 1, lastCents: line.unitCents, lastAt: when, ...(quantities ? { quantities } : {}), ...(invoiceIds ? { invoiceIds } : {}) } };
       fromPayPal.set(next.id, next);
       book.set(next.id, next);
     }

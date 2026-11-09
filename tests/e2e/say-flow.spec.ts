@@ -5,7 +5,7 @@
  */
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { checkCount, fixElementPrice, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, sentSample, settleAiNotes, startSample, tradeHistoryReady, visitorHeaders, openNewJob, settleChecks, showLineDetails, showAllSteps } from "./flow";
+import { checkCount, fixElementPrice, totalOnScreen, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, sentSample, settleAiNotes, startSample, tradeHistoryReady, visitorHeaders, openNewJob, settleChecks, showLineDetails, showAllSteps } from "./flow";
 import { PLUS_TAX_AMOUNTS, PLUS_TAX_TRANSCRIPT, QUANTITY_AMOUNTS, QUANTITY_TRANSCRIPT, SAMPLE_AMOUNTS, ROOFER_AMOUNTS, ROOFER_CUSTOMER, ROOFER_DESCRIPTION, ROOFER_TRANSCRIPT } from "../../src/lib/say/sample";
 import { readInvoiceFromPayPal } from "./paypal-reread";
 import { PAST_JOBS } from "../../src/lib/demo/past-invoices";
@@ -85,6 +85,72 @@ test("sample job: catch the misheard price, fix it, approve, invoice sent", asyn
   const row = page.getByTestId("price-row").filter({ hasText: "Heating element" });
   await expect(row.getByTestId("price-usual")).toHaveText(money(SAMPLE_AMOUNTS.spokenElementCents));
   await expect(row.getByTestId("price-count")).toContainText(fromPayPal ? /PayPal invoices?, last \$\d+\.\d\d, and 1 sent here/ : `${before + 1} invoices`);
+});
+
+test("your PayPal invoices finish the invoice: the line usually billed with this item is one tap, code adds it up, and PayPal gets all three", async ({ page, request }) => {
+  const { live, paypal } = await kitStatus(request);
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
+  expect(await tradeHistoryReady(request)).toBe(true);
+  await startSample(page);
+
+  // The heating element was said, the thermal fuse the trade's PayPal invoices usually bill with it wasn't.
+  const nudge = page.getByTestId("usually-with");
+  await expect(nudge).toHaveCount(1);
+  const text = await nudge.getByTestId("usually-with-text").innerText();
+  const said = text.match(/^Usually with a heating element: Thermal fuse \$(\d+\.\d\d), on (\d+) of your (\d+) PayPal invoices with a heating element\. You didn't say one\.$/);
+  expect(said, text).not.toBeNull();
+  if (paypal === "mock") expect(text).toContain("Thermal fuse $18.00, on 8 of your 10 PayPal invoices");
+  const fuseCents = Math.round(Number(said![1]) * 100);
+  expect(Number(said![2]) / Number(said![3])).toBeGreaterThanOrEqual(0.75);
+  // It never holds the send: the count to check is the price catch's alone.
+  await expect(page.getByTestId("flags-panel")).toContainText(checkCount);
+  await expect(page.getByTestId("flags-panel")).not.toContainText("Thermal fuse");
+
+  const lines = await page.getByTestId("invoice-line").count();
+  await fixElementPrice(page);
+  await nudge.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `screenshots/usually-with-card-${paypal}.png` });
+  const before = await totalOnScreen(page);
+  await nudge.getByTestId("add-usual").click();
+  await expect(page.getByTestId("usually-with")).toHaveCount(0);
+  await expect(page.getByTestId("invoice-line")).toHaveCount(lines + 1);
+  const added = page.getByTestId("invoice-line").last();
+  await expect(added.getByTestId("line-name")).toHaveValue("Thermal fuse");
+  await expect(added.getByTestId("line-quantity")).toHaveValue("1");
+  await expect(added.getByTestId("line-price")).toHaveValue(said![1]);
+  await expect(added.getByTestId("line-total")).toHaveText(money(fuseCents));
+  // Code recomputes the total; the added line raises no check of its own.
+  await expect(page.getByTestId("invoice-total")).toHaveText(money(before + fuseCents));
+  await expect(added.locator("[data-testid^=line-usual], [data-testid=line-alike], [data-testid=line-unheard]")).toHaveCount(0);
+  await page.screenshot({ path: `screenshots/usually-with-${paypal}.png`, fullPage: true });
+
+  const done = await sendAndVerify(page, request, before + fuseCents, "usually-with");
+  expect(done.lines).toHaveLength(lines + 1);
+  expect(done.lines.at(-1)).toMatchObject({ name: "Thermal fuse", quantityMilli: 1_000, unitCents: fuseCents });
+  if (paypal === "mock") expect(done.lines.map((l) => l.name)).toEqual(["Labor", "Heating element", "Thermal fuse"]);
+  console.log(`Usually-with invoice ${done.invoice!.id} number ${done.invoice!.number} ${done.lines.length} items total ${money(before + fuseCents)}`);
+});
+
+test("leave it out: one tap and the nudge goes, the send is the same", async ({ page, request }) => {
+  const { paypal } = await kitStatus(request);
+  test.skip(paypal !== "mock", "The sandbox run sends the added line instead; this one changes nothing on PayPal");
+  expect(await tradeHistoryReady(request)).toBe(true);
+  await startSample(page);
+  const lines = await page.getByTestId("invoice-line").count();
+  await page.getByTestId("usually-with").getByTestId("leave-out").click();
+  await expect(page.getByTestId("usually-with")).toHaveCount(0);
+  await expect(page.getByTestId("invoice-line")).toHaveCount(lines);
+  await fixElementPrice(page);
+  await expect(page.getByTestId("send-invoice")).toContainText(money(SAMPLE_AMOUNTS.spokenTotalCents));
+  // Typing the item in by hand ends the nudge too: it's on the job.
+  await startSample(page);
+  await expect(page.getByTestId("usually-with")).toHaveCount(1);
+  await page.getByTestId("add-line").click();
+  await page.getByTestId("invoice-line").last().getByTestId("line-name").fill("thermal fuses");
+  await expect(page.getByTestId("usually-with")).toHaveCount(0);
+  // The history behind the nudge is labelled illustrative on Prices.
+  await page.goto("/prices");
+  await expect(page.getByTestId("history-illustrative")).toContainText("illustrative");
 });
 
 test("a price the person keeps goes out, and the server won't skip the check", async ({ page, request }) => {

@@ -72,7 +72,7 @@ export function PriceBook() {
 
   return (
     <>
-      <PageHeader title="Price book" description={`Starts with demo prices. Learn from your past PayPal invoices to use your own, and it keeps learning from the invoices you send from this browser. It's plain code, not AI: when a price is ${FAR_RATIO} times above or below the usual one, it stops the invoice until you've looked. An item needs ${MIN_SAMPLES} invoices first.`} />
+      <PageHeader title="Price book" description={`Starts with demo prices. Learn from your past PayPal invoices to use your own, and it keeps learning from the invoices you send from this browser. It's plain code, not AI: when a price is ${FAR_RATIO} times above or below the usual one, it stops the invoice until you've looked. An item needs ${MIN_SAMPLES} invoices first. It also offers an item your PayPal invoices usually have with one you said.`} />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Button variant="secondary" icon={<Landmark className="size-4" />} loading={learning} onClick={learn} data-testid="learn-from-paypal">
           Learn from my PayPal invoices
