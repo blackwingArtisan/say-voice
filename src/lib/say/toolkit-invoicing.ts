@@ -1,15 +1,16 @@
 /**
  * Invoicing through PayPal's Agent Toolkit (@paypal/agent-toolkit): its create_invoice,
- * send_invoice and send_invoice_reminder tools do the work, with the toolkit's own validators
+ * send_invoice, send_invoice_reminder and generate_invoice_qr_code tools do the work, with the toolkit's own validators
  * and, on the sandbox, its own PayPalAPI client. The person's approval and the code's total check
  * sit in front of them, in the guarded tool that calls these (send_job_invoice, send_payment_reminder),
  * so the toolkit never runs without both. Server only.
  */
 import { toolkitTools } from "@/lib/agent/tools/toolkit";
 import type { AgentTool, ToolContext } from "@/lib/agent/tool";
+import { QR_SIZE, qrPngFrom } from "@/lib/paypal/qr";
 import type * as T from "@/lib/paypal/types";
 
-const TOOLS = ["create_invoice", "send_invoice", "send_invoice_reminder"] as const;
+const TOOLS = ["create_invoice", "send_invoice", "send_invoice_reminder", "generate_invoice_qr_code"] as const;
 type ToolName = (typeof TOOLS)[number];
 
 /** The toolkit's create_invoice takes flat fields. It has no payment term, so the due date goes on after. */
@@ -42,5 +43,7 @@ export function toolkitInvoicing(ctx: ToolContext) {
     create: async (req: T.CreateInvoiceRequest) => createdId(await run("create_invoice", toolkitCreateArgs(req))),
     send: (invoiceId: string) => run("send_invoice", { invoice_id: invoiceId, send_to_recipient: true }),
     remind: (invoiceId: string, subject: string, note: string) => run("send_invoice_reminder", { invoice_id: invoiceId, subject, note }),
+    /** PayPal's own QR code for the sent invoice (it opens PayPal's pay page), as a base64 PNG. */
+    qr: async (invoiceId: string) => qrPngFrom(await run("generate_invoice_qr_code", { invoice_id: invoiceId, width: QR_SIZE, height: QR_SIZE })),
   };
 }

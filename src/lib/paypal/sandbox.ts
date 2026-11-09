@@ -7,6 +7,7 @@ import type { PayPalApi, RequestOptions } from "./api";
 import { PayPalApiError, PayPalNetworkError } from "./errors";
 import { recordCallMeta } from "./meta";
 import { OPERATIONS, operationPath, type OperationKey } from "./operations";
+import { QR_SIZE, qrPngFrom } from "./qr";
 import type * as T from "./types";
 import type { WebhookVerification } from "./webhooks";
 
@@ -32,6 +33,8 @@ interface RequestInit_ {
   requestId?: string;
   prefer?: "return=representation" | "return=minimal";
   mockResponse?: RequestOptions["mockResponse"];
+  /** PayPal answers some calls (generate-qr-code) with multipart, and refuses Accept: application/json for them with a 406. */
+  accept?: string;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -86,7 +89,7 @@ export class SandboxPayPal implements PayPalApi {
     let authRetried = false;
 
     for (let attempt = 1; ; attempt++) {
-      const headers: Record<string, string> = { Authorization: `Bearer ${await this.getAccessToken()}`, Accept: "application/json" };
+      const headers: Record<string, string> = { Authorization: `Bearer ${await this.getAccessToken()}`, Accept: init.accept ?? "application/json" };
       if (init.body !== undefined || init.rawBody !== undefined) headers["Content-Type"] = "application/json";
       if (requestId) headers["PayPal-Request-Id"] = requestId;
       if (init.prefer) headers["Prefer"] = init.prefer;
@@ -195,6 +198,7 @@ export class SandboxPayPal implements PayPalApi {
     get: (id) => this.request("invoicing.get", { id }),
     list: (query) => this.request("invoicing.list", { query: { page: 1, page_size: 20, total_required: true, ...query } }),
     recordPayment: (id, body) => this.request("invoicing.recordPayment", { id, body }),
+    generateQrCode: async (id, body) => qrPngFrom(await this.request<unknown>("invoicing.generateQrCode", { id, body: { width: QR_SIZE, height: QR_SIZE, action: "pay", ...body }, accept: "*/*" })),
   };
 
   disputes: PayPalApi["disputes"] = {

@@ -62,6 +62,8 @@ export interface PayPalApi {
     cancel(invoiceId: string, body?: T.InvoiceNotificationRequest): Promise<void>;
     get(invoiceId: string): Promise<T.Invoice>;
     list(query?: { page?: number; page_size?: number; total_required?: boolean }): Promise<T.InvoiceList>;
+    /** PayPal's own QR code for a sent invoice, as a base64 PNG. "pay" opens PayPal's pay page for it. */
+    generateQrCode(invoiceId: string, body?: { width?: number; height?: number; action?: "pay" | "details" }): Promise<string>;
     /** Record a payment received outside PayPal (cash, bank transfer...). */
     recordPayment(invoiceId: string, body: T.RecordInvoicePaymentRequest): Promise<{ payment_id: string }>;
   };
