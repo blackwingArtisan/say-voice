@@ -5,6 +5,7 @@ import { defineConfig } from "@playwright/test";
  * and records demo/demo.spec.ts at 1280x720 (16:9; the finisher makes it 1920x1080). The spec makes its own browser context, so the video
  * settings live there. The spec plays DEMO_VOICE_WAV as the microphone, so the speech model
  * really hears it. Mock PayPal and AI unless DEMO_PAYPAL_MODE=sandbox and DEMO_AI_MODE=live.
+ * DEMO_BASE_URL records against a site that's already running (the hosted one), so nothing is built.
  */
 const PORT = Number(process.env.DEMO_PORT ?? 3930);
 const PAYPAL_MODE = process.env.DEMO_PAYPAL_MODE ?? process.env.PAYPAL_MODE ?? "mock";
@@ -24,7 +25,7 @@ export default defineConfig({
     },
   },
   projects: [{ name: "chromium", use: { browserName: "chromium" } }],
-  webServer: {
+  webServer: process.env.DEMO_BASE_URL ? undefined : {
     // Production build: no dev reloads or overlays in the recording.
     command: `rm -rf .data-demo && npx next build && npx next start --port ${PORT}`,
     url: `http://localhost:${PORT}/api/kit/status`,
