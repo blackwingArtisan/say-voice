@@ -38,7 +38,9 @@ test("records with the real microphone path, then reaches a sent invoice", async
   await paceAiCalls(2); // the upload and the job
   await keepUpload(page);
   await page.goto("/jobs");
-  await expect(page.getByTestId("record-start")).toBeDisabled();
+  // The record button leads and works before a customer is picked; this take picks first, the usual way.
+  await expect(page.getByTestId("record-start")).toBeEnabled();
+  await expect(page.getByTestId("contact-derek-evans")).toBeVisible();
   await page.getByTestId("contact-derek-evans").click();
   await page.getByTestId("record-start").click();
 

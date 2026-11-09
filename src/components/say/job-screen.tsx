@@ -33,6 +33,7 @@ export function JobScreen() {
   const [job, setJob] = useState<JobView | null>(null);
   const [edited, setEdited] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pinSlot, setPinSlot] = useState<HTMLDivElement | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const decision = useRef<HTMLDivElement>(null);
   const reminder = useRef<HTMLDivElement>(null);
@@ -129,6 +130,8 @@ export function JobScreen() {
           <Badge tone="neutral">Sample</Badge>
         </p>
       ) : null}
+      {/* On a phone, Confirm pins the total and the checks here, under the top bar. */}
+      {sent ? null : <div ref={setPinSlot} className="sticky top-[var(--app-bar,57px)] z-20 -mx-4 mb-4 empty:hidden sm:-mx-6 lg:hidden" />}
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         {/* On a phone the items come straight after the words, and the timeline goes to the bottom. */}
         <div className="contents lg:sticky lg:top-6 lg:block lg:space-y-6">
@@ -161,7 +164,7 @@ export function JobScreen() {
               <ReminderCard job={job} busy={busy} onAsk={askForReminder} />
             </div>
           ) : null}
-          {sent ? null : <Confirm job={job} draft={draft} setDraft={setEdited} sending={job.status !== "review"} busy={busy} onSend={send} />}
+          {sent ? null : <Confirm pinSlot={pinSlot} job={job} draft={draft} setDraft={setEdited} sending={job.status !== "review"} busy={busy} onSend={send} />}
         </div>
       </div>
     </>

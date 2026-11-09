@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, ArrowDown, Check as CheckIcon, Plus, Send, Trash2 } from "lucide-react";
 import { Button, Card, CardBody, CardHeader, Field, Input, MoneyInput, Textarea } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
@@ -230,7 +231,8 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
   );
 }
 
-export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: JobView; draft: Draft; setDraft: (draft: Draft) => void; sending: boolean; busy: boolean; onSend: () => void }) {
+/** pinSlot: where, on a phone, the total and what is left to check stay pinned at the top. */
+export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }: { job: JobView; draft: Draft; setDraft: (draft: Draft) => void; sending: boolean; busy: boolean; onSend: () => void; pinSlot?: HTMLElement | null }) {
   const parsed = draft.lines.map(parseLine);
   const taxRateMilli = parsePercent(draft.taxPercent.trim().replace(/%$/, "") || "0") ?? 0;
   const totals = computeTotals(parsed, taxRateMilli);
@@ -284,8 +286,31 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend }: { job: 
     document.getElementById(first.lineKey ? `line-${first.lineKey}` : "flags-panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
+  // On a phone the total and what's left to check stay pinned at the top, in the job screen's slot.
+  const pinned = sending ? null : (
+    <div className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-white/95 px-4 py-2 backdrop-blur" data-testid="pinned-summary">
+      <p className="text-sm text-zinc-600">
+        Total <span className="ml-1 font-mono text-lg font-semibold tabular-nums text-zinc-950" data-testid="pinned-total">{holdTotal ? "--" : formatCents(totals.totalCents)}</span>
+      </p>
+      {blockedBy ? (
+        <button type="button" onClick={goToProblem} className="rounded-full bg-red-50 px-3 py-1 text-sm font-medium text-red-800 ring-1 ring-red-200" data-testid="pinned-checks" data-state="blocked">
+          Fix first
+        </button>
+      ) : toCheck ? (
+        <button type="button" onClick={goToNextCheck} className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-sm font-medium text-amber-900 ring-1 ring-amber-300" data-testid="pinned-checks" data-state="open">
+          <AlertTriangle className="size-3.5 text-amber-600" /> {toCheck} to check
+        </button>
+      ) : (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-800 ring-1 ring-emerald-200" data-testid="pinned-checks" data-state="clear">
+          <CheckIcon className="size-3.5" /> All checked
+        </span>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6 pb-24 lg:pb-0">
+      {pinSlot && pinned ? createPortal(pinned, pinSlot) : null}
       {problems.length && !sending ? (
         <div className="space-y-2" data-testid="input-problems">
           {problems.map((p) => (

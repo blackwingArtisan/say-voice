@@ -106,7 +106,8 @@ test("a take that became a job leaves a clean page for the next one", async ({ p
   await recordTake(page);
   await page.waitForURL(/\/jobs\/job_/, { timeout: 30_000 });
   await page.goBack();
-  await expect(page.getByTestId("record-start")).toBeDisabled();
+  await expect(page.getByTestId("record-start")).toBeEnabled();
+  await expect(page.getByTestId("record-for")).toHaveText("Pick the customer before or after.");
   await expect(page.getByTestId("contact-tom-baker")).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByTestId("try-sample")).toBeEnabled();
   await expect(page.getByTestId("kept-take")).toHaveCount(0);
@@ -185,4 +186,15 @@ test("too many tries: the sample button says how long to wait, and the wait coun
   expect(Date.now() - shownAt).toBeGreaterThanOrEqual((first - 2) * 1000);
   await expect(page.getByTestId("try-sample")).toBeEnabled();
   await expect(page.getByTestId("try-sample")).toHaveText("Try a sample job");
+});
+
+test("a take recorded before the customer is picked waits, then reads for the one you pick", async ({ page }) => {
+  await page.goto("/jobs");
+  await expect(page.getByTestId("contact-tom-baker")).toHaveAttribute("aria-pressed", "false");
+  await recordTake(page);
+  await expect(page.getByTestId("take-waiting")).toBeVisible();
+  expect(await uploads(page)).toHaveLength(0);
+  await page.getByTestId("contact-tom-baker").click();
+  await page.waitForURL(/\/jobs\/job_/, { timeout: 30_000 });
+  await expect(page.getByTestId("customer-name")).toHaveValue("Tom Baker");
 });
