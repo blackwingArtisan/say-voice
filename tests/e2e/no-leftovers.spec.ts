@@ -171,11 +171,14 @@ test("the trade's screens carry no mode badges, AI spend or debug ids until For 
   // One tap on For judges (in the menu, on a phone) shows them.
   await page.getByRole("button", { name: "Menu" }).click();
   await page.getByTestId("for-judges-toggle").locator("visible=true").click();
-  await expect(page.getByTestId("mode-badges")).toBeVisible();
-  await expect(page.getByTestId("mode-badges")).toContainText(/PayPal (sandbox|mock)/);
+  const badges = page.getByTestId("mode-badges").locator("visible=true");
+  await expect(badges).toBeVisible();
+  await expect(badges).toContainText(/PayPal (sandbox|mock)/);
   await expect(page.getByTestId("for-judges").locator("visible=true")).toContainText(/debug ids/);
+  // It stays open from page to page, and one more tap closes it.
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/jobs");
+  await expect(badges).toBeVisible();
   await page.getByTestId("for-judges-toggle").locator("visible=true").click();
-  await expect(page.getByTestId("mode-badges")).toBeVisible();
+  await expect(page.getByTestId("mode-badges")).toHaveCount(0);
 });

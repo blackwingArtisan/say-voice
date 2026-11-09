@@ -213,6 +213,17 @@ export function BuiltFacts() {
           {l.who.source.label}
         </a>
       </p>
+      {/* Why reminders: the late-payment figures. They used to sit under the reminder on a sent job. */}
+      <ul className="mt-3 max-w-3xl space-y-1.5 text-sm leading-relaxed text-zinc-600" data-testid="reminder-why">
+        {l.latePayment.map((stat) => (
+          <li key={stat.figure}>
+            Why reminders: <strong className="font-mono font-semibold text-zinc-800">{stat.figure}</strong> {stat.body}{" "}
+            <a href={stat.source.href} target="_blank" rel="noreferrer" className="text-zinc-500 underline underline-offset-2 hover:text-zinc-800" data-testid="reminder-why-source">
+              {stat.source.label}
+            </a>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

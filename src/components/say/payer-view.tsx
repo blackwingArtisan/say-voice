@@ -1,4 +1,5 @@
 import { ExternalLink } from "lucide-react";
+import { JudgesOnly } from "@/components/shell/for-judges";
 import { formatCents } from "@/lib/say/money";
 import type { PayerItem, SentInvoice } from "@/lib/say/types";
 
@@ -17,10 +18,12 @@ export function PayerView({ invoice, customer, showLink }: { invoice: SentInvoic
     <section className="space-y-2" data-testid="payer-view">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-zinc-900">What {customer} sees on PayPal</h3>
-        {/* Plain words on the trade's screen; the call itself is in the tooltip and under Details. */}
+        {/* The call it was read with is for judges; the trade sees the copy itself. */}
+        <JudgesOnly>
         <span className="inline-flex shrink-0 items-center rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[11px] leading-none text-sky-800" title="GET /v2/invoicing/invoices/{id}" data-testid="payer-view-source">
-          Read back from PayPal
+          GET /v2/invoicing/invoices/{"{id}"}
         </span>
+        </JudgesOnly>
       </div>
       <div className="rounded-xl bg-zinc-100 p-3 sm:p-4">
         <div className="mx-auto max-w-md space-y-3 rounded-lg bg-white p-4 text-sm shadow-sm ring-1 ring-zinc-200">

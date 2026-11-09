@@ -6,6 +6,7 @@ import { useKit } from "@/components/kit/kit-provider";
 import { cn } from "@/components/ui/cn";
 import { formatCents } from "@/lib/say/money";
 import { RECEIPTS_PHRASE, type Receipt } from "@/lib/say/receipts";
+import { JudgesOnly } from "@/components/shell/for-judges";
 
 /** "Aug 14, 2026" */
 const day = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso) ? new Date(`${iso.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : iso);
@@ -44,7 +45,9 @@ export function WithReceipts({ text, item }: { text: string; item: string }) {
       {after}
       {open ? (
         <span className="mt-2 block rounded-md border border-current/15 bg-white/70 p-2 text-zinc-800" data-testid="receipts">
-          <span className="mb-1 block font-mono text-[11px] text-sky-800">GET /v2/invoicing/invoices</span>
+          <JudgesOnly>
+            <span className="mb-1 block font-mono text-[11px] text-sky-800" data-testid="receipts-source">GET /v2/invoicing/invoices</span>
+          </JudgesOnly>
           {error ? (
             <span className="block text-red-700">{error}</span>
           ) : !receipts ? (

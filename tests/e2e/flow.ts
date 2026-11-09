@@ -194,6 +194,13 @@ export async function proposeReminder(page: Page) {
   }
 }
 
+/** Taps For judges: in the sidebar on a desktop, in the menu on a phone. */
+export async function toggleForJudges(page: Page) {
+  const toggle = page.getByTestId("for-judges-toggle").locator("visible=true");
+  if (!(await toggle.count())) await page.getByRole("button", { name: "Menu" }).click();
+  await toggle.click();
+}
+
 /** The For judges cookie: /api/audit and /api/paypal/ledger show the whole record, not one browser's jobs. */
 export const WHOLE_RECORD = { cookie: "say-judges=1" };
 
@@ -266,7 +273,8 @@ export async function sendAndVerify(page: Page, request: APIRequestContext, tota
   // What the customer sees on PayPal, from PayPal's own record: the trade name, the note, every line with its description, tax and total.
   const payer = page.getByTestId("payer-view");
   await expect(payer).toBeVisible();
-  await expect(payer.getByTestId("payer-view-source")).toHaveAttribute("title", "GET /v2/invoicing/invoices/{id}");
+  // The call it was read with is for judges only.
+  await expect(payer.getByTestId("payer-view-source")).toHaveCount(0);
   await expect(payer.getByTestId("result-line")).toHaveCount(done.lines.length);
   await expect(payer.getByTestId("payer-view-total")).toHaveText(money(totalCents));
   if (done.invoice!.businessName) await expect(payer.getByTestId("payer-view-business")).toHaveText(done.invoice!.businessName);

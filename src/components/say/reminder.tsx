@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { BellRing, ShieldCheck, ShieldX } from "lucide-react";
-import { appConfig } from "@/app.config";
 import { Button, Card, CardBody, CardHeader, Input, MoneyInput, Select } from "@/components/ui";
 import { formatCents, parseDollars } from "@/lib/say/money";
 import { figuresWith, ownerLineProblem } from "@/lib/say/reminder-rules";
@@ -95,19 +94,6 @@ export function ReminderCard({ job, busy, problem, onAsk }: { job: JobView; busy
               {reminders.length ? "Draft another reminder" : "Draft a reminder"}
             </Button>
           </div>
-        )}
-        {paid ? null : (
-          // Why a reminder at all: late payment, with its sources. The landing page leads with accuracy instead.
-          <ul className="space-y-1.5 border-t border-zinc-100 pt-3 text-xs leading-relaxed text-zinc-500" data-testid="reminder-why">
-            {appConfig.landing.latePayment.map((stat) => (
-              <li key={stat.figure}>
-                <strong className="font-mono font-semibold text-zinc-700">{stat.figure}</strong> {stat.body}{" "}
-                <a href={stat.source.href} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-zinc-800" data-testid="reminder-why-source">
-                  {stat.source.label}
-                </a>
-              </li>
-            ))}
-          </ul>
         )}
       </CardBody>
     </Card>

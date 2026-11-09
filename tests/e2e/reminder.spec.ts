@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { auditedActions, expectPlainWords, jobId, keepToOneCall, kitStatus, openWhatHappened, proposeReminder, readJob, sentSample, showAllSteps } from "./flow";
+import { auditedActions, expectPlainWords, toggleForJudges, jobId, keepToOneCall, kitStatus, openWhatHappened, proposeReminder, readJob, sentSample, showAllSteps } from "./flow";
 import { readInvoiceFromPayPal } from "./paypal-reread";
 
 /** What PayPal's email would show as raw symbols. */
@@ -15,11 +15,17 @@ test.describe("the reminder agent", () => {
   test("proposes a reminder for an unpaid invoice and sends it only after approval", async ({ page, request }) => {
     test.setTimeout(150_000);
     const sent = await sentSample(page, request);
-    // Why remind: the late-payment figures sit under the reminder, each with its source.
-    const why = page.getByTestId("reminder-why");
+    // The late-payment figures are pitch, not the trade's business: none on the job, all on /built, each with its source.
+    await expect(page.getByTestId("reminder-card")).toBeVisible();
+    await expect(page.getByTestId("reminder-why")).toHaveCount(0);
+    await expect(page.getByTestId("reminder-card")).not.toContainText(/QuickBooks|Levelset|56%|49%/);
+    const built = await page.context().newPage();
+    await built.goto("/built");
+    const why = built.getByTestId("reminder-why");
     await expect(why).toContainText("56%");
     await expect(why).toContainText("49%");
     for (const href of await why.getByTestId("reminder-why-source").evaluateAll((links) => links.map((a) => a.getAttribute("href") ?? ""))) expect(href).toMatch(/^https:\/\/(quickbooks\.intuit\.com|levelset\.com)\//);
+    await built.close();
     const prompt = await proposeReminder(page);
     await expect(prompt).toBeInViewport();
     await expect(prompt).toContainText(sent.invoice!.number);
@@ -175,6 +181,9 @@ test.describe("the reminder agent", () => {
     test.setTimeout(150_000);
     const { sandbox } = await kitStatus(request);
     const sent = await sentSample(page, request);
+    await expect(page.getByTestId("toolkit-chip")).toHaveCount(0);
+    // Which toolkit tool each read used is for judges: the step's words say it plainly.
+    await toggleForJudges(page);
     await proposeReminder(page);
     const runId = (await readJob(request, sent.id)).reminderRunId!;
     // Each read went through the Guard and is on the record.
@@ -187,7 +196,12 @@ test.describe("the reminder agent", () => {
     await expect(page.getByTestId("plain-step").filter({ hasText: "read the invoice and the work on it from PayPal" }).getByTestId("toolkit-chip")).toHaveText("Agent Toolkit · get_invoice");
     await page.screenshot({ path: `screenshots/reminder-toolkit-reads-${sandbox ? "sandbox" : "mock"}.png`, fullPage: true });
     // On the sandbox the toolkit's own PayPalAPI made the calls, shown behind Details.
-    if (sandbox) await expectPlainWords(page, /Agent Toolkit · (search_invoicing|get_invoice)/);
+    // With For judges closed: the endpoints are on the judges' side of the switch.
+    if (sandbox) {
+      await toggleForJudges(page);
+      await expectPlainWords(page, /Agent Toolkit · (search_invoicing|get_invoice)/);
+      await toggleForJudges(page);
+    }
     await page.getByTestId("decline-button").click();
 
     await page.goto("/activity");

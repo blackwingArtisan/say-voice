@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Landmark } from "lucide-react";
 import { useKit } from "@/components/kit/kit-provider";
+import { JudgesOnly, useJudges } from "@/components/shell/for-judges";
 import { PageHeader } from "@/components/shell/app-shell";
 import { Badge, Button, Card, EmptyState, SkeletonCard } from "@/components/ui";
 import { formatCents, formatQuantity } from "@/lib/say/money";
@@ -10,6 +11,7 @@ import { FAR_RATIO, MIN_SAMPLES, provenance, steadyQuantity, usualCents, type Pr
 
 /** The PayPal call a price came from, as a small chip. */
 function ApiChip() {
+  if (!useJudges()) return null;
   return (
     <span className="inline-flex items-center rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 font-mono text-[11px] leading-none text-sky-800" data-testid="price-source-chip">
       GET /v2/invoicing/invoices
@@ -42,6 +44,7 @@ interface History {
 }
 
 export function PriceBook() {
+  const judges = useJudges();
   const { kitFetch } = useKit();
   const [prices, setPrices] = useState<PriceEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -72,14 +75,14 @@ export function PriceBook() {
 
   return (
     <>
-      <PageHeader title="Price book" description={`Starts with demo prices. Learn from your past PayPal invoices to use your own, and it keeps learning from the invoices you send from this browser. It's plain code, not AI: when a price is ${FAR_RATIO} times above or below the usual one, it stops the invoice until you've looked. An item needs ${MIN_SAMPLES} invoices first. It also offers an item your PayPal invoices usually have with one you said.`} />
+      <PageHeader title="Price book" description={!judges ? "What you usually charge, from your PayPal invoices. A price far from the usual one waits for you to look." : `Starts with demo prices. Learn from your past PayPal invoices to use your own, and it keeps learning from the invoices you send from this browser. It's plain code, not AI: when a price is ${FAR_RATIO} times above or below the usual one, it stops the invoice until you've looked. An item needs ${MIN_SAMPLES} invoices first. It also offers an item your PayPal invoices usually have with one you said.`} />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Button variant="secondary" icon={<Landmark className="size-4" />} loading={learning} onClick={learn} data-testid="learn-from-paypal">
           Learn from my PayPal invoices
         </Button>
         {history ? (
           <p className="text-sm text-zinc-700" data-testid="learned-from-paypal">
-            {history.own ? "Learned from your last" : "Learned from the trade's last"} {history.invoices} PayPal {history.invoices === 1 ? "invoice" : "invoices"} (read with GET /v2/invoicing/invoices). Labor rates come from the jobs you say.{" "}
+            {history.own ? "Learned from your last" : "Learned from the trade's last"} {history.invoices} PayPal {history.invoices === 1 ? "invoice" : "invoices"}<JudgesOnly> (read with GET /v2/invoicing/invoices)</JudgesOnly>. Labor rates come from the jobs you say.{" "}
             <span className="text-zinc-500" data-testid="history-illustrative">The demo trade&apos;s past invoices are illustrative: made-up jobs and customers on PayPal&apos;s sandbox.</span>
           </p>
         ) : null}
