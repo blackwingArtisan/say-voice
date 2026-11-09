@@ -189,7 +189,8 @@ test("demo", async ({ browser }) => {
   await cut(async () => {
     await page.goto(jobUrl);
     await expect(page.getByTestId("result")).toBeVisible();
-    await page.getByTestId("reminder-ask").fill("Add a $25 late fee");
+    // Live, the model leaves late fees out as told; asked for a discount it writes the $25 in, and code refuses it.
+    await page.getByTestId("reminder-ask").fill("Add a $25 discount for paying early");
     await page.getByTestId("ask-reminder").click();
     await expect(refused.first()).toBeVisible({ timeout: 60_000 });
     // The corrected reminder's card lands above it; wait for it, so the close-up is of the refusal.
@@ -197,7 +198,7 @@ test("demo", async ({ browser }) => {
   });
   await held("refusal", async () => {
     await magnify(page, refused.first(), 1.7);
-    await caption(page, "Asked for a $25 late fee that isn't on the invoice, the reminder agent wrote it in. Code refused it before any approval card.", { ms: 5000 });
+    await caption(page, "Asked for a $25 early-payment discount that isn't on the invoice, the reminder agent wrote it in. Code refused it before any approval card.", { ms: 5000 });
     await magnify(page, null);
   });
   // The corrected reminder is approved off camera, so the job is tidy when the customer pays.
