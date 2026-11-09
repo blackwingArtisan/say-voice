@@ -27,6 +27,8 @@ If the tool refuses the note, fix what it names and call it once more. When it r
   policy: appConfig.agentPolicy,
   effort: "low",
   maxTurns: 7,
+  // A reminder takes about 10 s of work. Past 100 s it stops and the card says to try again.
+  workDeadlineMs: 100_000,
   mockScript: (input) => {
     const job_id = input.context?.job_id as string;
     const ask = (input.context?.ask as string | undefined)?.trim();

@@ -10,7 +10,7 @@ import { describeJob, savedSampleWording, undescribed } from "./describe";
 import { dueFromTranscript } from "./due";
 import { extractJob, savedSampleReading, type ExtractedJob } from "./extract";
 import { bookForJob } from "./price-store";
-import { dayOf, whyNoReminder } from "./reminder-rules";
+import { dayOf, runStalled, whyNoReminder } from "./reminder-rules";
 import { rateWasSaid, taxedLineKeys, untaxedLineKeys } from "./tax";
 import type { Job, JobCustomer, JobSource, JobView, PendingApproval, ReminderRun, SpeechMeta } from "./types";
 import { getAuditLog } from "@/lib/agent/audit";
@@ -112,15 +112,20 @@ function reminderRun({ reminderRunId: id, reminders }: Job): ReminderRun | null 
   if (reminders?.some((r) => r.runId === id)) return { state: "sent" };
   const run = getRun(id);
   if (!run) return { state: "nothing_sent", reason: "The server restarted first." };
-  if (run.status === "running") return { state: "working" };
+  if (run.status === "running") {
+    const waiting = getApprovals().list({ runId: id, state: "pending" }).length > 0;
+    return runStalled(run, waiting) ? { state: "nothing_sent", reason: STALLED } : { state: "working" };
+  }
   const decided = getApprovals().list({ runId: id })[0]?.state;
   if (decided === "denied") return { state: "nothing_sent", reason: "You declined it." };
   if (decided === "expired") return { state: "nothing_sent", reason: "Nobody approved it in time." };
   return { state: "nothing_sent", reason: run.error ? agentFailure(run.error) : run.summary || "The agent stopped before proposing one." };
 }
 
+const STALLED = "The AI didn't finish, so try again.";
+
 /** Run errors are raw API text, and that's no use to a person. */
-const agentFailure = (error: string) => (/spend cap|run out of credit/i.test(error) ? "The AI is out of credit for now, so try again later." : "The AI didn't finish, so try again.");
+const agentFailure = (error: string) => (/spend cap|run out of credit/i.test(error) ? "The AI is out of credit for now, so try again later." : STALLED);
 
 /** Said to sent: from the words reaching the app to the audit log's record of PayPal sending the invoice. */
 function saidToSentOf(job: Job): number | undefined {
