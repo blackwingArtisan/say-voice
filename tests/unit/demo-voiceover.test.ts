@@ -19,6 +19,11 @@ describe("the demo's voiceover.json", () => {
     expect(toEdited([{ shot: 2, rawMs: 8_000, text: "a" }, { shot: 3, rawMs: 21_000, text: "b" }], cuts, 9).map((l) => l.at)).toEqual([9, 18]);
   });
 
+  it("lets the opening line, said before the record press, keep its time; the rest still wait for the spoken job", () => {
+    const lines = toEdited([{ shot: 1, rawMs: 2_500, text: "a" }, { shot: 2, rawMs: 8_000, text: "b" }], cuts, 9, 4);
+    expect(lines.map((l) => l.at)).toEqual([0.5, 9]);
+  });
+
   it("says when a line runs past the next one at 2.6 words a second", () => {
     const lines = [
       { shot: 1, at: 10, text: "One two three four five six seven eight nine ten eleven twelve thirteen" },

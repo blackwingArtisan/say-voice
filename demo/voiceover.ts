@@ -17,12 +17,16 @@ export const WORDS_PER_SECOND = 2.6;
 
 type Span = { fromMs: number; toMs: number };
 
-/** Raw recording times to edited seconds, never before `notBeforeSec` (the spoken job plays first) and always in order. */
-export function toEdited(lines: { shot: number; rawMs: number; text: string }[], cuts: Span[], notBeforeSec: number): VoiceoverLine[] {
-  let last = notBeforeSec;
+/**
+ * Raw recording times to edited seconds, always in order. A line said before `openingSec` (the opening
+ * card, before the record press) keeps its time; every other line waits for `notBeforeSec`, after the
+ * spoken job.
+ */
+export function toEdited(lines: { shot: number; rawMs: number; text: string }[], cuts: Span[], notBeforeSec: number, openingSec = 0): VoiceoverLine[] {
+  let last = 0;
   return lines.map((line) => {
     const edited = (line.rawMs - cutBefore(line.rawMs, cuts)) / 1000;
-    last = Math.max(last, edited);
+    last = Math.max(last, edited, edited < openingSec ? 0 : notBeforeSec);
     return { shot: line.shot, at: Math.round(last * 10) / 10, text: line.text };
   });
 }

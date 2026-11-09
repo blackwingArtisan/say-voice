@@ -36,9 +36,10 @@ export function WithReceipts({ text, item }: { text: string; item: string }) {
   return (
     <>
       {before}
-      <button type="button" className="inline-flex items-center gap-0.5 font-semibold underline decoration-dotted underline-offset-2" aria-expanded={open} onClick={toggle} data-testid="receipts-open">
+      {/* Inline, not inline-flex: the sentence reads the same with the tap in it, to a screen reader and to innerText. */}
+      <button type="button" className="inline font-semibold underline decoration-dotted underline-offset-2" aria-expanded={open} onClick={toggle} data-testid="receipts-open">
         {match[0]}
-        <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("ml-0.5 inline-block size-3.5 align-[-2px] transition-transform", open && "rotate-180")} />
       </button>
       {after}
       {open ? (
