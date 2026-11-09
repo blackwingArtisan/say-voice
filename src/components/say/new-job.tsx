@@ -117,6 +117,18 @@ export function NewJob() {
     [],
   );
 
+  // One tap from the landing: /jobs?try=sample opens the sample job, /jobs?try=day-one the same job with no price history.
+  const tried = useRef(false);
+  useEffect(() => {
+    const ask = new URLSearchParams(window.location.search).get("try");
+    if (tried.current || (ask !== "sample" && ask !== "day-one")) return;
+    tried.current = true;
+    // Back from the job comes to a plain New job, not a second sample.
+    window.history.replaceState(null, "", "/jobs");
+    void trySample(ask === "day-one");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
+  }, []);
+
   // A take that never became a job is still here after a reload or a trip to another page.
   useEffect(() => {
     let current = true;
@@ -224,10 +236,10 @@ export function NewJob() {
     setProblem(null);
   }
 
-  async function trySample() {
+  async function trySample(dayOne = false) {
     setPhase("reading");
     try {
-      const job = await kitFetch<JobView>("/api/jobs", { json: { source: "sample", today: localDay() } });
+      const job = await kitFetch<JobView>("/api/jobs", { json: { source: "sample", today: localDay(), ...(dayOne ? { dayOne: true } : {}) } });
       onLeave.current = () => setPhase("ready");
       router.push(`/jobs/${job.id}`);
     } catch (e) {
@@ -291,7 +303,7 @@ export function NewJob() {
                 <p className="text-sm font-semibold text-zinc-900">No mic handy?</p>
                 <p className="text-sm text-zinc-500">Run a real recorded job through the whole flow.</p>
               </div>
-              <Button variant="secondary" icon={<Sparkles className="size-4" />} disabled={working || waitLeft > 0} onClick={trySample} data-testid="try-sample">
+              <Button variant="secondary" icon={<Sparkles className="size-4" />} disabled={working || waitLeft > 0} onClick={() => void trySample()} data-testid="try-sample">
                 {waitLeft > 0 ? `Try again in ${waitLeft}s` : "Try a sample job"}
               </Button>
               {waitLeft > 0 ? (

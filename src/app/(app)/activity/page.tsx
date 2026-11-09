@@ -32,24 +32,26 @@ interface JobGroup {
 /** Every agent run a job has had: the send, each reminder, and any note the code refused. */
 const runsOf = (job: JobView) => [job.runId, job.reminderRunId, ...(job.reminders ?? []).map((r) => r.runId), ...(job.refusedNotes ?? []).map((r) => r.runId)].filter((id): id is string => !!id);
 
-/** The steps on the record, under the job they belong to, newest job activity first. Steps from other visitors' jobs stay apart. */
-function groupByJob(steps: Step[], jobs: JobView[]): { groups: JobGroup[]; others: Step[] } {
+/** Which job each agent run belongs to: this browser's jobs and the shared sample, nobody else's. */
+function ownerOf(jobs: JobView[]): Map<string, JobView> {
   const owner = new Map<string, JobView>();
   for (const job of jobs) for (const run of runsOf(job)) owner.set(run, job);
+  return owner;
+}
+
+/** The steps on the record, under the job they belong to, newest job activity first. Other visitors' steps aren't shown. */
+function groupByJob(steps: Step[], jobs: JobView[]): JobGroup[] {
+  const owner = ownerOf(jobs);
   const byJob = new Map<string, JobGroup>();
-  const others: Step[] = [];
   for (const step of steps) {
     const job = step.entry.runId ? owner.get(step.entry.runId) : undefined;
-    if (!job) {
-      others.push(step);
-      continue;
-    }
+    if (!job) continue;
     const group = byJob.get(job.id) ?? { job, steps: [] };
     group.steps.push(step);
     byJob.set(job.id, group);
   }
   const latest = (g: JobGroup) => g.steps[0]?.entry.ts ?? g.job.createdAt;
-  return { groups: [...byJob.values()].sort((a, b) => latest(b).localeCompare(latest(a))), others };
+  return [...byJob.values()].sort((a, b) => latest(b).localeCompare(latest(a)));
 }
 
 const when = (ts: string) => new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -112,7 +114,6 @@ export default function ActivityPage() {
   const [events, setEvents] = useState<WebhookEventEnvelope[] | null>(null);
   const [jobs, setJobs] = useState<JobView[] | null>(null);
   const [ledger, setLedger] = useState<LedgerEntry[] | null>(null);
-  const [showOthers, setShowOthers] = useState(false);
   const isMock = status?.paypal.mode === "mock";
   const [details, setDetails] = useState(false);
 
@@ -163,7 +164,10 @@ export default function ActivityPage() {
     const text = plainAudit(entry);
     return text ? [{ entry, text }] : [];
   }).reverse();
-  const { groups, others } = groupByJob(plain, jobs ?? []);
+  const groups = groupByJob(plain, jobs ?? []);
+  // The audit log under Details is this browser's too: a step from another visitor's run stays out.
+  const owner = ownerOf(jobs ?? []);
+  const ownAudit = audit?.entries.filter((entry) => !entry.runId || owner.has(entry.runId));
 
   return (
     <>
@@ -186,19 +190,6 @@ export default function ActivityPage() {
           ) : (
             <EmptyState title="Nothing yet" description="Send an invoice from Jobs and each step shows up here, under its job." />
           )}
-          {others.length ? (
-            <div className="mt-4">
-              <button type="button" onClick={() => setShowOthers((o) => !o)} aria-expanded={showOthers} className="inline-flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900" data-testid="activity-others-toggle">
-                <ChevronDown className={cn("size-4 transition-transform", showOthers && "rotate-180")} />
-                {others.length} more {others.length === 1 ? "step" : "steps"} from other visitors
-              </button>
-              {showOthers ? (
-                <div className="mt-2 rounded-xl border border-zinc-200 px-4" data-testid="activity-others">
-                  <StepList steps={others} />
-                </div>
-              ) : null}
-            </div>
-          ) : null}
           <button type="button" onClick={() => setDetails((d) => !d)} aria-expanded={details} className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-zinc-800" data-testid="details-toggle">
             <ChevronDown className={cn("size-3.5 transition-transform", details && "rotate-180")} />
             {details ? "Hide details" : "Details"}
@@ -210,7 +201,7 @@ export default function ActivityPage() {
       <Card>
         <CardHeader
           title="Audit log"
-          description="Every agent tool request, guard decision, approval and result. Hash-chained: editing any line breaks verification."
+          description="Every agent tool request, guard decision, approval and result for this browser's jobs. Hash-chained: editing any line breaks verification."
           action={
             audit ? (
               audit.integrity.ok ? (
@@ -223,7 +214,7 @@ export default function ActivityPage() {
         />
         <CardBody>
           <DataGrid<AuditEntry>
-            rows={audit?.entries}
+            rows={ownAudit}
             getRowId={(r) => String(r.seq)}
             height={420}
             emptyMessage="Nothing yet. Send an invoice from Jobs and every step shows up here."

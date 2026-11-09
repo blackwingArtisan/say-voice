@@ -265,6 +265,9 @@ test("adding an item the speaker didn't mention updates the total", async ({ pag
     await showLineDetails(page.getByTestId("invoice-line").nth(i));
     await expect(page.getByTestId("invoice-line").nth(i).getByTestId("line-taxed")).not.toBeChecked();
   }
+  // The due date and the tax rate fold into one line until there's a reason to open them.
+  await expect(page.getByTestId("tax-rate")).toBeHidden();
+  await page.getByTestId("edit-details").click();
   await page.getByTestId("tax-rate").fill("10");
   await expect(page.getByTestId("tax-total")).toHaveText("$1.25");
 });
@@ -730,6 +733,47 @@ test("a first visit opens on a finished sample job: sent, paid and labelled Samp
   expect(entries.length).toBeGreaterThan(0);
 });
 
+test("day one, one tap from the landing: no PayPal history, and the sound-alike check still asks fifteen or fifty", async ({ page, request }) => {
+  const { live } = await kitStatus(request);
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByTestId("catch-try-day-one").click();
+  await page.waitForURL(/\/jobs\/job_[\w-]+$/, { timeout: 60_000 });
+  const id = jobId(page);
+  await expect(page.getByTestId("day-one")).toContainText("Day one: no PayPal history yet");
+  const element = page.getByTestId("invoice-line").nth(1);
+  await expect(element.getByTestId("line-name")).toHaveValue("Heating element");
+  // No usual price to hold it against, so it asks the sound-alike question and claims nothing else.
+  await expect(element.getByTestId("line-alike")).toContainText('Check this amount: "fifteen" or "fifty"?');
+  await expect(element.getByTestId("line-alike")).toContainText("No past invoices for this item yet.");
+  await expect(page.locator("[data-testid^=line-usual]")).toHaveCount(0);
+  await expect(page.getByTestId("usually-with")).toHaveCount(0);
+  const elementCatch = page.getByTestId("catch-card").filter({ hasText: "Heating element" });
+  await expect(elementCatch).toContainText('"fifteen" or "fifty"?');
+  await expect(elementCatch.getByTestId("catch-use-alike")).toHaveText("Use $50.00");
+  const view = (await (await request.get(`/api/jobs/${id}`, { headers: await visitorHeaders(page) })).json()) as { dayOne?: boolean; priceBook: unknown[] };
+  expect(view.dayOne).toBe(true);
+  expect(view.priceBook).toEqual([]);
+  await page.screenshot({ path: "screenshots/day-one-390.png", fullPage: true });
+  // Then the way out of day one: the trade's own PayPal invoices.
+  await page.getByTestId("day-one-learn").click();
+  await page.waitForURL(/\/prices$/);
+  await expect(page.getByRole("button", { name: "Learn from my PayPal invoices" })).toBeVisible();
+
+  // The other tap on the landing is the same job with the trade's prices: the usual price speaks.
+  await page.goto("/");
+  await page.getByTestId("catch-try").click();
+  await page.waitForURL(/\/jobs\/job_[\w-]+$/, { timeout: 60_000 });
+  expect(jobId(page)).not.toBe(id);
+  await expect(page.getByTestId("day-one")).toHaveCount(0);
+  await expect(page.getByTestId("invoice-line").nth(1).getByTestId("line-usual")).toContainText("Usually $50.00");
+  // Back from the job is a plain New job, not another sample.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/jobs$/);
+  await expect(page.getByTestId("record-start")).toBeVisible();
+});
+
 test("activity reads job by job: each job with its amount and status, its steps under it, and the ledger and webhooks behind Details", async ({ page, request }) => {
   const { live } = await kitStatus(request);
   test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
@@ -757,6 +801,15 @@ test("activity reads job by job: each job with its amount and status, its steps 
   await expect(group.getByTestId("activity-row").filter({ hasText: /approved/i }).first()).toBeVisible();
   await page.screenshot({ path: "screenshots/activity-by-job.png", fullPage: true });
   await expect(head).toHaveAttribute("href", `/jobs/${done.id}`);
+
+  // Only this browser's jobs and the shared sample: other visitors' steps aren't on the page at all.
+  const mine = ((await (await request.get("/api/jobs", { headers: await visitorHeaders(page) })).json()) as { jobs: { id: string }[] }).jobs.map((j) => j.id);
+  const shown = await page.getByTestId("activity-job").evaluateAll((els) => els.map((el) => el.getAttribute("data-job")));
+  for (const id of shown) expect([...mine, "job_sample"], `job ${id} on Activity`).toContain(id);
+  await expect(page.getByTestId("activity-others-toggle")).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText("other visitors");
+  const { entries } = (await (await request.get("/api/audit")).json()) as { entries: { runId?: string }[] };
+  console.log(`Activity: ${shown.length} jobs shown; the record holds ${new Set(entries.map((e) => e.runId).filter(Boolean)).size} runs in all`);
 
   // The ledger and the webhooks are still one tap away.
   await page.getByTestId("details-toggle").click();
@@ -878,21 +931,12 @@ test("record first: the record button leads /jobs at phone and desktop width, Yo
     await page.screenshot({ path: `screenshots/record-first-${width}.png` });
   }
 
-  // The landing at phone width: about two screens.
+  // The landing at phone width: How it works goes to the three steps.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await expect(page.getByTestId("hero-lead")).toBeVisible();
-  const landing = await page.evaluate(() => document.documentElement.scrollHeight);
-  console.log(`Landing at 390 wide: ${landing}px, ${(landing / 844).toFixed(2)} screens of 844`);
-  await page.screenshot({ path: "screenshots/landing-phone.png", fullPage: true });
-  expect(landing).toBeLessThan(844 * 2.5);
-  // Each section below the hero is one row on a phone, and a link into one opens it.
   await expect(page.getByTestId("catch-proof-flag")).toBeVisible();
   await page.getByRole("link", { name: "How it works" }).first().click();
-  await expect(page.getByTestId("fold-how")).toHaveAttribute("data-open", "true");
   await expect(page.locator("#how")).toBeInViewport();
-  await page.getByTestId("fold-real-jobs-toggle").click();
-  await expect(page.getByTestId("real-jobs")).toBeVisible();
 
   // On the phone confirm screen the total and what's left to check stay at the top as you scroll.
   await startSample(page);
@@ -951,8 +995,24 @@ test("compact confirm: the total, the checks and the lines first; heard words be
   await page.screenshot({ path: "screenshots/confirm-compact-1440.png" });
   await fixElementPrice(page);
   await expect(page.getByTestId("flags-panel")).toHaveCount(0);
+  // Checks clear, and what the customer reads stays one line: a shorter page, and Send stays in reach at the bottom of the window.
+  await settleAiNotes(page);
+  await expect(page.getByTestId("details-summary")).toBeVisible();
+  await expect(page.getByTestId("job-summary")).toBeHidden();
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  const sendAt = await page.getByTestId("send-invoice").evaluate((el) => Math.round(el.getBoundingClientRect().bottom + window.scrollY));
+  console.log(`Confirm at 1440 by 900, checks clear: ${height}px, Send ends at ${sendAt}px`);
+  await page.screenshot({ path: "screenshots/confirm-short-1440-full.png", fullPage: true });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(page.getByTestId("send-invoice")).toBeInViewport();
+  await page.screenshot({ path: "screenshots/confirm-short-1440.png" });
+  await page.getByTestId("edit-details").click();
   await expect(page.getByTestId("job-summary")).toBeVisible();
   await expect(page.getByTestId("details-summary")).toBeHidden();
+  // Folded, the page is shorter by the whole of what the customer reads, the due date and the tax.
+  const open = await page.evaluate(() => document.documentElement.scrollHeight);
+  console.log(`Confirm at 1440: ${height}px folded, ${open}px with the details open`);
+  expect(open - height).toBeGreaterThan(200);
 });
 
 test("the price book catches a misheard quantity against the trade's PayPal invoices, and Prices says where each price came from", async ({ page, request }) => {

@@ -103,6 +103,8 @@ export interface Job {
   visitor?: string;
   /** The finished sample every visitor sees on a first visit (src/lib/say/example-job.ts). */
   example?: boolean;
+  /** Checked as on a trade's first day: no demo prices and no PayPal history, so only the sound-alike check can speak. */
+  dayOne?: boolean;
   customer: JobCustomer;
   /** What the speech said the name was. Shown only: the invoice never uses it. */
   heardName?: string;

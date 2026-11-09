@@ -19,7 +19,7 @@ import { TEST_ADDRESS_REFUSED } from "./contacts";
 import { activeSends, requireJob, saveJob } from "./jobs";
 import { payQrFor } from "./pay-qr";
 import { computeTotals, formatCents } from "./money";
-import { priceBook } from "./price-store";
+import { bookForJob } from "./price-store";
 import type { Job, JobCustomer, JobDetails, JobLine, SentInvoice } from "./types";
 
 export interface CheckedJob {
@@ -113,7 +113,7 @@ export function requestSend(id: string, checked: CheckedJob, channel: string): {
   const job = requireJob(id);
   if (activeSends().has(id)) throw new HttpError(409, "This job is already being sent.", "conflict");
   if (job.status !== "review") throw new HttpError(409, `A job in status ${job.status} can't be sent.`, "conflict");
-  const open = openChecks(findChecks({ ...job, ...checked, book: priceBook(job.visitor) }), checked.acknowledged);
+  const open = openChecks(findChecks({ ...job, ...checked, book: bookForJob(job) }), checked.acknowledged);
   if (open.length) throw new HttpError(409, `${placesToCheck(open)} still to check before this can go: ${open[0].text}`, "checks_open");
   const runId = `send_${randomUUID().slice(0, 12)}`;
   const saved = saveJob({ ...job, ...checked, status: "awaiting_approval", runId, error: undefined });

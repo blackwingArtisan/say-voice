@@ -20,58 +20,77 @@ test("no money route gets around the approval gate", async ({ request }) => {
   for (const path of routes) expect((await request.post(path, { data: {} })).status(), path).toBe(404);
 });
 
-test("the landing page leads with billing accuracy and the trades' distrust of AI, sourced; then the catch, three steps and real jobs", async ({ page }) => {
+test("the landing is the hero, the live catch, three steps and one real job; the figures and sources are one tap away on How it's built", async ({ page }) => {
   await page.goto("/");
-  const lead = page.getByTestId("hero-lead");
-  await expect(lead).toContainText("One wrong number on an invoice can cost you the customer.");
-  await expect(lead).toContainText("58%");
+  await expect(page.getByTestId("hero-lead")).toHaveText("One wrong number on an invoice can cost you the customer.");
+  // The catch, with one tap into the sample job and into day one.
+  await expect(page.getByTestId("catch-proof-flag")).toContainText(/.fifteen. sounds like .fifty./);
+  await expect(page.getByTestId("catch-proof")).toContainText("GET /v2/invoicing/invoices");
+  await expect(page.getByTestId("catch-try")).toHaveAttribute("href", "/jobs?try=sample");
+  await expect(page.getByTestId("catch-try-day-one")).toHaveAttribute("href", "/jobs?try=day-one");
+  await expect(page.getByTestId("how-step")).toHaveCount(3);
+  await expect(page.getByTestId("proof-card-total")).toHaveText("$600.00");
+  await expect(page.getByTestId("hero-preview")).toBeVisible();
+  // Nothing else: the stats, the comparison, the second job and the method moved to /built.
+  for (const moved of ["hero-facts", "hero-who", "hero-why-not", "hero-proof", "real-jobs", "method"]) await expect(page.getByTestId(moved)).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText("58%");
+  await expect(page.locator("main > *")).toHaveCount(3);
+  // Late payment isn't the lead: it sits under the reminders on a sent job.
+  await expect(page.locator("main")).not.toContainText("56%");
+  await expect(page.locator("body")).not.toContainText("evening");
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  console.log(`Landing at 1440 wide: ${height}px, ${(height / 1000).toFixed(2)} screens of 1000`);
+  expect(height).toBeLessThan(1000 * 2.2);
+  await page.screenshot({ path: "screenshots/landing-1440.png", fullPage: true });
+
+  await page.getByTestId("built-link").click();
+  await expect(page).toHaveURL(/\/built$/);
+  await expect(page.getByTestId("built-lead")).toContainText("One wrong number on an invoice can cost you the customer.");
+  await expect(page.getByTestId("built-lead")).toContainText("58%");
   await expect(page.getByTestId("hero-lead-source")).toHaveAttribute("href", /^https:\/\/www\.phcppros\.com\//);
   await expect(page.getByTestId("hero-who")).toContainText("2.9 million");
   await expect(page.getByTestId("hero-who-source")).toHaveAttribute("href", /census\.gov/);
-  // Late payment isn't the lead: it sits under the reminders on a sent job.
-  await expect(page.locator("main")).not.toContainText("56%");
-  await expect(page.locator("main")).not.toContainText("paid late");
-  // The page is the hero, the catch as proof, three steps and real jobs. Nothing else.
-  await expect(page.getByTestId("catch-proof-flag")).toContainText(/.fifteen. sounds like .fifty./);
-  await expect(page.getByTestId("catch-proof")).toContainText("GET /v2/invoicing/invoices");
-  await expect(page.locator("#how h3")).toHaveCount(3);
   await expect(page.getByTestId("real-job")).toHaveCount(2);
-  for (const gone of ["compare", "pain-points"]) await expect(page.getByTestId(gone)).toHaveCount(0);
-  await expect(page.locator("main > *")).toHaveCount(4);
-  await expect(page.locator("body")).not.toContainText("evening");
   await page.getByTestId("proof-method-link").click();
   await expect(page).toHaveURL(/#method$/);
   await expect(page.getByTestId("method")).toBeInViewport();
   await expect(page.getByTestId("method")).toContainText("0 of 20");
-  await page.screenshot({ path: "screenshots/landing-desktop.png", fullPage: true });
-  console.log(`Landing at ${page.viewportSize()!.width} wide: ${await page.evaluate(() => document.documentElement.scrollHeight)}px`);
+  await page.screenshot({ path: "screenshots/built-1440.png", fullPage: true });
 });
 
-test("on a phone the landing leads with Start a job and the catch, and the figures follow; a wide screen keeps the lead on top", async ({ page }) => {
-  const top = async (testId: string) => (await page.getByTestId(testId).boundingBox())!.y;
+test("on a phone the landing is Start a job, the catch, three steps and the real job, in that order, under 2.5 screens", async ({ page }) => {
+  const top = async (testId: string) => (await page.getByTestId(testId).first().boundingBox())!.y;
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await expect(page.getByTestId("hero-start")).toBeInViewport();
   await expect(page.getByTestId("hero-start")).toHaveAttribute("href", "/jobs");
-  const phone = { start: await top("hero-start"), catch: await top("catch-proof"), flag: await top("catch-proof-flag"), lead: await top("hero-lead"), who: await top("hero-who"), how: await top("fold-how") };
+  const phone = { start: await top("hero-start"), catch: await top("catch-proof"), flag: await top("catch-proof-flag"), tryIt: await top("catch-try"), how: await top("how-step"), proof: await top("proof-card") };
   console.log(`Landing at 390 wide, tops: ${JSON.stringify(phone)}`);
   expect(phone.start).toBeLessThan(phone.catch);
-  expect(phone.flag).toBeLessThan(phone.lead);
-  expect(phone.lead).toBeLessThan(phone.who);
-  expect(phone.who).toBeLessThan(phone.how);
+  expect(phone.flag).toBeLessThan(phone.tryIt);
+  expect(phone.tryIt).toBeLessThan(phone.how);
+  expect(phone.how).toBeLessThan(phone.proof);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  await page.screenshot({ path: "screenshots/landing-phone-order.png", fullPage: true });
+  for (const id of ["catch-try", "catch-try-day-one"]) expect((await page.getByTestId(id).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  console.log(`Landing at 390 wide: ${height}px, ${(height / 844).toFixed(2)} screens of 844`);
+  expect(height).toBeLessThan(844 * 2.5);
+  await page.screenshot({ path: "screenshots/landing-390.png", fullPage: true });
+  // The real job's invoice folds to a row on a phone.
+  await page.getByTestId("fold-preview-toggle").click();
+  await expect(page.getByTestId("hero-preview")).toBeVisible();
 
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await expect(page.getByTestId("hero-lead")).toBeInViewport();
-  expect(await top("hero-lead")).toBeLessThan(await top("hero-start"));
-  expect(await top("hero-who")).toBeLessThan(await top("catch-proof"));
+  await page.goto("/built");
+  await expect(page.getByTestId("real-job")).toHaveCount(2);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: "screenshots/built-390.png", fullPage: true });
 });
 
-test("the landing page's headline is the price book from your PayPal invoices", async ({ page }) => {
+test("the landing page's headline is the price book from your PayPal invoices, and How it's built says why not Housecall Pro or Jobber", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Fifty heard as fifteen? Your PayPal invoices catch it.");
   await expect(page.locator("main")).toContainText("A price book learned from your own past PayPal invoices stops a sound-alike number");
+  await page.goto("/built");
   const whyNot = page.getByTestId("hero-why-not");
   await expect(whyNot).toContainText("Why not Housecall Pro or Jobber? Both have a price list of their own.");
   await expect(whyNot).toContainText("built from your past PayPal invoices");
@@ -82,8 +101,16 @@ test("the landing page's headline is the price book from your PayPal invoices", 
   await expect(page.getByTestId("hero-why-not-source").last()).toHaveAttribute("href", "https://help.getjobber.com/en/articles/products-services-list/");
 });
 
+test("the public status says which modes are on, and carries no buyer address", async ({ request }) => {
+  const status = await (await request.get("/api/kit/status")).json();
+  expect(status.paypal.mode).toMatch(/^(mock|sandbox)$/);
+  expect(status.paypal).not.toHaveProperty("buyerEmail");
+  // No address at all: the payee rules ("*@example.com") are patterns, not anyone's address.
+  expect(JSON.stringify(status)).not.toMatch(/[\w.+-]+@[\w-]+\./);
+});
+
 test("real jobs: only what the proof shows, with no quotes and no real names", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/built");
   const block = page.getByTestId("real-jobs");
   await expect(block.getByRole("heading", { name: "Real jobs" })).toBeVisible();
   const jobs = block.getByTestId("real-job");
@@ -105,7 +132,7 @@ test("real jobs: only what the proof shows, with no quotes and no real names", a
 test("with AI and speech live, no page says mock", async ({ page, request }) => {
   const { live, speechLive } = await kitStatus(request);
   test.skip(!live || !speechLive, "Only a run with live AI and live speech can show this");
-  for (const path of ["/", "/jobs", "/prices", "/activity"]) {
+  for (const path of ["/", "/built", "/jobs", "/prices", "/activity"]) {
     await page.goto(path);
     await expectNoMockWords(page);
   }
