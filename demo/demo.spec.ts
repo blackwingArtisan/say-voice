@@ -1,9 +1,10 @@
 /**
- * DEMO VIDEO (npm run demo:record). Landscape 16:9, under 2:30. It opens on the phone with the
- * person saying the job, subtitled as it's said; then who it was for, why one wrong number matters,
- * the catch held in red, the approval, the Pay now QR, the Prices page with the PayPal call each
- * price came from, the guard refusing a figure (shown up close), the customer paying on PayPal's
- * page, Paid, Activity and the real jobs. Small chips name the PayPal calls behind each scene.
+ * DEMO VIDEO (npm run demo:record). Landscape 16:9, under 1:45. It opens on the problem in one card
+ * (fifty heard as fifteen), then the phone: the person saying the job, subtitled as it's said; who it
+ * was for; the catch held in red at about 0:15; the PayPal invoices the usual price came from, held;
+ * the Guard's approval card, held; PayPal's own QR code; the reminder agent's note refused by code, in
+ * two beats on the phone; the customer paying on PayPal's page; Paid; Activity; and who it's for, with
+ * the URL. Small chips name the PayPal calls behind each scene.
  *
  * It reads the modes from /api/kit/status and says on screen when a part isn't live, so a mock
  * screen is never captioned as the real thing. With DEMO_REQUIRE_LIVE=1 (the take for judges) it
@@ -17,7 +18,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { apiChips, bringIntoView, caption, fromInvoices, closePhoneStage, DemoClock, highlight, magnify, phoneStage, subtitles, titleCard } from "./captions";
+import { apiChips, bringIntoView, caption, closePhoneStage, DemoClock, highlight, phoneStage, subtitles, titleCard } from "./captions";
 import { assertLive, assertNoMockText, requireLive } from "./live-guard";
 import { amountIn, fit, spoken, toEdited } from "./voiceover";
 import { appConfig } from "../src/app.config";
@@ -31,11 +32,17 @@ const VOICE_SECONDS = Number(process.env.DEMO_VOICE_SECONDS ?? 7);
 const VOICE_TEXT = process.env.DEMO_VOICE_TEXT ?? "Dryer would not heat. I was there three quarters of an hour at eighty an hour. New heating element, fifteen dollars.";
 const PLACEHOLDER_VOICE = process.env.DEMO_VOICE_PLACEHOLDER === "1";
 const OUT = path.resolve("test-results/demo");
-/** What a viewer must be given time to read: the approval card. */
+/** What a viewer must be given time to read: the approval card (at least 3 s). */
 const HOLD_MS = 4_000;
-/** The catch, held in red, and the Prices page with its PayPal call, each at least this long. */
+/** The catch, held in red, and the list of PayPal invoices its usual price came from (at least 4 s). */
 const CATCH_MS = 5_000;
-const PRICES_MS = 4_000;
+const RECEIPTS_MS = 4_600;
+/** Each of the refusal's two beats on the phone: what the agent wrote, then why code stopped it. */
+const REFUSAL_BEAT_MS = 3_800;
+/** The opening card: the problem, said before anything else. */
+const OPENING_MS = 4_300;
+/** Where a viewer can try it. */
+const SITE = "say-voice.onrender.com";
 /** The line the trade's PayPal invoices usually have with this item, held this long before the tap. */
 const NUDGE_MS = 4_500;
 /** The spoken job plays first: no narration before this, in seconds of the edited video. */
@@ -113,9 +120,14 @@ test("demo", async ({ browser }) => {
   /** What isn't live in this take, said on screen instead of passed off as real. */
   const notLive = [!liveSpeech && "speech", !liveAi && "AI", !sandbox && "PayPal"].filter(Boolean).join(", ");
 
-  // Open on the phone: the person presses record and says the job. The page loading is cut.
+  // Open on the problem, in the first 4 s: one card, said aloud. The page loading under it is cut.
+  await cut(page.goto("/"), { lead: 0, tail: 0 });
+  narrate(1, "Fifty heard as fifteen. One wrong number costs you the customer.");
+  await titleCard(page, "Fifty heard as fifteen.", "One wrong number on an invoice costs you the customer.<br>So every price you say is checked against your own PayPal invoices.", OPENING_MS);
+  const openingSec = at() / 1000;
+
+  // Then the phone: the person presses record and says the job.
   const phone = await cut(async () => {
-    await page.goto("/");
     const frame = await phoneStage(page, "/jobs");
     await expect(frame.getByTestId("contact-derek-evans")).toBeAttached({ timeout: 30_000 });
     await bringIntoView(frame.getByTestId("record-start"));
@@ -136,19 +148,10 @@ test("demo", async ({ browser }) => {
   await phone.getByTestId("record-stop").click();
   timeline.recordStopMs = at();
   await expect(phone.getByTestId("take-waiting")).toBeVisible();
-  // One line across the contact tap and the title card: the contact beat alone is too short to say anything.
-  narrate(2, "The customer comes from contacts, never speech. Your own PayPal invoices check every price.");
-  await point(page, liveSpeech ? "ElevenLabs Scribe v2 heard it. Then who it was for, from your contacts. Names never come from speech." : "Then who it was for, from your contacts. Names never come from speech.", contact, 2800);
+  narrate(2, "The customer comes from contacts, never from speech.");
+  await point(page, liveSpeech ? "ElevenLabs Scribe v2 heard it. Then who it was for, from your contacts. Names never come from speech." : "Then who it was for, from your contacts. Names never come from speech.", contact, 3200);
   await contact.click();
   await checkpoint("said");
-
-  // While the words are read: why one number matters.
-  await titleCard(
-    page,
-    "One wrong number on an invoice can cost you the customer.",
-    "<b>58%</b> of US residential contractors have little or no trust in the AI tools they use.<br><br>So here your own PayPal invoices check every price you say.<br><span style='font-size:15px;opacity:.7'>ServiceTitan 2026 State of AI in the Trades, via PHCP Pros (n&gt;1,000)</span>",
-    5000,
-  );
   await caption(page, liveAi ? "Claude Sonnet 5.5 turns the words into line items. Code does every sum." : `Line items from the words. Code does every sum. (Not live in this take: ${notLive}.)`, { wait: false });
   await cut(phone.waitForURL(/\/jobs\/job_/, { timeout: 90_000 }).then(() => expect(phone.getByTestId("invoice-line").first()).toBeVisible()));
   await checkpoint("heard");
@@ -159,8 +162,25 @@ test("demo", async ({ browser }) => {
   // The amounts as the screen has them: the usual price from PayPal, and what was heard.
   const usual = spoken(amountIn(await phone.getByTestId("catch-use-usual").innerText()) ?? "");
   const heard = spoken(amountIn(await phone.getByTestId("catch-keep").innerText()) ?? "");
-  narrate(4, `The catch: it says ${heard}, your PayPal invoices say ${usual}. The send is held.`);
+  narrate(3, `The catch: it says ${heard}, your PayPal invoices say ${usual}. The send is held.`);
   await held("catch", () => point(page, `Said: ${heard}. ${sandbox ? "Your PayPal invoices" : "The price book"} say ${usual}${heard === "$15" && usual === "$50" ? ', and "fifteen" sounds like "fifty"' : ""}. The send is held until you choose.`, catchCard, CATCH_MS + 800));
+
+  // Where the usual price comes from: "from 9 PayPal invoices" is a tap that lists them, each one PayPal's.
+  const receiptsOpen = catchCard.getByTestId("receipts-open");
+  if (await receiptsOpen.count()) {
+    await receiptsOpen.click();
+    const receipts = catchCard.getByTestId("receipts");
+    await cut(expect(receipts.getByTestId("receipt").first()).toBeVisible({ timeout: 30_000 }), { lead: 0, tail: 200 });
+    const rows = await receipts.getByTestId("receipt").count();
+    const ids = await receipts.getByTestId("receipt").evaluateAll((els) => els.map((el) => el.getAttribute("data-invoice-id")));
+    console.log(`[demo] receipts: ${rows} PayPal invoices behind ${usual}: ${ids.join(", ")}`);
+    if (sandbox) await apiChips(page, ["GET /v2/invoicing/invoices"]);
+    narrate(4, `Where ${usual} comes from: ${rows} of the trade's own PayPal invoices.`);
+    await held("receipts", () => point(page, sandbox ? `Where ${usual} comes from: ${rows} of the trade's own PayPal invoices, read with GET /v2/invoicing/invoices. Each one opens on PayPal.` : `Where ${usual} comes from: ${rows} past invoices. (PayPal isn't live in this take.)`, receipts, RECEIPTS_MS));
+    await apiChips(page, []);
+    await receiptsOpen.click();
+    await checkpoint("receipts");
+  } else console.log("[demo] no receipts tap on the catch, so that beat is skipped");
   const sendBar = phone.getByTestId("send-invoice");
   const before = await phone.getByTestId("invoice-total").innerText();
   await phone.getByTestId("catch-use-usual").click();
@@ -198,62 +218,54 @@ test("demo", async ({ browser }) => {
   const prompt = phone.getByTestId("approval-prompt");
   await cut(expect(prompt).toBeVisible({ timeout: 30_000 }));
   narrate(7, "The Guard holds it until you approve this exact amount.");
-  await point(page, "The Guard holds it. Nothing reaches the customer until you approve this exact amount.", prompt, HOLD_MS);
+  await held("approval", () => point(page, "The Guard holds it. Nothing reaches the customer until you approve this exact amount.", prompt, HOLD_MS));
   await prompt.getByTestId("approve-button").click();
   await cut(expect(phone.getByTestId("result")).toBeVisible({ timeout: 60_000 }).then(() => expect(phone.getByText("Approved", { exact: true })).toBeHidden({ timeout: 15_000 })));
   const sentJob = (await (await page.request.get(`/api/jobs/${new URL(phone.url()).pathname.split("/").pop()}`)).json()) as { invoice: { id: string; number: string; status: string; totalCents: number }; lines: unknown[] };
   // For the main session to re-read from PayPal.
   console.log(`[demo] sent invoice ${sentJob.invoice.id} number ${sentJob.invoice.number} ${sentJob.invoice.status} $${(sentJob.invoice.totalCents / 100).toFixed(2)}, ${sentJob.lines.length} lines (PayPal ${status.paypal.mode})`);
-  narrate(8, sandbox ? "PayPal's Agent Toolkit sent it. The customer can scan and pay before the van leaves." : "Sent. The customer can scan and pay before the van leaves.");
+  narrate(8, sandbox ? "PayPal's Agent Toolkit created and sent it." : "Created and sent.");
   if (sandbox) await apiChips(page, ["Agent Toolkit", "create_invoice", "send_invoice"]);
-  await point(page, sandbox ? "PayPal's Agent Toolkit created and sent it. Number and status are read back from PayPal." : "Created and sent. (PayPal isn't live in this take.)", phone.getByTestId("invoice-number"), 3400);
+  await point(page, sandbox ? "PayPal's Agent Toolkit created and sent it. Number and status are read back from PayPal." : "Created and sent. (PayPal isn't live in this take.)", phone.getByTestId("invoice-number"), 3000);
   await apiChips(page, []);
+
+  // PayPal's own QR code for the invoice, from generate-qr-code. If PayPal didn't give one, the screen says so and so does this.
   const qr = phone.getByTestId("pay-qr");
-  if (await qr.count()) await point(page, "Pay now: the customer scans PayPal's own pay page before the van leaves.", qr, 3600);
+  if (await qr.count()) {
+    const fromPayPal = (await qr.getAttribute("data-source")) === "paypal";
+    console.log(`[demo] QR for ${sentJob.invoice.id}: ${fromPayPal ? "PayPal's own, from generate-qr-code" : `drawn here: ${await phone.getByTestId("pay-qr-source").innerText()}`}`);
+    narrate(9, fromPayPal ? "PayPal made the QR code. The customer scans and pays." : "The customer scans the QR code and pays.");
+    if (sandbox && fromPayPal) await apiChips(page, ["POST /v2/invoicing/invoices/{id}/generate-qr-code"]);
+    await held("qr", () => point(page, fromPayPal ? "Pay now: PayPal's own QR code for this invoice, from generate-qr-code. The customer scans it before the van leaves." : "Pay now: a QR code drawn here from PayPal's link. PayPal's own QR code didn't come back this time.", qr, 3800));
+    await apiChips(page, []);
+  }
   const jobUrl = phone.url();
   await checkpoint("sent");
-  await closePhoneStage(page);
 
-  // Where the $50 came from: the Prices page, each price with the PayPal invoices and the call it was read with.
+  // The guard refusing, in two slow beats on the phone: the ask and the agent's draft happen off camera.
+  const refused = phone.getByTestId("reminder-refused");
   await cut(async () => {
-    await expect.poll(async () => ((await (await page.request.get("/api/prices")).json()) as { history: unknown }).history !== null, { timeout: 90_000, intervals: [1_000] }).toBe(true);
-    await page.goto("/prices");
-    await expect(page.getByTestId("learned-from-paypal")).toBeVisible();
-  });
-  const element = page.getByTestId("price-row").filter({ hasText: "Heating element" });
-  await expect(element.getByTestId("price-source-chip")).toBeVisible();
-  const from = fromInvoices(await element.innerText());
-  if (sandbox) await apiChips(page, ["GET /v2/invoicing/invoices"]);
-  const count = /from (\d+) PayPal invoices?/.exec(from)?.[1];
-  narrate(9, count ? `Where ${usual} comes from: ${count} of the trade's own PayPal invoices.` : `Where ${usual} comes from: the trade's own PayPal invoices.`);
-  await held("prices", () => point(page, sandbox ? `Where ${usual} came from: the trade's own PayPal invoices, read with GET /v2/invoicing/invoices. Heating element: ${from}.` : `Where ${usual} came from. Heating element: ${from}. (PayPal isn't live in this take.)`, element, PRICES_MS + 800));
-  await apiChips(page, []);
-  await checkpoint("prices");
-
-  // The guard refusing, in one beat and up close: the ask and the agent's draft happen off camera.
-  const refused = page.getByTestId("reminder-refused");
-  await cut(async () => {
-    await page.goto(jobUrl);
-    await expect(page.getByTestId("result")).toBeVisible();
     // Live, the model leaves late fees out as told; asked for a discount it writes the $25 in, and code refuses it.
-    await page.getByTestId("reminder-ask").fill("Add a $25 discount for paying early");
-    await page.getByTestId("ask-reminder").click();
+    await phone.getByTestId("reminder-ask").fill("Add a $25 discount for paying early");
+    await phone.getByTestId("ask-reminder").click();
     await expect(refused.first()).toBeVisible({ timeout: 60_000 });
-    // The corrected reminder's card lands above it; wait for it, so the close-up is of the refusal.
-    await expect(page.getByTestId("approval-prompt")).toBeVisible({ timeout: 60_000 });
+    // The corrected reminder's card lands above it; wait for it, so the beats are of the refusal.
+    await expect(phone.getByTestId("approval-prompt")).toBeVisible({ timeout: 60_000 });
   });
-  narrate(10, "A $25 discount isn't on the invoice, so code refused the agent's note.");
+  const reason = (await refused.first().getByTestId("reminder-refused-reason").innerText()).trim();
+  console.log(`[demo] refused: ${reason}`);
+  narrate(10, "Asked for a $25 discount that isn't on the invoice, the agent wrote it in. Code refused it.");
   await held("refusal", async () => {
-    await magnify(page, refused.first(), 1.7);
-    await caption(page, "Asked for a $25 early-payment discount that isn't on the invoice, the reminder agent wrote it in. Code refused it before any approval card.", { ms: 5000 });
-    await magnify(page, null);
+    await point(page, "Asked for a $25 early-payment discount that isn't on the invoice, the reminder agent wrote it into its note.", refused.first().locator("p.line-through"), REFUSAL_BEAT_MS);
+    await point(page, `Code refused the note before any approval card: ${reason}`, refused.first().getByTestId("reminder-refused-reason"), REFUSAL_BEAT_MS);
   });
   // The corrected reminder is approved off camera, so the job is tidy when the customer pays.
   await cut(async () => {
-    await page.getByTestId("approval-prompt").getByTestId("approve-button").click();
-    await expect(page.getByTestId("reminder-sent")).toBeVisible({ timeout: 30_000 });
+    await phone.getByTestId("approval-prompt").getByTestId("approve-button").click();
+    await expect(phone.getByTestId("reminder-sent")).toBeVisible({ timeout: 30_000 });
   }, { lead: 0, tail: 0 });
   await checkpoint("refused");
+  await closePhoneStage(page);
 
   // The customer pays on PayPal's own page.
   const job = await (await page.request.get(`/api/jobs/${new URL(jobUrl).pathname.split("/").pop()}`)).json();
@@ -379,12 +391,16 @@ test("demo", async ({ browser }) => {
     narrate(13, "Activity shows every request and approval, job by job.");
     await point(page, "Activity, job by job: amount, PayPal status, and every request, approval and result in plain words.", page.getByTestId("activity-job").first(), 4000);
 
-    await cut(page.goto("/#real-jobs").then(() => expect(page.getByTestId("real-jobs")).toBeVisible()));
-    narrate(14, "Real jobs, every line right first time.");
-    await point(page, "Real jobs: a roofer's $600 and an appliance tech's $472.03, every line right first time.", page.getByTestId("real-jobs"), 4400);
-
-    narrate(15, "Say-Voice. Said in the van, checked by code, paid through PayPal.");
-    await titleCard(page, "Say-Voice", `Said in the van. Checked against your PayPal invoices. Paid through PayPal.<br><span style='font-size:16px;opacity:.75'>PayPal Invoicing and Agent Toolkit${liveSpeech ? " · ElevenLabs Scribe v2" : ""}${liveAi ? " · Claude Sonnet 5.5 and Haiku 5.5" : ""}</span>`, 4500, { keep: true });
+    // Who it's for, and where to try it.
+    const who = appConfig.landing.who;
+    narrate(14, `Say-Voice, for one-person trades. Try it at ${SITE.replace(/\./g, " dot ")}.`);
+    await titleCard(
+      page,
+      "Say-Voice",
+      `For one-person trades who bill from the van: ${who.figure} ${who.body}<br><b style='font-size:30px'>${SITE}</b><br><span style='font-size:15px;opacity:.7'>${who.source.label} · PayPal Invoicing and Agent Toolkit${liveSpeech ? " · ElevenLabs Scribe v2" : ""}${liveAi ? " · Claude Sonnet 5.5 and Haiku 5.5" : ""}</span>`,
+      6000,
+      { keep: true },
+    );
     await checkpoint("end");
 
     timeline.endMs = at();
@@ -393,11 +409,14 @@ test("demo", async ({ browser }) => {
     fs.writeFileSync(path.join(OUT, "timeline.json"), JSON.stringify(timeline, null, 2));
     // The narration, in seconds of the edited video, next to the take. Nothing while the job is spoken.
     const voiceEnd = (timeline.recordStopMs - cutBefore(timeline.recordStopMs, timeline.cuts)) / 1000;
-    const voiceover = toEdited(narration, timeline.cuts, Math.max(QUIET_SEC, voiceEnd + 0.5));
+    const opening = (openingSec * 1000 - cutBefore(openingSec * 1000, timeline.cuts)) / 1000;
+    const voiceover = toEdited(narration, timeline.cuts, Math.max(QUIET_SEC, voiceEnd + 0.5), opening);
     fs.mkdirSync("videos", { recursive: true });
     fs.writeFileSync("videos/voiceover.json", JSON.stringify(voiceover, null, 2));
     const endSec = (timeline.endMs - cutBefore(timeline.endMs, timeline.cuts)) / 1000;
     for (const [i, f] of fit(voiceover, endSec).entries()) console.log(`[demo] voiceover ${String(f.shot).padStart(2)} @${voiceover[i].at.toFixed(1)}s needs ${f.need}s of ${f.room}s${f.fits ? "" : "  TOO LONG, trim the line"}  ${voiceover[i].text}`);
     console.log(`[demo] timeline ${JSON.stringify(timeline)}`);
+    console.log(`[demo] edited length ${endSec.toFixed(1)}s (PayPal's checkout window adds nothing: it plays in place of the page behind it)`);
+    if (endSec >= 105) throw new Error(`The edited demo is ${endSec.toFixed(1)}s, over 1:45.`);
   }
 });

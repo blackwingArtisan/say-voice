@@ -71,7 +71,7 @@ export function Result({ job, invoice, showLink, onCheck }: { job: JobView; invo
           </div>
         </dl>
         {/* The QR comes before the details: the customer is standing there. */}
-        {showLink && invoice.payerUrl && !isPaid(invoice) ? <PayNow url={invoice.payerUrl} dueCents={invoice.dueCents} customer={job.customer.name} /> : null}
+        {showLink && invoice.payerUrl && !isPaid(invoice) ? <PayNow url={invoice.payerUrl} dueCents={invoice.dueCents} customer={job.customer.name} qr={job.payQr} /> : null}
         {invoice.note ? (
           <p className="whitespace-pre-line rounded-xl bg-zinc-50 px-4 py-3 text-sm text-zinc-800" data-testid="result-note">
             {invoice.note}

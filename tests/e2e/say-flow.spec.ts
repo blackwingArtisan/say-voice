@@ -5,7 +5,7 @@
  */
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { checkCount, fixElementPrice, totalOnScreen, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, sentSample, settleAiNotes, startSample, tradeHistoryReady, visitorHeaders, openNewJob, settleChecks, showLineDetails, showAllSteps } from "./flow";
+import { checkCount, fixElementPrice, totalOnScreen, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, sentSample, settleAiNotes, startSample, tradeHistoryReady, visitorHeaders, openNewJob, settleChecks, showLineDetails, showAllSteps, openWhatHappened } from "./flow";
 import { PLUS_TAX_AMOUNTS, PLUS_TAX_TRANSCRIPT, QUANTITY_AMOUNTS, QUANTITY_TRANSCRIPT, SAMPLE_AMOUNTS, ROOFER_AMOUNTS, ROOFER_CUSTOMER, ROOFER_DESCRIPTION, ROOFER_TRANSCRIPT } from "../../src/lib/say/sample";
 import { listInvoiceIdsFromPayPal, readInvoiceFromPayPal } from "./paypal-reread";
 import { PAST_JOBS } from "../../src/lib/demo/past-invoices";
@@ -559,7 +559,7 @@ test("receipts: \"from N PayPal invoices\" on the catch lists those invoices, ea
   }
 });
 
-test("pay now: a QR of PayPal's own page for the invoice and a link to copy, readable at phone width", async ({ page, request, context }) => {
+test("pay now: PayPal's own QR code for the invoice (generate-qr-code) and a link to copy, readable at phone width", async ({ page, request, context }) => {
   const { live, sandbox } = await kitStatus(request);
   test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
   await page.setViewportSize({ width: 390, height: 844 });
@@ -575,11 +575,16 @@ test("pay now: a QR of PayPal's own page for the invoice and a link to copy, rea
   await expect(payNow).toContainText(`Pay now: ${money(sent.invoice!.dueCents)}`);
   const qr = page.getByTestId("pay-qr");
   await qr.scrollIntoViewIfNeeded();
-  await expect(qr.locator("svg")).toBeVisible();
+  // PayPal's QR, from the Agent Toolkit's generate_invoice_qr_code: it opens PayPal's pay page for this invoice.
+  expect(sent.payQr?.source, sent.payQr?.source === "local" ? sent.payQr.why : "").toBe("paypal");
+  await expect(qr).toHaveAttribute("data-source", "paypal");
+  await expect(qr.locator("img")).toBeVisible();
+  await expect(page.getByTestId("pay-qr-source")).toHaveText("PayPal's own QR code, from generate-qr-code");
   const box = (await qr.boundingBox())!;
   expect(box.width).toBeGreaterThanOrEqual(200); // big enough for a phone camera across a counter
   expect(box.x + box.width).toBeLessThanOrEqual(390);
-  expect(await readQr(page, qr)).toBe(payerUrl);
+  const scanned = await readQr(page, qr);
+  expect(scanned).toBe(`https://www.sandbox.paypal.com/invoice/payerView/details/${sent.invoice!.id}?qr=1`);
   await expect(page.getByTestId("pay-link")).toHaveText(payerUrl);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.getByTestId("copy-pay-link").click();
@@ -592,7 +597,10 @@ test("pay now: a QR of PayPal's own page for the invoice and a link to copy, rea
   const name = (await line.locator("span").first().boundingBox())!;
   const amount = (await line.getByTestId("result-line-amount").boundingBox())!;
   expect(Math.abs(name.y - amount.y)).toBeLessThan(8);
-  console.log(`Pay now QR read back: ${payerUrl}`);
+  // The QR call is on the job's own timeline, in plain words.
+  await openWhatHappened(page);
+  await expect(page.getByTestId("plain-steps").getByText("PayPal made the QR code the customer scans to pay").first()).toBeVisible();
+  console.log(`PayPal QR: invoice ${sent.invoice!.id} number ${sent.invoice!.number}, QR from PayPal's generate-qr-code scans to ${scanned}`);
 });
 
 /**

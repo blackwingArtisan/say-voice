@@ -2,7 +2,7 @@
 
 > **Fifty heard as fifteen? Your PayPal invoices catch it.** Tradespeople say the job out loud in the van. A price book learned from their own past PayPal invoices stops a sound-alike number before the customer sees it, code does every sum, and the invoice goes out once they approve the exact amount.
 
-**Live demo:** https://say-voice.onrender.com · **Video (≤3 min):** TODO: add the link once it's recorded · **License:** MIT
+**Live demo:** https://say-voice.onrender.com · **Video:** link added at submission · **License:** MIT
 
 The site is on free hosting, so the first visit can take a minute.
 
@@ -165,7 +165,7 @@ AI_MODE=mock PAYPAL_MODE=mock npm run dev   # no credentials needed
 
 Open http://localhost:3000. For the real sandbox set `PAYPAL_MODE=sandbox`, `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`. For real AI set `ANTHROPIC_API_KEY` and `ELEVENLABS_API_KEY`. The microphone needs `localhost` or HTTPS.
 
-Demo video: `DEMO_VOICE=take.m4a DEMO_PAYPAL_MODE=sandbox DEMO_AI_MODE=live npm run demo:record` records a 16:9 video (1920x1080, about 100 to 120 seconds) with live speech and AI. The clip is the microphone, so ElevenLabs really hears it, and `scripts/demo-finish.ts` cuts PayPal's checkout window in, cuts the waits (a model thinking, a page loading) and lays the voice under the record press. Output: `videos/demo-say-voice.mp4`. With no `DEMO_VOICE`, a macOS computer voice stands in as a placeholder.
+Demo video: `DEMO_VOICE=take.m4a DEMO_PAYPAL_MODE=sandbox DEMO_AI_MODE=live npm run demo:record` records a 16:9 video (1920x1080, under 1:45) with live speech and AI. The clip is the microphone, so ElevenLabs really hears it, and `scripts/demo-finish.ts` cuts PayPal's checkout window in, cuts the waits (a model thinking, a page loading) and lays the voice under the record press. Output: `videos/demo-say-voice.mp4`. With no `DEMO_VOICE`, a macOS computer voice stands in as a placeholder.
 
 Checks: `npm run check` (lint, typecheck, unit tests, build), `npm run test:e2e` (mock PayPal), `npm run test:e2e:sandbox` (sends real sandbox invoices). Set `E2E_BASE_URL` to run the sandbox flow against a deployed copy. `ENGINE=webkit npm run test:e2e:engines` runs the mock suite on another browser; `ENGINE` can also be `firefox`, `iphone` or `android`. Each of those uses a stand-in microphone, because only Chromium has a fake one.
 

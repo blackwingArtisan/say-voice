@@ -14,7 +14,7 @@ export const appConfig = {
   /** The made-up trade business the demo invoices come from. The customer sees it at the top of PayPal's page. */
   tradeName: "Ridgeline Home Repair",
   repoUrl: "https://github.com/blackwingArtisan/say-voice",
-  videoUrl: "", // TODO: the demo video, once the final take (owner's voice, live AI) is up
+  videoUrl: "", // link added at submission
 
   nav: [
     { label: "Jobs", href: "/jobs" },

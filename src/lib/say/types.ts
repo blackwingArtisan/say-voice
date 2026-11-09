@@ -37,6 +37,9 @@ export interface JobCustomer {
   email: string;
 }
 
+/** The pay-now QR: PayPal's own PNG (base64), or why PayPal didn't give one, so the screen draws it from PayPal's link and says so. */
+export type PayQr = { source: "paypal"; png: string; at: string } | { source: "local"; why: string; at: string };
+
 export interface SentInvoice {
   id: string;
   number: string;
@@ -122,6 +125,8 @@ export interface Job {
   runId?: string;
   error?: string;
   invoice?: SentInvoice;
+  /** The pay-now QR, from PayPal's generate_invoice_qr_code, or why PayPal didn't give one. */
+  payQr?: PayQr;
   reminders?: SentReminder[];
   reminderRunId?: string;
   /** What the person asked the reminder agent to add, if anything. */

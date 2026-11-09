@@ -40,6 +40,7 @@ export const OPERATIONS = {
   "invoicing.cancel": { method: "POST", path: "/v2/invoicing/invoices/{id}/cancel", label: "Cancel invoice" },
   "invoicing.get": { method: "GET", path: "/v2/invoicing/invoices/{id}", label: "Get invoice" },
   "invoicing.list": { method: "GET", path: "/v2/invoicing/invoices", label: "List invoices" },
+  "invoicing.generateQrCode": { method: "POST", path: "/v2/invoicing/invoices/{id}/generate-qr-code", label: "Generate QR code" },
   "invoicing.recordPayment": { method: "POST", path: "/v2/invoicing/invoices/{id}/payments", label: "Record payment", money: true },
 
   "disputes.list": { method: "GET", path: "/v1/customer/disputes", label: "List disputes" },

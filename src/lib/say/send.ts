@@ -17,6 +17,7 @@ import { tradeNameFor } from "./business";
 import { findChecks, openChecks, placesToCheck } from "./checks";
 import { TEST_ADDRESS_REFUSED } from "./contacts";
 import { activeSends, requireJob, saveJob } from "./jobs";
+import { payQrFor } from "./pay-qr";
 import { computeTotals, formatCents } from "./money";
 import { bookForJob } from "./price-store";
 import type { Job, JobCustomer, JobDetails, JobLine, SentInvoice } from "./types";
@@ -95,7 +96,9 @@ async function send(id: string, channel: string) {
   if (result.isError) return backToReview(id, failureReason(result));
   const { invoice_id } = result.output as { invoice_id: string };
   const invoice = await readInvoice(invoice_id, totalCents);
-  saveJob({ ...requireJob(id), status: "sent", error: undefined, invoice });
+  // The pay-now QR from PayPal itself, while the customer is still there.
+  const payQr = invoice.payerUrl ? await payQrFor(invoice_id, { runId: ctx.runId, actor: ctx.actor, paypal: getPayPal(), idempotencyKey: `${id}-qr`, requestId: `${id}-qr` }) : undefined;
+  saveJob({ ...requireJob(id), status: "sent", error: undefined, invoice, ...(payQr ? { payQr } : {}) });
 }
 
 function start(id: string, channel: string, runId: string) {

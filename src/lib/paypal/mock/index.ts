@@ -13,9 +13,11 @@
  * Dev-only helpers start with `simulate` / `advance` and have no PayPal REST equivalent.
  */
 import { randomUUID } from "node:crypto";
+import QRCode from "qrcode";
 import type { PayPalApi, RequestOptions } from "../api";
 import { PayPalApiError } from "../errors";
 import { recordCallMeta } from "../meta";
+import { QR_SIZE } from "../qr";
 import type * as T from "../types";
 import { resourceTypeFor, verifyMockWebhook } from "../webhooks";
 import { apiError, invalidRequest, notFound, payoutsError, unprocessable } from "./errors";
@@ -1251,6 +1253,16 @@ export class MockPayPal implements PayPalApi {
           links: [{ href: `${API}/v2/invoicing/invoices?page=${page}&page_size=${size}`, rel: "self", method: "GET" as const }],
         };
       }),
+
+    // Like PayPal's: a PNG of PayPal's pay page for the invoice ("pay") or its details page.
+    generateQrCode: async (id, body) => {
+      const url = await this.io("invoicing.generateQrCode", undefined, () => {
+        const inv = this.getInvoiceRec(id).invoice;
+        if (inv.status === "DRAFT") throw unprocessable("INVALID_INVOICE_STATUS", "A QR code needs a sent invoice.", "invoicing/v2");
+        return body?.action === "details" ? `${WEB}/invoice/details${id}?qr=1` : `${WEB}/invoice/payerView/details/${id}?qr=1`;
+      });
+      return (await QRCode.toBuffer(url, { type: "png", width: body?.width ?? QR_SIZE, margin: 1 })).toString("base64");
+    },
 
     recordPayment: (id, body) =>
       this.io("invoicing.recordPayment", undefined, () => {
