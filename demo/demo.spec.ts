@@ -17,8 +17,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { apiChips, bringIntoView, caption, closePhoneStage, DemoClock, highlight, magnify, phoneStage, subtitles, titleCard } from "./captions";
-import { assertLive, assertNoMockText } from "./live-guard";
+import { apiChips, bringIntoView, caption, fromInvoices, closePhoneStage, DemoClock, highlight, magnify, phoneStage, subtitles, titleCard } from "./captions";
+import { assertLive, assertNoMockText, requireLive } from "./live-guard";
 import { appConfig } from "../src/app.config";
 import { untilCheckoutCloses } from "../tests/e2e/pay-as-guest";
 
@@ -34,6 +34,10 @@ const HOLD_MS = 4_000;
 /** The catch, held in red, and the Prices page with its PayPal call, each at least this long. */
 const CATCH_MS = 5_000;
 const PRICES_MS = 4_000;
+/** The most of PayPal's contact and account form a viewer sits through. */
+const CONTACT_FORM_MS = 3_000;
+/** Recording against a running site (the hosted one), which PayPal's webhooks reach. */
+const hosted = !!process.env.DEMO_BASE_URL;
 
 const point = (page: Page, text: string, target: Locator, ms?: number) => Promise.all([caption(page, text, { ms }), highlight(page, target, Math.max(ms ?? 0, 3200))]);
 
@@ -178,7 +182,7 @@ test("demo", async ({ browser }) => {
   });
   const element = page.getByTestId("price-row").filter({ hasText: "Heating element" });
   await expect(element.getByTestId("price-source-chip")).toBeVisible();
-  const from = /from \d+ PayPal invoices?, last \$[\d,.]+/.exec(await element.innerText())?.[0] ?? "from your PayPal invoices";
+  const from = fromInvoices(await element.innerText());
   if (sandbox) await apiChips(page, ["GET /v2/invoicing/invoices"]);
   await held("prices", () => point(page, sandbox ? `Where $50 came from: the trade's own PayPal invoices, read with GET /v2/invoicing/invoices. Heating element: ${from}.` : `Where $50 came from. Heating element: ${from}. (PayPal isn't live in this take.)`, element, PRICES_MS + 800));
   await apiChips(page, []);
@@ -251,20 +255,31 @@ test("demo", async ({ browser }) => {
   await checkout.locator("#cardNumber").pressSequentially("4111111111111111", { delay: 140 });
   await checkout.locator("#cardExpiry").pressSequentially("1230", { delay: 140 });
   await checkout.locator("#cardCvv").pressSequentially("123", { delay: 140 });
-  await checkout.locator("#billingLine1").fill("1 Main St");
-  await checkout.locator("#billingCity").fill("San Jose");
-  await checkout.locator("#billingState").selectOption("CA");
-  await checkout.locator("#billingPostalCode").fill("95131");
-  // A different test phone number each take, in case the sandbox refuses a repeat guest.
-  await checkout.locator("#phone").pressSequentially(`408555${String(Date.now() % 10_000).padStart(4, "0")}`, { delay: 15 });
-  const createAccount = checkout.getByTestId("onboard-options-switch");
-  if ((await createAccount.count()) && (await createAccount.isChecked())) await createAccount.evaluate((el: HTMLInputElement) => el.click());
+  // PayPal's contact and account form is filled off camera: at most CONTACT_FORM_MS of it stays in the cut.
+  const formFrom = at();
+  const cutsBefore = timeline.cuts.length;
   // PayPal has labelled this button both "Pay now as guest" and, with the switch off, "Pay Now".
   const pay = checkout.getByRole("button", { name: /^pay now( as guest)?$/i });
-  await pay.scrollIntoViewIfNeeded();
-  await page.waitForTimeout(500);
+  await cut(
+    async () => {
+      await checkout.locator("#billingLine1").fill("1 Main St");
+      await checkout.locator("#billingCity").fill("San Jose");
+      await checkout.locator("#billingState").selectOption("CA");
+      await checkout.locator("#billingPostalCode").fill("95131");
+      // A different test phone number each take, in case the sandbox refuses a repeat guest.
+      await checkout.locator("#phone").fill(`408555${String(Date.now() % 10_000).padStart(4, "0")}`);
+      const createAccount = checkout.getByTestId("onboard-options-switch");
+      if ((await createAccount.count()) && (await createAccount.isChecked())) await createAccount.evaluate((el: HTMLInputElement) => el.click());
+      await pay.scrollIntoViewIfNeeded();
+    },
+    { lead: 0, tail: 0 },
+  );
+  await page.waitForTimeout(400);
   await pay.click();
-  // PayPal closes its window once the card is taken; straight from there to the job, read back from PayPal.
+  const formShownMs = at() - formFrom - timeline.cuts.slice(cutsBefore).reduce((sum, c) => sum + (c.toMs - c.fromMs), 0);
+  console.log(`[demo] PayPal's contact form on screen ${(formShownMs / 1000).toFixed(1)}s`);
+  if (formShownMs > CONTACT_FORM_MS) throw new Error(`PayPal's contact form stayed on screen ${formShownMs} ms, over ${CONTACT_FORM_MS} ms.`);
+  // PayPal closes its window once the card is taken; straight from there to the job, still Sent until PayPal says it's paid.
   await cut(
     (async () => {
       await untilCheckoutCloses(checkout);
@@ -272,10 +287,8 @@ test("demo", async ({ browser }) => {
       if (!checkout.isClosed()) throw new Error(`PayPal's checkout didn't finish: ${(await checkout.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 300)}`);
       await page.goto(jobUrl);
       await expect(page.getByTestId("result")).toBeVisible();
-      const check = page.getByTestId("check-payment");
-      if (!(await page.getByTestId("paid-banner").isVisible()) && (await check.count())) await check.click();
-      await expect(page.getByTestId("paid-banner")).toBeVisible({ timeout: 60_000 });
     })(),
+    { lead: 0, tail: 0 }, // no beat of PayPal's page behind the closing window
   );
   await checkpoint("paid on PayPal");
   await finish(page, jobUrl);
@@ -283,11 +296,37 @@ test("demo", async ({ browser }) => {
   async function finish(page: Page, jobUrl: string) {
     if (!page.url().endsWith(new URL(jobUrl).pathname)) await cut(page.goto(jobUrl).then(() => expect(page.getByTestId("result")).toBeVisible()));
     const banner = page.getByTestId("paid-banner");
+    const status = page.getByTestId("invoice-status");
     const check = page.getByTestId("check-payment");
-    if (!(await banner.isVisible()) && (await check.count())) await check.click();
-    await cut(expect(banner).toBeVisible({ timeout: 60_000 }));
-    if (sandbox) await apiChips(page, ["webhook INVOICING.INVOICE.PAID"]);
-    await point(page, sandbox ? "PAID, read back from PayPal, with PayPal's transaction id. On the hosted site PayPal's webhook does this by itself." : "Paid. (PayPal isn't live in this take.)", banner, 4600);
+    // The payoff: the job turning Paid on camera, not behind a cut.
+    if (await banner.isVisible()) console.log("[demo] the job was already Paid when its page loaded, so the turn to Paid is not on camera");
+    else {
+      await point(page, sandbox ? "Back in the app, the job still says Sent: it turns Paid only when PayPal says so." : "Back in the app, the job still says Sent.", status, 2400);
+      if (hosted) {
+        // The hosted site hears PayPal's webhook; the job page re-reads every few seconds.
+        await cut(expect(banner).toBeVisible({ timeout: 60_000 }).catch(async (e: Error) => {
+          if (requireLive()) throw new Error(`DEMO_REQUIRE_LIVE=1, but PayPal's INVOICING.INVOICE.PAID webhook didn't reach the hosted job in 60 s: ${e.message}`);
+          await check.evaluate((el: HTMLElement) => el.click());
+          await expect(banner).toBeVisible({ timeout: 30_000 });
+        }), { lead: 0, tail: 600 });
+      } else {
+        // A local copy can't hear PayPal's webhook, so it asks PayPal on camera (mock PayPal may have flipped it already).
+        // Clicked in place: a scroll down to the button would take the status out of frame as it turns Paid.
+        await check.evaluate((el: HTMLElement) => el.click(), undefined, { timeout: 5_000 }).catch(() => undefined);
+        await cut(expect(banner).toBeVisible({ timeout: 60_000 }), { lead: 300, tail: 600 });
+      }
+    }
+    await expect(status).toContainText(/paid/i);
+    const viaWebhook = !!(await page.getByTestId("paid-source").getAttribute("title"))?.startsWith("PayPal event");
+    if (sandbox && hosted && requireLive() && !viaWebhook) throw new Error("DEMO_REQUIRE_LIVE=1, but the hosted job turned Paid without PayPal's INVOICING.INVOICE.PAID webhook.");
+    console.log(`[demo] paid ${viaWebhook ? "via the INVOICING.INVOICE.PAID webhook" : "read back with GET /v2/invoicing/invoices"}`);
+    if (sandbox) await apiChips(page, [viaWebhook ? "webhook INVOICING.INVOICE.PAID" : `GET /v2/invoicing/invoices/${job?.invoice?.id ?? "{id}"}`]);
+    await point(
+      page,
+      !sandbox ? "Paid. (PayPal isn't live in this take.)" : viaWebhook ? "PAID: PayPal's INVOICING.INVOICE.PAID webhook told the app, a fresh read agrees, with PayPal's transaction id." : "PAID, read back from PayPal, with PayPal's transaction id. On the hosted site PayPal's INVOICING.INVOICE.PAID webhook does this by itself.",
+      banner,
+      4600,
+    );
     await apiChips(page, []);
     await checkpoint("paid");
 

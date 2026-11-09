@@ -13,6 +13,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Height of the caption band. The page gets that much room at the bottom, so a caption never covers what it names. */
 export const BAND_PX = 132;
 
+/** "from 9 PayPal invoices, last $50.00" out of a price row's text, without the comma or full stop that follow it on the row. */
+export const fromInvoices = (rowText: string) => /from \d+ PayPal invoices?, last \$\d[\d,]*\.\d\d/.exec(rowText)?.[0] ?? "from your PayPal invoices";
+
 /** Caption in a band along the bottom. Waits `ms` (reading time) unless wait=false. */
 export async function caption(page: Page, text: string, opts: { ms?: number; wait?: boolean } = {}) {
   const ms = opts.ms ?? Math.min(6000, 1400 + text.length * 45);
