@@ -59,6 +59,13 @@ export async function readInvoice(invoiceId: string, approvedCents: number, payp
     businessName: invoice.invoicer?.business_name,
     note: invoice.detail.note,
     taxCents: invoice.amount.breakdown?.tax_total ? toMinor(invoice.amount.breakdown.tax_total.value, "USD") : 0,
+    items: (invoice.items ?? []).map((item) => ({
+      name: item.name,
+      ...(item.description ? { description: item.description } : {}),
+      quantity: item.quantity,
+      unitCents: toMinor(item.unit_amount.value, "USD"),
+      ...(item.tax?.percent ? { taxPercent: item.tax.percent } : {}),
+    })),
     readAt: new Date().toISOString(),
     paidCents: paid ? toMinor(paid.value, "USD") : undefined,
     paymentId: payment?.payment_id,

@@ -208,6 +208,15 @@ export async function sendAndVerify(page: Page, request: APIRequestContext, tota
     await expect(page.getByTestId("result-note")).toContainText(done.details.summary);
   }
 
+  // What the customer sees on PayPal, from PayPal's own record: the trade name, the note, every line with its description, tax and total.
+  const payer = page.getByTestId("payer-view");
+  await expect(payer).toBeVisible();
+  await expect(payer.getByTestId("payer-view-source")).toHaveAttribute("title", "GET /v2/invoicing/invoices/{id}");
+  await expect(payer.getByTestId("result-line")).toHaveCount(done.lines.length);
+  await expect(payer.getByTestId("payer-view-total")).toHaveText(money(totalCents));
+  if (done.invoice!.businessName) await expect(payer.getByTestId("payer-view-business")).toHaveText(done.invoice!.businessName);
+  if (sandbox) await expect(payer.getByTestId("payer-view-link")).toHaveAttribute("href", done.invoice!.payerUrl!);
+
   expect(await auditedActions(request, "send_job_invoice")).toEqual(expect.arrayContaining(["approval.requested", "approval.approved", "tool.executed"]));
   await expect(page.getByTestId("plain-step").filter({ hasText: "PayPal sent the invoice to the customer" })).toHaveCount(1);
   // On the sandbox, PayPal's Agent Toolkit drafted and sent it: its calls are behind Details.
@@ -235,6 +244,13 @@ export async function sendAndVerify(page: Page, request: APIRequestContext, tota
     expect(invoice.items.map((item) => item.tax?.percent ?? null)).toEqual(done.lines.map((line) => (taxed(line) ? (done.taxRateMilli / 1000).toString() : null)));
     const taxCents = computeTotals(done.lines, done.taxRateMilli).taxCents;
     expect(invoice.amount.breakdown?.tax_total?.value ?? "0.00").toBe((taxCents / 100).toFixed(2));
+    // The payer-view card says what PayPal says, line for line.
+    expect(done.invoice!.items).toEqual(invoice.items.map((item) => ({ name: item.name, ...(item.description ? { description: item.description } : {}), quantity: item.quantity, unitCents: Math.round(Number(item.unit_amount.value) * 100), ...(item.tax?.percent ? { taxPercent: item.tax.percent } : {}) })));
+    await expect(payer.getByTestId("payer-view-business")).toHaveText(invoice.invoicer!.business_name!);
+    await expect(payer.getByTestId("payer-view-tax")).toHaveText(money(Math.round(Number(invoice.amount.breakdown?.tax_total?.value ?? "0") * 100)));
+    const descriptions = invoice.items.map((item) => item.description).filter(Boolean) as string[];
+    if (descriptions.length) await expect(payer.getByTestId("result-description")).toHaveText(descriptions);
+    console.log(`Payer view: invoice ${invoice.id} number ${invoice.detail.invoice_number}, ${invoice.items.length} lines as GET /v2/invoicing/invoices/{id} has them, from ${invoice.invoicer?.business_name}, total ${invoice.amount.value}, link ${done.invoice!.payerUrl}`);
     console.log(`PayPal re-read note: ${JSON.stringify(invoice.detail.note)} descriptions ${JSON.stringify(invoice.items.map((i) => i.description))} item_date ${invoice.items[0]?.item_date ?? "none"} tax ${JSON.stringify(invoice.items.map((i) => i.tax?.percent ?? null))} tax_total ${invoice.amount.breakdown?.tax_total?.value ?? "0"}`);
     console.log(`PayPal re-read: invoice ${invoice.id} number ${invoice.detail.invoice_number} ${invoice.status} ${invoice.amount.currency_code} ${invoice.amount.value} due ${invoice.detail.payment_term?.due_date} items ${JSON.stringify(invoice.items.map((i) => [i.name, i.quantity, i.unit_amount.value]))}`);
   }
