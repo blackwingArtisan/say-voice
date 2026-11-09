@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { appConfig } from "@/app.config";
 import { invoiceRequest } from "@/agents/tools/send-job-invoice";
-import { addContact, cleanTradeName, ContactProblem, contactsFor, setTradeName, tradeNameFor, TRADE_NAME_MAX } from "@/lib/say/business";
+import { addContact, businessEmailFor, cleanTradeName, ContactProblem, contactsFor, isFirstRun, setBusiness, setTradeName, tradeNameFor, TRADE_NAME_MAX } from "@/lib/say/business";
+import { invoiceNote, NOTE_MAX } from "@/agents/tools/send-job-invoice";
 import { CONTACTS } from "@/lib/say/contacts";
 
 const input = {
@@ -23,6 +24,40 @@ describe("your business", () => {
     expect(tradeNameFor(undefined)).toBe(appConfig.tradeName);
     setTradeName("v_aaaaaaaa", "   ");
     expect(tradeNameFor("v_aaaaaaaa")).toBe(appConfig.tradeName);
+  });
+
+  it("a first visit is the first run until a name is saved or the step skipped, and it doesn't come back", () => {
+    expect(isFirstRun("v_ffffffff")).toBe(true);
+    setBusiness("v_ffffffff", { tradeName: " Oak Street  Electric ", email: " Jobs@OakStreet.example.com " });
+    expect(isFirstRun("v_ffffffff")).toBe(false);
+    expect(tradeNameFor("v_ffffffff")).toBe("Oak Street Electric");
+    expect(businessEmailFor("v_ffffffff")).toBe("jobs@oakstreet.example.com");
+    // Clearing the name later goes back to the demo name, not to the step.
+    setBusiness("v_ffffffff", { tradeName: "" });
+    expect(tradeNameFor("v_ffffffff")).toBe(appConfig.tradeName);
+    expect(businessEmailFor("v_ffffffff")).toBe("jobs@oakstreet.example.com");
+    expect(isFirstRun("v_ffffffff")).toBe(false);
+    setBusiness("v_gggggggg", { skip: true });
+    expect(isFirstRun("v_gggggggg")).toBe(false);
+    expect(tradeNameFor("v_gggggggg")).toBe(appConfig.tradeName);
+    expect(isFirstRun("v_hhhhhhhh")).toBe(true);
+  });
+
+  it("an email that isn't one is refused; none is fine", () => {
+    expect(() => setBusiness("v_iiiiiiii", { tradeName: "A", email: "not-an-email" })).toThrow(ContactProblem);
+    expect(() => setBusiness("v_iiiiiiii", { tradeName: "A", email: "a@b.co<script>" })).toThrow(ContactProblem);
+    setBusiness("v_iiiiiiii", { tradeName: "A", email: "" });
+    expect(businessEmailFor("v_iiiiiiii")).toBeUndefined();
+  });
+
+  it("the trade's email ends the note the customer reads, kept whole when the job's words are long", () => {
+    expect(invoiceNote({ job_summary: "Dryer repair", business_email: "office@birchlane.example.com" })).toBe("Dryer repair\nQuestions: office@birchlane.example.com");
+    expect(invoiceNote({ business_email: "office@birchlane.example.com" })).toBe("Questions: office@birchlane.example.com");
+    expect(invoiceNote({ job_summary: "Dryer repair" })).toBe("Dryer repair");
+    const long = invoiceNote({ job_summary: "y ".repeat(3000), business_email: "office@birchlane.example.com" })!;
+    expect(long.length).toBeLessThanOrEqual(NOTE_MAX);
+    expect(long.endsWith("\nQuestions: office@birchlane.example.com")).toBe(true);
+    expect(invoiceRequest({ ...input, job_summary: "Dryer repair", business_email: "office@birchlane.example.com" }).detail.note).toContain("Questions: office@birchlane.example.com");
   });
 
   it("a trade name is one plain line, no longer than PayPal's field needs", () => {

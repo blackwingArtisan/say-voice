@@ -36,6 +36,7 @@ export const SendInvoiceInput = z.object({
   total_cents: z.number().int().positive(),
   kept_checks: z.array(z.string()).optional().describe("Checks the person let stand, kept here for the audit log"),
   business_name: z.string().max(100).optional().describe("The trade name PayPal shows the customer; the demo trade's when not set"),
+  business_email: z.string().email().max(120).optional().describe("The trade's own email, at the end of the note, for the customer's questions"),
   idempotency_key: z.string().describe("Same key: never invoiced twice"),
 });
 export type SendInvoiceInput = z.infer<typeof SendInvoiceInput>;
@@ -47,9 +48,12 @@ export const ITEM_DESCRIPTION_MAX = 1000;
 const serviceDay = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
 
 /** What the job was, where and when: the note to the customer, at the top of their invoice and in the email. */
-export function invoiceNote(input: Pick<SendInvoiceInput, "job_summary" | "job_site" | "service_date">): string | undefined {
+export function invoiceNote(input: Pick<SendInvoiceInput, "job_summary" | "job_site" | "service_date" | "business_email">): string | undefined {
   const parts = [input.job_summary?.trim(), input.job_site?.trim() ? `Job site: ${input.job_site.trim()}` : "", input.service_date ? `Date of service: ${serviceDay(input.service_date)}` : ""].filter(Boolean);
-  return parts.length ? truncate(parts.join("\n"), NOTE_MAX) : undefined;
+  const ask = input.business_email ? `Questions: ${input.business_email}` : "";
+  // The email line is kept whole: the job's words give way first.
+  if (!parts.length) return ask || undefined;
+  return ask ? `${truncate(parts.join("\n"), NOTE_MAX - ask.length - 1)}\n${ask}` : truncate(parts.join("\n"), NOTE_MAX);
 }
 
 /** Everything else on the invoice is PayPal's default: its own number, and today's date in its time zone. */
