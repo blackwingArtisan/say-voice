@@ -8,6 +8,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { checkCount, fixElementPrice, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, sentSample, settleAiNotes, startSample, tradeHistoryReady, visitorHeaders, openNewJob, settleChecks, showLineDetails, showAllSteps } from "./flow";
 import { PLUS_TAX_AMOUNTS, PLUS_TAX_TRANSCRIPT, QUANTITY_AMOUNTS, QUANTITY_TRANSCRIPT, SAMPLE_AMOUNTS, ROOFER_AMOUNTS, ROOFER_CUSTOMER, ROOFER_DESCRIPTION, ROOFER_TRANSCRIPT } from "../../src/lib/say/sample";
 import { readInvoiceFromPayPal } from "./paypal-reread";
+import { PAST_JOBS } from "../../src/lib/demo/past-invoices";
 import { appConfig } from "../../src/app.config";
 import type { PriceEntry } from "../../src/lib/say/price-book";
 
@@ -540,6 +541,12 @@ test("learn from my PayPal invoices: the book fills from PayPal, each price says
   await expect(pump).toContainText("PayPal");
   await expect(page.getByTestId("price-row").filter({ hasText: "Heating element" }).getByTestId("price-count")).toContainText("PayPal invoices, last $");
   await page.screenshot({ path: `screenshots/learned-${paypal}.png`, fullPage: true });
+  // Only the trade's own items: no late fee or deposit the person added here, no lump of "Material",
+  // and none of this app's sends (the sample job sent over and over isn't history).
+  for (const name of ["Late fee", "Deposit paid", "Material"]) await expect(page.getByTestId("price-name").filter({ hasText: new RegExp(`^${name}$`) })).toHaveCount(0);
+  const pastElements = PAST_JOBS.filter((j) => j.lines.some(([name]) => name === "Heating element")).length;
+  const elementCount = await page.getByTestId("price-row").filter({ hasText: "Heating element" }).getByTestId("price-count").innerText();
+  expect(Number(/from (\d+) PayPal/.exec(elementCount)?.[1])).toBeLessThanOrEqual(pastElements);
 
   // The misheard $15 is stopped against what PayPal says this trade charges.
   await startSample(page);

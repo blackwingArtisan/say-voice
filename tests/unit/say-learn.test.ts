@@ -83,6 +83,40 @@ describe("learn from my PayPal invoices", () => {
   });
 });
 
+describe("only real items with a usual price reach the book", () => {
+  it("leaves out the person's own lines and names too general to price", async () => {
+    const { isPricedItem } = await import("@/lib/say/paypal-history");
+    for (const name of ["Late fee", "Deposit paid", "Material", "materials", "Parts", "Labor", "Misc", "Other", "Fee"]) expect(isPricedItem(name), name).toBe(false);
+    for (const name of ["Heating element", "Service call", "Drain pump", "Material handling kit", "Door gasket"]) expect(isPricedItem(name), name).toBe(true);
+  });
+
+  it("skips the app's sends from before the memo, and the owner and generic lines on the trade's own invoices", async () => {
+    const { getPayPal } = await import("@/lib/paypal");
+    const { learnFromPayPal } = await import("@/lib/say/paypal-history");
+    const { priceBook } = await import("@/lib/say/price-store");
+    const paypal = getPayPal();
+    await learnFromPayPal(`v_${Math.random()}`); // the trade's past invoices go on mock PayPal first
+    // The sample job as the app sent it before the memo: a description on every line, no item dates.
+    const unmarked = await paypal.invoicing.create({ detail: { currency_code: "USD", invoice_date: "2026-11-08" }, invoicer: { business_name: appConfig.tradeName }, primary_recipients: [{ billing_info: { email_address: "x@example.com" } }], items: [{ name: "Heating element", quantity: "1", unit_amount: usd("7.00"), description: "New heating element for the dryer" }, { name: "Late fee", quantity: "1", unit_amount: usd("25.00"), description: "Added 2026-11-08" }] });
+    await paypal.invoicing.send(unmarked.id);
+    // The trade's own invoice, with item dates: its igniter counts, its lump of material and its late fee don't.
+    const own = await paypal.invoicing.create({ detail: { currency_code: "USD", invoice_date: "2026-11-07" }, invoicer: { business_name: appConfig.tradeName }, primary_recipients: [{ billing_info: { email_address: "y@example.com" } }], items: [{ name: "Igniter", quantity: "1", unit_amount: usd("44.00"), item_date: "2026-11-07" }, { name: "Material", quantity: "1", unit_amount: usd("200.00"), item_date: "2026-11-07" }, { name: "Late fee", quantity: "1", unit_amount: usd("25.00"), item_date: "2026-11-07" }] });
+    await paypal.invoicing.send(own.id);
+
+    const visitor = `v_${Math.random()}`;
+    const history = await learnFromPayPal(visitor);
+    expect(history.invoiceIds).not.toContain(unmarked.id);
+    expect(history.invoiceIds).toContain(own.id);
+    expect(history.lines.map((l) => l.name)).not.toEqual(expect.arrayContaining(["Late fee"]));
+    expect(history.lines.map((l) => l.name)).not.toEqual(expect.arrayContaining(["Material"]));
+    const book = priceBook(visitor);
+    expect(book.find((e) => e.name === "Igniter")?.paypal?.lastCents).toBe(4_400);
+    expect(book.find((e) => e.name === "Heating element")?.samples).not.toContain(700);
+    expect(book.find((e) => e.name === "Late fee")).toBeUndefined();
+    expect(book.find((e) => e.name === "Material")).toBeUndefined();
+  });
+});
+
 describe("the confirm screen points out a price unlike the learned one", () => {
   const entry: PriceEntry = { id: "drain pump", name: "Drain pump", samples: [8_500, 8_500, 8_500, 8_500], source: "learned", updatedAt: "2026-11-03", paypal: { invoices: 4, lastCents: 8_500, lastAt: "2026-11-03" } };
 

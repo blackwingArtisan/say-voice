@@ -12,7 +12,8 @@ import { getPayPal } from "@/lib/paypal";
 import type { Invoice } from "@/lib/paypal/types";
 import { collection } from "@/lib/store/collection";
 import { seedPastInvoices, type HistoryManifest } from "@/lib/demo/past-invoices";
-import { sentByApp } from "./app-memo";
+import { sentByApp, sentByAppBeforeMemo } from "./app-memo";
+import { OWNER_LINE_NAME } from "./reminder-rules";
 import type { Job } from "./types";
 
 export const HISTORY_LIMIT = 20;
@@ -27,8 +28,21 @@ export const MAX_PAGES = 20;
 const MAX_READS = 40;
 const COUNTED = new Set(["SENT", "UNPAID", "PARTIALLY_PAID", "PAID", "MARKED_AS_PAID"]);
 
+/**
+ * Not a price for the book: the lines the person adds through this app (a late fee, a deposit), and
+ * names too general to say what was sold (a lump of "Material" isn't a part with a usual price).
+ */
+const OWNER_LINES = new Set(Object.values(OWNER_LINE_NAME).map((name) => name.toLowerCase()));
+const GENERIC = /^(materials?|parts?|supplies|labou?r|misc(ellaneous)?|other|items?|fees?|services?|charges?)$/i;
+export const isPricedItem = (name: string) => !OWNER_LINES.has(name.trim().toLowerCase()) && !GENERIC.test(name.trim());
+
+/** Bumped when what counts as history changes, so a history read under the old rules is read again. */
+export const HISTORY_RULES = 2;
+
 export interface PayPalHistory {
   id: string;
+  /** Missing on a history read under the first rules. */
+  rules?: number;
   visitor?: string;
   learnedAt: string;
   invoiceIds: string[];
@@ -45,7 +59,10 @@ export const historyOf = (visitor?: string) => histories().get(keyOf(visitor)) ?
  * The history a visitor's book uses: their own once they've pressed Learn, the trade's shared one
  * until then. Both come from the same PayPal account; only the time they were read differs.
  */
-export const tradeHistoryFor = (visitor?: string) => historyOf(visitor) ?? historyOf(undefined);
+export const tradeHistoryFor = (visitor?: string) => {
+  const mine = historyOf(visitor);
+  return mine && mine.rules === HISTORY_RULES ? mine : historyOf(undefined);
+};
 
 let learning = false;
 let lastFailure = 0;
@@ -53,9 +70,10 @@ const RETRY_MS = 60_000;
 
 /** Reads the trade's history once in the background, so a first visit's book already comes from PayPal. */
 export function kickTradeHistory() {
-  // A history read before quantities were kept is read again, once, so the quantity check has them.
+  // A history read under older rules (before quantities, or before the app's unmarked sends and
+  // owner lines were left out) is read again, once.
   const known = historyOf(undefined);
-  if (learning || (known && known.lines.every((line) => line.quantityMilli !== undefined)) || Date.now() - lastFailure < RETRY_MS) return;
+  if (learning || (known && known.rules === HISTORY_RULES) || Date.now() - lastFailure < RETRY_MS) return;
   learning = true;
   void withContext({ channel: "prices:shared" }, () => learnFromPayPal(undefined))
     .catch((e: unknown) => {
@@ -101,15 +119,16 @@ export async function learnFromPayPal(visitor?: string): Promise<PayPalHistory> 
   const candidates = listed.slice(0, MAX_READS);
   for (let i = 0; i < candidates.length && ours.length < HISTORY_LIMIT; i += 8) {
     const read = await Promise.all(candidates.slice(i, i + 8).map((summary) => (summary.items?.length && summary.invoicer ? summary : paypal.invoicing.get(summary.id))));
-    ours.push(...read.filter((invoice) => invoice.invoicer?.business_name === appConfig.tradeName && !sentByApp(invoice)));
+    ours.push(...read.filter((invoice) => invoice.invoicer?.business_name === appConfig.tradeName && !sentByApp(invoice) && !sentByAppBeforeMemo(invoice)));
   }
   // The newest by the invoice's own date, then oldest first, so the newest price is the last sample.
   const kept = ours.sort((a, b) => dateOf(b).localeCompare(dateOf(a))).slice(0, HISTORY_LIMIT).reverse();
   return histories().upsert({
     id: keyOf(visitor),
+    rules: HISTORY_RULES,
     visitor,
     learnedAt: new Date().toISOString(),
     invoiceIds: kept.map((inv) => inv.id),
-    lines: kept.flatMap((inv) => (inv.items ?? []).map((item) => ({ name: item.name, unitCents: toMinor(item.unit_amount.value, "USD"), quantityMilli: quantityMilli(item.quantity), invoicedAt: dateOf(inv) }))),
+    lines: kept.flatMap((inv) => (inv.items ?? []).filter((item) => isPricedItem(item.name)).map((item) => ({ name: item.name, unitCents: toMinor(item.unit_amount.value, "USD"), quantityMilli: quantityMilli(item.quantity), invoicedAt: dateOf(inv) }))),
   });
 }

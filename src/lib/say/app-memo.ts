@@ -6,3 +6,11 @@
 export const APP_MEMO = "Sent with Say-Voice";
 
 export const sentByApp = (invoice: { detail: { memo?: string } }) => invoice.detail.memo?.startsWith(APP_MEMO) ?? false;
+
+/**
+ * The app's sends from before they carried the memo: a description written on every line and no
+ * item date. The trade's own past invoices here carry item dates. Still skipped, so the sample job
+ * sent over and over can't pass for the trade's history.
+ */
+export const sentByAppBeforeMemo = (invoice: { detail: { memo?: string }; items?: { description?: string; item_date?: string }[] }) =>
+  !invoice.detail.memo && !!invoice.items?.length && invoice.items.every((item) => !!item.description?.trim() && !item.item_date);
