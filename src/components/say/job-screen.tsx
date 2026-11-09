@@ -13,6 +13,8 @@ import { isPaid, type JobView } from "@/lib/say/types";
 import { checkedJob, Confirm, draftFrom, Transcript, type Draft } from "./confirm";
 import { ReminderCard, type OwnerLineAsk } from "./reminder";
 import { Result } from "./result";
+import { cn } from "@/components/ui/cn";
+import { saidSize } from "@/lib/say/said";
 import { WhatHappened } from "./what-happened";
 
 /** Which models heard and read the job. A stand-in (mock) model isn't named on the trade's screen; For judges shows the modes. */
@@ -135,10 +137,11 @@ export function JobScreen() {
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         {/* On a phone the items come straight after the words, and the timeline goes to the bottom. */}
         <div className="contents lg:block lg:space-y-6">
-          <Card className="order-1">
+          <Card className={sent ? "order-2" : "order-1"}>
             <CardHeader title="What you said" description={sourceLine(job)} />
-            <CardBody>
+            <CardBody className="space-y-2">
               <Transcript text={job.transcript} />
+              <p className="text-xs text-zinc-500" data-testid="said-words">{saidSize(job)}</p>
             </CardBody>
           </Card>
           {/* On a phone the Send bar is fixed to the bottom while the job is in review, so the last card keeps clear of it. */}
@@ -149,7 +152,7 @@ export function JobScreen() {
             </CardBody>
           </Card>
         </div>
-        <div ref={decision} className="order-2 min-w-0 scroll-mt-20 space-y-6">
+        <div ref={decision} className={cn(sent ? "order-1" : "order-2", "min-w-0 scroll-mt-20 space-y-6")}>
           {job.error ? (
             <p data-testid="job-error" className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
               <CircleAlert className="mt-0.5 size-4 shrink-0" />

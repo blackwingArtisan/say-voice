@@ -11,6 +11,7 @@ import { Badge, Button, Card, CardBody, CardHeader, Field, Input, StatusPill } f
 import { cn } from "@/components/ui/cn";
 import { isTestAddress, TEST_ADDRESS_RULE, type Contact } from "@/lib/say/contacts";
 import { localDay } from "@/lib/say/due";
+import { isOwed, owedFirst, owedSummary, owedText } from "@/lib/say/owed";
 import { computeTotals, formatCents } from "@/lib/say/money";
 import { explainSample, explainTake, limitSentence, RESTORED, type Refusal, type TakeProblem } from "@/lib/say/take-problem";
 import type { JobCustomer, JobView } from "@/lib/say/types";
@@ -46,10 +47,23 @@ function JobRow({ job }: { job: JobView }) {
       <Link href={`/jobs/${job.id}`} className="flex items-center justify-between gap-3 px-5 py-3 text-sm hover:bg-zinc-50" data-testid={job.example ? "example-job-row" : "job-row"}>
         <span className="min-w-0 truncate font-medium text-zinc-900">{job.customer.name}</span>
         {job.example ? <Badge tone="neutral">Sample</Badge> : null}
+        {isOwed(job) && job.invoice!.dueCents !== total ? <span className="text-xs text-zinc-500" data-testid="job-row-due">{formatCents(job.invoice!.dueCents)} due</span> : null}
         <span className="ml-auto font-mono tabular-nums text-zinc-700">{formatCents(total)}</span>
         {job.invoice ? <StatusPill status={job.invoice.status} /> : <StatusPill status="DRAFT" />}
       </Link>
     </li>
+  );
+}
+
+/** The first thing on Jobs once anything is sent: what's still due, as PayPal last said. */
+function OwedLine({ owed }: { owed: ReturnType<typeof owedSummary> }) {
+  return (
+    <a href="#recent-jobs" className={cn("mb-6 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-xl px-5 py-4 transition", owed.invoices ? "bg-zinc-950 text-white hover:bg-zinc-800" : "bg-emerald-50 text-emerald-900")} data-testid="owed">
+      <span className="text-2xl font-semibold tracking-tight tabular-nums" data-testid="owed-line">{owedText(owed)}</span>
+      <span className={cn("text-sm", owed.invoices ? "text-zinc-300" : "text-emerald-800")}>
+        {owed.invoices ? "Still due on the invoices you sent, as PayPal last said." : "Every invoice you sent is paid or closed, as PayPal last said."}
+      </span>
+    </a>
   );
 }
 
@@ -211,9 +225,11 @@ export function NewJob() {
   }
 
   const working = phase !== "ready";
+  const owed = owedSummary(jobs);
   const waitLeft = sampleWait ? Math.max(0, Math.ceil((sampleWait.until - now) / 1000)) : 0;
   return (
     <>
+      {owed.sent ? <OwedLine owed={owed} /> : null}
       <PageHeader title="New job" description="Say what you did before you drive off. You check every number before it goes." />
       {/* On a phone: record, then who it's for, then the sample. On a desktop the customers sit beside the recorder. */}
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
@@ -303,9 +319,9 @@ export function NewJob() {
       />
       {jobs.length ? (
         <Card className="mt-6">
-          <CardHeader title="Your recent jobs" />
-          <ul className="divide-y divide-zinc-100">
-            {jobs.slice(0, 8).map((job) => (
+          <CardHeader title="Your recent jobs" description={owed.invoices ? "Unpaid first, the oldest at the top." : undefined} />
+          <ul className="divide-y divide-zinc-100" id="recent-jobs">
+            {owedFirst(jobs).slice(0, 8).map((job) => (
               <JobRow key={job.id} job={job} />
             ))}
           </ul>
