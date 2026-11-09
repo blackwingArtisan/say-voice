@@ -184,6 +184,7 @@ const MOCK_ADAPTERS: Record<string, (pp: PayPalApi, a: Args, ctx: ToolContext) =
     await pp.invoicing.cancel(a.invoice_id, { note: a.note, send_to_recipient: a.send_to_recipient, additional_recipients: a.additional_recipients });
     return { status: "cancelled", invoice_id: a.invoice_id };
   },
+  generate_invoice_qr_code: (pp, a) => pp.invoicing.generateQrCode(a.invoice_id, { width: a.width, height: a.height }),
   record_payment_for_invoice: (pp, a) => pp.invoicing.recordPayment(a.invoice_id, { method: a.method, payment_date: a.payment_date, amount: a.amount, note: a.note, payment_id: a.payment_id }),
   list_disputes: (pp, a) => pp.disputes.list({ dispute_state: a.dispute_state, disputed_transaction_id: a.disputed_transaction_id ?? undefined, page_size: a.page_size, page: a.page }),
   get_dispute: (pp, a) => pp.disputes.get(a.dispute_id),
@@ -221,6 +222,7 @@ const META: Record<string, { risk: ToolRisk; title?: (a: Args) => string; impact
     },
   },
   get_order: { risk: "read", title: (a) => `Look up order ${a.id}` },
+  generate_invoice_qr_code: { risk: "read", title: (a) => `PayPal's QR code for invoice ${a.invoice_id}` },
   pay_order: {
     risk: "money",
     impact: async (a, pp) => {

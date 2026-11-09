@@ -50,6 +50,7 @@ const DIRECTION: Partial<Record<OperationKey, "in" | "out" | "hold" | "neutral">
 };
 
 function describe(op: OperationKey, result: unknown): string | undefined {
+  if (op === "invoicing.generateQrCode" && typeof result === "string") return "QR code (PNG)";
   if (!result || typeof result !== "object") return op.endsWith("remind") ? "Reminder sent" : op.endsWith("cancel") ? "Cancelled" : undefined;
   const r = result as Record<string, unknown>;
   if (r.batch_header && typeof r.batch_header === "object") {
