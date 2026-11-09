@@ -47,12 +47,14 @@ function RooferInvoice() {
 export function Hero() {
   const l = appConfig.landing;
   return (
-    <section className="relative overflow-hidden">
-      <div className="bg-grid absolute inset-0 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]" aria-hidden />
-      <div className="absolute -top-40 left-1/2 h-[480px] w-[900px] -translate-x-1/2 rounded-full bg-brand-200/40 blur-3xl" aria-hidden />
-      <div className="relative mx-auto grid max-w-6xl items-center gap-8 px-4 pb-8 pt-8 sm:px-6 lg:grid-cols-[1.1fr_1fr] lg:gap-12 lg:pb-20 lg:pt-24">
-        <div>
-          <div className="max-w-xl" data-testid="hero-lead">
+    // Below lg the hero's boxes dissolve (contents) into the page's column, so on a phone Start a job and the
+    // catch come first and the figures follow (see app/page.tsx). From lg it's the two-column hero.
+    <section className="contents lg:relative lg:block lg:overflow-hidden">
+      <div className="bg-grid absolute inset-0 hidden [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)] lg:block" aria-hidden />
+      <div className="absolute -top-40 left-1/2 hidden h-[480px] w-[900px] -translate-x-1/2 rounded-full bg-brand-200/40 blur-3xl lg:block" aria-hidden />
+      <div className="contents lg:relative lg:mx-auto lg:grid lg:max-w-6xl lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-12 lg:px-6 lg:pb-20 lg:pt-24">
+        <div className="contents lg:block">
+          <div className="order-3 max-w-xl px-4 pt-8 sm:px-6 lg:order-none lg:px-0 lg:pt-0" data-testid="hero-lead">
             <p className="text-2xl font-semibold leading-snug tracking-tight text-zinc-950 sm:text-3xl">{l.lead.statement}</p>
             <p className="mt-2 text-lg leading-snug text-zinc-800">
               <strong className="font-mono text-2xl font-semibold tabular-nums text-zinc-950">{l.lead.figure}</strong> {l.lead.body}{" "}
@@ -61,61 +63,65 @@ export function Hero() {
               </a>
             </p>
           </div>
-          <span className="mt-6 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white/80 px-3 py-1 text-sm font-medium text-brand-700 shadow-sm">
-            <Sparkles className="size-4" /> {l.eyebrow}
-          </span>
-          <h1 className="mt-6 text-4xl font-semibold leading-[1.08] tracking-tight text-zinc-950 sm:text-5xl lg:text-[56px]">{l.headline}</h1>
-          <p className="mt-5 max-w-xl text-lg leading-relaxed text-zinc-600">{l.subheadline}</p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <ButtonLink href={l.primaryCta.href} size="lg">
-              {l.primaryCta.label} <ArrowRight className="size-4" />
-            </ButtonLink>
-            <ButtonLink href={l.secondaryCta.href} size="lg" variant="secondary">
-              {l.secondaryCta.label}
-            </ButtonLink>
-          </div>
-          {/* On a phone the proof figures wait: Real jobs below has the $600 and the method. */}
-          <dl className="mt-8 hidden gap-3 sm:grid sm:grid-cols-2" data-testid="hero-proof">
-            {l.proof.map((p) => (
-              <div key={p.figure} className="rounded-xl border border-zinc-200 bg-white/80 p-4 shadow-sm">
-                <dt className="font-mono text-2xl font-semibold tabular-nums text-zinc-950">{p.figure}</dt>
-                <dd className="mt-1 text-sm leading-snug text-zinc-600">
-                  {p.body}
-                  {"href" in p && p.href ? (
-                    <>
-                      {" "}
-                      <a href={p.href} className="font-medium text-brand-700 underline underline-offset-2" data-testid="proof-method-link">
-                        How it was counted
-                      </a>
-                    </>
-                  ) : null}
-                </dd>
-              </div>
-            ))}
-          </dl>
-          <p className="mt-5 flex items-start gap-2 text-sm leading-relaxed text-zinc-700" data-testid="hero-why-not">
-            <ShieldCheck className="size-4 shrink-0 translate-y-0.5 text-emerald-600" />
-            <span>
-              {l.whyNot.text}{" "}
-              {l.whyNot.sources.map((src, i) => (
-                <span key={src.href}>
-                  {i ? " · " : null}
-                  <a href={src.href} target="_blank" rel="noreferrer" className="text-zinc-500 underline underline-offset-2 hover:text-zinc-800" data-testid="hero-why-not-source">
-                    {src.label}
-                  </a>
-                </span>
-              ))}
+          <div className="order-1 bg-gradient-to-b from-brand-50/70 to-transparent px-4 pb-8 pt-6 sm:px-6 lg:order-none lg:bg-none lg:p-0" data-testid="hero-top">
+            <span className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white/80 px-3 py-1 text-sm font-medium text-brand-700 shadow-sm lg:mt-6">
+              <Sparkles className="size-4" /> {l.eyebrow}
             </span>
-          </p>
-          <p className="mt-3 text-sm leading-relaxed text-zinc-600" data-testid="hero-who">
-            Who it&apos;s for: <strong className="font-semibold text-zinc-800">{l.who.figure}</strong> {l.who.body}{" "}
-            <a href={l.who.source.href} target="_blank" rel="noreferrer" className="text-zinc-500 underline underline-offset-2 hover:text-zinc-800" data-testid="hero-who-source">
-              {l.who.source.label}
-            </a>
-          </p>
+            <h1 className="mt-6 text-4xl font-semibold leading-[1.08] tracking-tight text-zinc-950 sm:text-5xl lg:text-[56px]">{l.headline}</h1>
+            <p className="mt-5 max-w-xl text-lg leading-relaxed text-zinc-600">{l.subheadline}</p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <ButtonLink href={l.primaryCta.href} size="lg" data-testid="hero-start">
+                {l.primaryCta.label} <ArrowRight className="size-4" />
+              </ButtonLink>
+              <ButtonLink href={l.secondaryCta.href} size="lg" variant="secondary">
+                {l.secondaryCta.label}
+              </ButtonLink>
+            </div>
+          </div>
+          <div className="order-3 px-4 pb-8 sm:px-6 lg:order-none lg:p-0" data-testid="hero-facts">
+            {/* On a phone the proof figures wait: Real jobs below has the $600 and the method. */}
+            <dl className="mt-8 hidden gap-3 sm:grid sm:grid-cols-2" data-testid="hero-proof">
+              {l.proof.map((p) => (
+                <div key={p.figure} className="rounded-xl border border-zinc-200 bg-white/80 p-4 shadow-sm">
+                  <dt className="font-mono text-2xl font-semibold tabular-nums text-zinc-950">{p.figure}</dt>
+                  <dd className="mt-1 text-sm leading-snug text-zinc-600">
+                    {p.body}
+                    {"href" in p && p.href ? (
+                      <>
+                        {" "}
+                        <a href={p.href} className="font-medium text-brand-700 underline underline-offset-2" data-testid="proof-method-link">
+                          How it was counted
+                        </a>
+                      </>
+                    ) : null}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-5 flex items-start gap-2 text-sm leading-relaxed text-zinc-700" data-testid="hero-why-not">
+              <ShieldCheck className="size-4 shrink-0 translate-y-0.5 text-emerald-600" />
+              <span>
+                {l.whyNot.text}{" "}
+                {l.whyNot.sources.map((src, i) => (
+                  <span key={src.href}>
+                    {i ? " · " : null}
+                    <a href={src.href} target="_blank" rel="noreferrer" className="text-zinc-500 underline underline-offset-2 hover:text-zinc-800" data-testid="hero-why-not-source">
+                      {src.label}
+                    </a>
+                  </span>
+                ))}
+              </span>
+            </p>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-600" data-testid="hero-who">
+              Who it&apos;s for: <strong className="font-semibold text-zinc-800">{l.who.figure}</strong> {l.who.body}{" "}
+              <a href={l.who.source.href} target="_blank" rel="noreferrer" className="text-zinc-500 underline underline-offset-2 hover:text-zinc-800" data-testid="hero-who-source">
+                {l.who.source.label}
+              </a>
+            </p>
+          </div>
         </div>
-        {/* On a phone the invoice folds to a row, under the buttons. */}
-        <PhoneFold name="preview" title="See a real job's PayPal invoice" className="-mx-4 border-t border-zinc-200 sm:-mx-6 lg:mx-0 lg:border-0">
+        {/* On a phone the invoice folds to a row, under the figures. */}
+        <PhoneFold name="preview" title="See a real job's PayPal invoice" className="order-3 border-t border-zinc-200 lg:order-none lg:border-0">
           <div className="px-4 pt-4 sm:px-6 lg:p-0">
             <RooferInvoice />
           </div>
@@ -129,7 +135,7 @@ export function Hero() {
 export function CatchProof() {
   const c = appConfig.landing.catch;
   return (
-    <section id="catch" className="scroll-mt-16 border-t border-zinc-200/70 bg-white py-10 lg:py-20" data-testid="catch-proof">
+    <section id="catch" className="order-2 scroll-mt-16 border-t border-zinc-200/70 bg-white py-10 lg:py-20" data-testid="catch-proof">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <p className="text-sm font-semibold uppercase tracking-wider text-brand">The catch</p>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950 sm:text-3xl">{c.title}</h2>
