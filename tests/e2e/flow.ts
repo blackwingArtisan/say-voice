@@ -47,6 +47,8 @@ export async function openSample(page: Page, go: () => Promise<unknown>) {
     const seconds = Number(await page.getByTestId("sample-wait-seconds").textContent());
     console.log(`Sample job rate limited (try ${attempt}): waiting ${seconds}s, then tapping again`);
     if (attempt >= 2) throw new Error("The sample job was rate limited twice in a row");
+    // A wait of hours is the day's AI limit for this address, not a busy minute: say so rather than sit out the test.
+    if (seconds > 120) throw new Error(`The site's AI limit for this address is used up: it says try again in ${seconds}s`);
     await expect(page.getByTestId("sample-wait")).toBeHidden({ timeout: (seconds + 5) * 1000 });
   }
 }
