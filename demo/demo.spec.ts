@@ -77,7 +77,7 @@ test("demo", async ({ browser }) => {
   await titleCard(
     page,
     "One wrong number on an invoice can cost you the customer.",
-    "<b>58%</b> of US residential contractors have little or no trust in the AI tools they use.<br><br>So here the AI only listens. Code does every sum, and your own PayPal invoices check every price.<br><span style='font-size:15px;opacity:.7'>ServiceTitan 2026 State of AI in the Trades, via PHCP Pros (n&gt;1,000)</span>",
+    "<b>58%</b> of US residential contractors have little or no trust in the AI tools they use.<br><br>So here your own PayPal invoices check every price you say, and the AI only listens.<br><span style='font-size:15px;opacity:.7'>ServiceTitan 2026 State of AI in the Trades, via PHCP Pros (n&gt;1,000)</span>",
     5000,
   );
   await point(page, "Fifty heard as fifteen? A price book learned from your own PayPal invoices catches it.", page.getByRole("heading", { level: 1 }), 3600);

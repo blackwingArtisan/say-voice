@@ -59,7 +59,17 @@ export const appConfig = {
       { figure: "6 of 20", body: "test clips where an AI model stated a wrong total. Here code adds up every cent, and the AI never states one.", href: "#method" },
       { figure: "$600", body: "a real roofer's job, sent through PayPal's sandbox with what was fixed on every line (below, as the customer's PayPal page shows it)." },
     ],
-    whyNot: "Why not Housecall Pro or Jobber? No suite to set up. Your words sit beside every number, a price book stops a wrong price whoever said it, and nothing reaches a customer until you approve the exact amount.",
+    /**
+     * Both have a price list of their own (their pages, re-read 2026-11-08). What's different here is
+     * where the prices come from, your past PayPal invoices, and that a spoken price is checked against them.
+     */
+    whyNot: {
+      text: "Why not Housecall Pro or Jobber? Both have a price list of their own. We couldn't find one built from your past PayPal invoices, or one that checks a price you said against them.",
+      sources: [
+        { label: "Housecall Pro price book", href: "https://www.housecallpro.com/features/price-book/" },
+        { label: "Jobber Products & Services list", href: "https://help.getjobber.com/en/articles/products-services-list/" },
+      ],
+    },
     /**
      * Real jobs: only what the saved proof shows (the confirm screens and the customers' PayPal pages
      * from the live-AI runs on 2026-11-07). No quotes, no real names, no addresses. Time from

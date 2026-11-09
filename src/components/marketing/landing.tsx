@@ -94,7 +94,18 @@ export function Hero() {
             ))}
           </dl>
           <p className="mt-5 flex items-start gap-2 text-sm leading-relaxed text-zinc-700" data-testid="hero-why-not">
-            <ShieldCheck className="size-4 shrink-0 translate-y-0.5 text-emerald-600" /> {l.whyNot}
+            <ShieldCheck className="size-4 shrink-0 translate-y-0.5 text-emerald-600" />
+            <span>
+              {l.whyNot.text}{" "}
+              {l.whyNot.sources.map((src, i) => (
+                <span key={src.href}>
+                  {i ? " · " : null}
+                  <a href={src.href} target="_blank" rel="noreferrer" className="text-zinc-500 underline underline-offset-2 hover:text-zinc-800" data-testid="hero-why-not-source">
+                    {src.label}
+                  </a>
+                </span>
+              ))}
+            </span>
           </p>
           <p className="mt-3 text-sm leading-relaxed text-zinc-600" data-testid="hero-who">
             Who it&apos;s for: <strong className="font-semibold text-zinc-800">{l.who.figure}</strong> {l.who.body}{" "}

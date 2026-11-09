@@ -51,7 +51,14 @@ test("the landing page's headline is the price book from your PayPal invoices", 
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Fifty heard as fifteen? Your PayPal invoices catch it.");
   await expect(page.locator("main")).toContainText("A price book learned from your own past PayPal invoices stops a sound-alike number");
-  await expect(page.getByTestId("hero-why-not")).toContainText("Why not Housecall Pro or Jobber?");
+  const whyNot = page.getByTestId("hero-why-not");
+  await expect(whyNot).toContainText("Why not Housecall Pro or Jobber? Both have a price list of their own.");
+  await expect(whyNot).toContainText("built from your past PayPal invoices");
+  await expect(whyNot).not.toContainText("price book stops a wrong price");
+  // Each rival's own page, so the claim about them can be checked.
+  await expect(page.getByTestId("hero-why-not-source")).toHaveCount(2);
+  await expect(page.getByTestId("hero-why-not-source").first()).toHaveAttribute("href", "https://www.housecallpro.com/features/price-book/");
+  await expect(page.getByTestId("hero-why-not-source").last()).toHaveAttribute("href", "https://help.getjobber.com/en/articles/products-services-list/");
 });
 
 test("real jobs: only what the proof shows, with no quotes and no real names", async ({ page }) => {
