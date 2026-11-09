@@ -217,6 +217,9 @@ test("a spoken amount with no line item stops the send until the person decides"
   // The fixture leaves out what was said at the end, the way a real extraction sometimes has.
   const job = await (await request.post("/api/jobs", { data: { source: "mic", today: "2026-11-01", customer: { name: "Tom Baker", email: "tom.baker@example.com" }, transcript: "Derek Evans, the dryer would not heat. Three quarters of an hour at eighty an hour. New heating element, fifty dollars. Plus a forty dollar disposal charge.", speech: { mocked: true, model: "Speech mock" } } })).json();
   await page.goto(`/jobs/${job.id}`);
+  // One check card at a time: the mock reads fifty as fifteen, so "$50.00 with no line" comes first. The price book's fix clears it.
+  await expect(page.getByTestId("missing-amount")).toHaveCount(1);
+  await page.getByTestId("invoice-line").nth(1).getByTestId("use-usual").click();
   const warning = page.getByTestId("missing-amount").filter({ hasText: "$40.00" });
   await expect(warning).toContainText("forty dollar disposal");
   await expect(page.getByTestId("send-invoice")).toHaveCount(0);
@@ -579,7 +582,7 @@ test("pay now: PayPal's own QR code for the invoice (generate-qr-code) and a lin
   expect(sent.payQr?.source, sent.payQr?.source === "local" ? sent.payQr.why : "").toBe("paypal");
   await expect(qr).toHaveAttribute("data-source", "paypal");
   await expect(qr.locator("img")).toBeVisible();
-  await expect(page.getByTestId("pay-qr-source")).toHaveText("PayPal's own QR code, from generate-qr-code");
+  await expect(page.getByTestId("pay-qr-source")).toHaveText("PayPal's own QR code");
   const box = (await qr.boundingBox())!;
   expect(box.width).toBeGreaterThanOrEqual(200); // big enough for a phone camera across a counter
   expect(box.x + box.width).toBeLessThanOrEqual(390);
@@ -744,7 +747,7 @@ test("day one, one tap from the landing: no PayPal history, and the sound-alike 
     await page.getByTestId("catch-try-day-one").click();
   });
   const id = jobId(page);
-  await expect(page.getByTestId("day-one")).toContainText("Day one: no PayPal history yet");
+  await expect(page.getByTestId("day-one")).toContainText("Day one: no PayPal invoices yet");
   const element = page.getByTestId("invoice-line").nth(1);
   await expect(element.getByTestId("line-name")).toHaveValue("Heating element");
   await expect(page.locator("[data-testid^=line-usual]")).toHaveCount(0);
@@ -1039,6 +1042,9 @@ test("the price book catches an off quantity against the trade's PayPal invoices
   await expect(page.getByTestId("learned-from-paypal")).toContainText(/Learned from your last \d+ PayPal invoices/, { timeout: 90_000 });
   const elementRow = page.getByTestId("price-row").filter({ hasText: "Heating element" });
   await expect(elementRow.getByTestId("price-count")).toContainText(/^from \d+ PayPal invoices, last \$\d+\.\d\d/);
+  // The call each price came from is for judges: none on the trade's screen, then one tap on For judges shows it.
+  await expect(page.getByTestId("price-source-chip")).toHaveCount(0);
+  await page.getByTestId("for-judges-toggle").locator("visible=true").click();
   await expect(elementRow.getByTestId("price-source-chip")).toHaveText("GET /v2/invoicing/invoices");
   // Every row read from PayPal has the chip; the demo prices don't.
   for (const row of await page.getByTestId("price-row").all()) {
@@ -1048,6 +1054,9 @@ test("the price book catches an off quantity against the trade's PayPal invoices
   // The seeded history had one heating element on every invoice.
   if (!hosted) await expect(elementRow.getByTestId("price-qty")).toHaveText("· 1 on every one");
   await page.screenshot({ path: `screenshots/prices-${paypal}.png`, fullPage: true });
+  // Closed again: the rest is the trade's own screen.
+  await page.getByTestId("for-judges-toggle").locator("visible=true").click();
+  await expect(page.getByTestId("price-source-chip")).toHaveCount(0);
 
   // "Then heating element" written as "ten heating element": the count is held against PayPal's.
   const today = await page.evaluate(() => new Date().toLocaleDateString("en-CA"));

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { AlertTriangle, ArrowDown, Check as CheckIcon, ChevronDown, Plus, Send, Trash2 } from "lucide-react";
 import { Button, Card, CardBody, CardHeader, Field, Input, MoneyInput, Textarea } from "@/components/ui";
+import { useJudges } from "@/components/shell/for-judges";
 import { cn } from "@/components/ui/cn";
 import { isTestAddress, TEST_ADDRESS_RULE } from "@/lib/say/contacts";
 import { canSettle, findChecks, openChecks, placesToCheck, rowAsks, type Check } from "@/lib/say/checks";
@@ -309,6 +310,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
     return i < 0 ? [] : [{ check, line: draft.lines[i], number: i + 1 }];
   });
   const phone = useIsPhone();
+  const judges = useJudges();
 
   // What the customer reads, the due date and the tax fold into one line until there's a reason to open them, so a
   // two-line job fits one desktop screen.
@@ -338,10 +340,13 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
   const addLine = (price = "", more: Partial<EditLine> = {}) => setDraft({ ...draft, lines: [...draft.lines, { key: freeKey(), name: "", quantity: "1", price, description: "", taxed: true, ...more }] });
   // What the trade's PayPal invoices usually bill with an item on this job, not said this time. It never holds the send.
   const nudges = sending ? [] : usuallyWith(draft.lines.map((line) => line.name), job.priceBook).filter((nudge) => !draft.acknowledged.includes(nudge.id));
-  // On a phone one decision is on screen at a time: the price book's catches, then the job's checks, then what usually goes with it.
-  // The next one comes up once the first is settled. A desktop shows them all.
-  const current = catches[0]?.check.id ?? openJobChecks[0]?.id ?? nudges[0]?.id;
-  const shown = (id: string) => !phone || id === current;
+  // One check card is on screen at a time: on a phone the price book's catches, then the job's checks, then what usually goes
+  // with it. The next one comes up once the first is settled. A desktop asks a price-book catch on its row, so its cards are the
+  // job's checks, then what usually goes with it, still one at a time.
+  // An amount said with no line for it comes first of the job's checks: it is money the invoice would leave out.
+  const firstJobCheck = openJobChecks.find((check) => check.kind === "missing") ?? openJobChecks[0];
+  const current = (phone ? catches[0]?.check.id : undefined) ?? firstJobCheck?.id ?? nudges[0]?.id;
+  const shown = (id: string) => id === current;
 
   function goToProblem() {
     const first = problems[0];
@@ -395,7 +400,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
       )}
       {job.dayOne && !sending ? (
         <p className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700" data-testid="day-one">
-          Day one: no PayPal history yet, so there&apos;s no usual price to hold these against. A price that sounds like another still gets asked about.{" "}
+          Day one: no PayPal invoices yet, so no usual prices to check against.{" "}
           <Link href="/prices" className="font-medium whitespace-nowrap text-brand-700 underline underline-offset-2" data-testid="day-one-learn">
             Learn from my PayPal invoices
           </Link>
@@ -522,7 +527,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
       ) : null}
 
       <Card>
-        <CardHeader title="Line items" description="Every number is yours to change. Totals are worked out by code, not by the AI." />
+        <CardHeader title="Line items" description={judges ? "Every number is yours to change. Totals are worked out by code, not by the AI." : undefined} />
         <CardBody className="space-y-3">
           <ul className="space-y-3">
             {draft.lines.map((line, i) => {

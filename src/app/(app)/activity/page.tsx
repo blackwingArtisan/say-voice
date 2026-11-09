@@ -6,6 +6,7 @@ import { ChevronDown, RefreshCw, ShieldCheck, ShieldX, Webhook } from "lucide-re
 import { cn } from "@/components/ui/cn";
 import { plainAudit, TOOLKIT_READS } from "@/lib/say/plain-steps";
 import { ToolkitChip } from "@/components/say/toolkit-chip";
+import { useJudges } from "@/components/shell/for-judges";
 import { col, DataGrid } from "@/components/data-grid";
 import { useKit } from "@/components/kit/kit-provider";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -167,6 +168,8 @@ export default function ActivityPage() {
   const groups = groupByJob(plain, jobs ?? []);
   // The audit log under Details is this browser's too: a step from another visitor's run stays out.
   const owner = ownerOf(jobs ?? []);
+  // The integrity badge is for judges; a broken record shows to everyone.
+  const judges = useJudges();
   const ownAudit = audit?.entries.filter((entry) => !entry.runId || owner.has(entry.runId));
 
   return (
@@ -176,7 +179,7 @@ export default function ActivityPage() {
         <CardHeader
           title="What happened, job by job"
           description="Each job with its amount and status, newest first. Open one to see it."
-          action={audit?.integrity.ok ? <Badge tone="success"><ShieldCheck className="size-3.5" /> Record checked</Badge> : audit ? <Badge tone="danger"><ShieldX className="size-3.5" /> Record changed</Badge> : null}
+          action={audit?.integrity.ok ? (judges ? <Badge tone="success"><ShieldCheck className="size-3.5" /> Record checked</Badge> : null) : audit ? <Badge tone="danger"><ShieldX className="size-3.5" /> Record changed</Badge> : null}
         />
         <CardBody>
           {!audit || !jobs ? (

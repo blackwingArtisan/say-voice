@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { Check, Copy, ExternalLink } from "lucide-react";
+import { JudgesOnly } from "@/components/shell/for-judges";
 import { formatCents } from "@/lib/say/money";
 import type { PayQr } from "@/lib/say/types";
 
@@ -56,7 +57,10 @@ export function PayNow({ url, dueCents, customer, qr }: { url: string; dueCents:
           <p className="text-center text-xs text-zinc-500" data-testid="pay-qr-source">
             {fromPayPal ? (
               <>
-                PayPal&apos;s own QR code, from <span className="font-mono">generate-qr-code</span>
+                PayPal&apos;s own QR code
+                <JudgesOnly>
+                  , from <span className="font-mono">generate-qr-code</span>
+                </JudgesOnly>
               </>
             ) : qr?.source === "local" ? (
               `PayPal's QR code didn't come back (${qr.why}), so this one is drawn here from PayPal's link.`
