@@ -16,9 +16,13 @@ import { sentByApp } from "./app-memo";
 import type { Job } from "./types";
 
 export const HISTORY_LIMIT = 20;
-/** PayPal lists the newest invoices first, a page at a time. */
+/**
+ * PayPal lists the newest invoices first, a page at a time. Every invoice this app sends sits on
+ * top of the trade's history (and is skipped), so after a few hundred sends the history is pages
+ * down: listing is cheap, so it looks that far, and stops once it has enough to read.
+ */
 const PAGE_SIZE = 100;
-const MAX_PAGES = 3;
+export const MAX_PAGES = 20;
 /** At most this many full reads per click. */
 const MAX_READS = 40;
 const COUNTED = new Set(["SENT", "UNPAID", "PARTIALLY_PAID", "PAID", "MARKED_AS_PAID"]);
