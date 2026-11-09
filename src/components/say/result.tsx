@@ -45,7 +45,7 @@ export function Result({ job, invoice, showLink, onCheck }: { job: JobView; invo
           </div>
         </div>
         {isPaid(invoice) ? <PaidBanner invoice={invoice} customer={job.customer.name} /> : null}
-        <dl className="grid gap-4 sm:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Invoice number</dt>
             <dd className="mt-1 font-mono text-lg font-semibold text-zinc-900" data-testid="invoice-number">{invoice.number}</dd>
@@ -63,6 +63,8 @@ export function Result({ job, invoice, showLink, onCheck }: { job: JobView; invo
             <dd className="mt-1 text-lg font-semibold text-zinc-900" data-testid="invoice-due">{invoice.dueDate ? longDate(invoice.dueDate) : "On receipt"}</dd>
           </div>
         </dl>
+        {/* The QR comes before the details: the customer is standing there. */}
+        {showLink && invoice.payerUrl && !isPaid(invoice) ? <PayNow url={invoice.payerUrl} dueCents={invoice.dueCents} customer={job.customer.name} /> : null}
         {invoice.note ? (
           <p className="whitespace-pre-line rounded-xl bg-zinc-50 px-4 py-3 text-sm text-zinc-800" data-testid="result-note">
             {invoice.note}
@@ -86,7 +88,6 @@ export function Result({ job, invoice, showLink, onCheck }: { job: JobView; invo
             </li>
           ) : null}
         </ul>
-        {showLink && invoice.payerUrl && !isPaid(invoice) ? <PayNow url={invoice.payerUrl} dueCents={invoice.dueCents} customer={job.customer.name} /> : null}
         <div className="flex flex-wrap gap-3">
           <ButtonLink href="/jobs" data-testid="next-job">Start the next job</ButtonLink>
           {showLink && invoice.payerUrl && isPaid(invoice) ? (

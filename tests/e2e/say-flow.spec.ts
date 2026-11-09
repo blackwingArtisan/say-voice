@@ -865,3 +865,46 @@ test("the price book catches a misheard quantity against the trade's PayPal invo
   }
 });
 
+
+test("Jobs opens on what you're owed, from PayPal's own amounts, and the result leads with the number, status and QR", async ({ page, request }) => {
+  const { sandbox, live, paypal } = await kitStatus(request);
+  test.skip(keepToOneCall(live), "spends on the one mic clip only");
+  test.setTimeout(180_000);
+  await openNewJob(page);
+  await expect(page.getByTestId("owed")).toHaveCount(0); // nothing sent yet, so no "$0.00"
+
+  const sent = await sentSample(page, request);
+  const invoice = sent.invoice!;
+  // On the result, the number, the status and the QR come before the lines.
+  const result = page.getByTestId("result");
+  const top = async (id: string) => (await result.getByTestId(id).first().boundingBox())!.y;
+  if (sandbox) expect(await top("pay-qr")).toBeLessThan(await top("result-line"));
+  expect(await top("invoice-number")).toBeLessThan(await top("result-line"));
+  await expect(page.getByTestId("said-words")).toHaveText(/^\d+ words( in \d+:\d\d)?$/);
+  await expect(page.getByText("Approved", { exact: true })).toBeHidden({ timeout: 15_000 }); // the toast covers the result
+  for (const [width, height] of [[1440, 1000], [390, 844]]) {
+    await page.setViewportSize({ width, height });
+    await page.screenshot({ path: `screenshots/result-leads-${width}-${paypal}.png` });
+  }
+  // On a phone the result comes before the words.
+  expect(await top("invoice-number")).toBeLessThan((await page.getByTestId("transcript").boundingBox())!.y);
+
+  // Owed is what PayPal said is still due, not the app's own sum.
+  const due = sandbox ? Math.round(Number((await readInvoiceFromPayPal(invoice.id)).amount.value) * 100) : invoice.dueCents;
+  expect(invoice.dueCents).toBe(due);
+  await page.goto("/jobs");
+  await expect(page.getByTestId("owed-line")).toHaveText(`Owed ${money(due)} on 1 invoice`);
+  const owedBox = (await page.getByTestId("owed").boundingBox())!;
+  expect(owedBox.y).toBeLessThan((await page.getByTestId("record-card").boundingBox())!.y);
+  await page.screenshot({ path: `screenshots/jobs-owed-390-${paypal}.png` });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: `screenshots/jobs-owed-1440-${paypal}.png` });
+  console.log(`Owed line: ${await page.getByTestId("owed-line").innerText()} (invoice ${invoice.id} number ${invoice.number} ${invoice.status})`);
+
+  // A paid invoice leaves the line: nothing owed. Mock only; the sandbox payment is proved in paid.spec.
+  if (sandbox) return;
+  await request.post(`/api/dev/pay-invoice/${invoice.id}`);
+  await expect.poll(async () => (await readJob(request, sent.id)).invoice?.status, { timeout: 30_000 }).toBe("PAID");
+  await page.reload();
+  await expect(page.getByTestId("owed-line")).toHaveText("Nothing owed");
+});
