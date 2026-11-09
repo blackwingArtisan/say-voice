@@ -32,7 +32,8 @@ export interface PayPalHistory {
   visitor?: string;
   learnedAt: string;
   invoiceIds: string[];
-  lines: { name: string; unitCents: number; invoicedAt: string }[];
+  /** quantityMilli: missing on a history read before quantities were kept. */
+  lines: { name: string; unitCents: number; quantityMilli?: number; invoicedAt: string }[];
 }
 
 const histories = () => collection<PayPalHistory>("paypal-history");
@@ -52,7 +53,9 @@ const RETRY_MS = 60_000;
 
 /** Reads the trade's history once in the background, so a first visit's book already comes from PayPal. */
 export function kickTradeHistory() {
-  if (learning || historyOf(undefined) || Date.now() - lastFailure < RETRY_MS) return;
+  // A history read before quantities were kept is read again, once, so the quantity check has them.
+  const known = historyOf(undefined);
+  if (learning || (known && known.lines.every((line) => line.quantityMilli !== undefined)) || Date.now() - lastFailure < RETRY_MS) return;
   learning = true;
   void withContext({ channel: "prices:shared" }, () => learnFromPayPal(undefined))
     .catch((e: unknown) => {
@@ -73,6 +76,12 @@ async function mockHistory() {
   await seedPastInvoices(paypal, manifest);
   manifests.upsert({ id: "mock", ids: manifest });
 }
+
+/** PayPal's quantity is a decimal string: "1", "1.5". */
+const quantityMilli = (quantity: string | undefined) => {
+  const n = Number(quantity ?? "1");
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 1000) : undefined;
+};
 
 const dateOf = (inv: Invoice) => inv.detail.invoice_date ?? inv.detail.metadata?.create_time?.slice(0, 10) ?? "";
 
@@ -101,6 +110,6 @@ export async function learnFromPayPal(visitor?: string): Promise<PayPalHistory> 
     visitor,
     learnedAt: new Date().toISOString(),
     invoiceIds: kept.map((inv) => inv.id),
-    lines: kept.flatMap((inv) => (inv.items ?? []).map((item) => ({ name: item.name, unitCents: toMinor(item.unit_amount.value, "USD"), invoicedAt: dateOf(inv) }))),
+    lines: kept.flatMap((inv) => (inv.items ?? []).map((item) => ({ name: item.name, unitCents: toMinor(item.unit_amount.value, "USD"), quantityMilli: quantityMilli(item.quantity), invoicedAt: dateOf(inv) }))),
   });
 }

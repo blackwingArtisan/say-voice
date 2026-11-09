@@ -11,7 +11,7 @@ import { generateObject } from "@/lib/ai";
 import { modelLabel } from "@/lib/ai/config";
 import { flagsToShow } from "./flags";
 import { dollarsToCents, percentToRateMilli, unitsToMilli } from "./money";
-import { PLUS_TAX_EXTRACTION, PLUS_TAX_TRANSCRIPT, ROOFER_EXTRACTION, ROOFER_TRANSCRIPT, SAMPLE_EXTRACTION } from "./sample";
+import { PLUS_TAX_EXTRACTION, PLUS_TAX_TRANSCRIPT, QUANTITY_EXTRACTION, QUANTITY_TRANSCRIPT, ROOFER_EXTRACTION, ROOFER_TRANSCRIPT, SAMPLE_EXTRACTION } from "./sample";
 import type { JobFlag, JobLine } from "./types";
 
 export const InvoiceSchema = z.object({
@@ -82,8 +82,8 @@ export async function extractJob(transcript: string): Promise<ExtractedJob> {
     model: "smart",
     maxTokens: 3000,
     feature: "job extraction",
-    // The tax job and the roofer's job have their own fixtures. Every other transcript reads as the sample, on purpose.
-    mock: () => (transcript.trim() === PLUS_TAX_TRANSCRIPT ? PLUS_TAX_EXTRACTION : transcript.trim() === ROOFER_TRANSCRIPT ? ROOFER_EXTRACTION : SAMPLE_EXTRACTION),
+    // The tax job, the roofer's job and the quantity job have their own fixtures. Every other transcript reads as the sample, on purpose.
+    mock: () => (transcript.trim() === PLUS_TAX_TRANSCRIPT ? PLUS_TAX_EXTRACTION : transcript.trim() === ROOFER_TRANSCRIPT ? ROOFER_EXTRACTION : transcript.trim() === QUANTITY_TRANSCRIPT ? QUANTITY_EXTRACTION : SAMPLE_EXTRACTION),
   });
   return { ...toJobFields(res.data), ai: { mocked: res.mocked, model: res.model ? modelLabel(res.model) : undefined, costUsd: res.costUsd } };
 }

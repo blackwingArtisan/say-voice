@@ -127,3 +127,37 @@ export const ROOFER_DESCRIPTION = {
 };
 
 export const ROOFER_AMOUNTS = { laborCents: 40_000, materialCents: 20_000, totalCents: 60_000 };
+
+/**
+ * A made-up job for the quantity check on mock AI: "then heating element" written by speech as
+ * "ten heating element", read as ten of them. Every past PayPal invoice for a heating element had
+ * one, so the price book holds the count. Labor 1 h at $80, element $50.
+ */
+export const QUANTITY_TRANSCRIPT =
+  "Ben Kowalski, dryer would not heat again. An hour of labor at eighty an hour, ten heating element at fifty dollars. No tax on this one. It heats up fine now.";
+
+export const QUANTITY_EXTRACTION = {
+  customer: "Ben Kowalski",
+  service_address: null,
+  line_items: [
+    { name: "Labor", quantity: 1, unit_price: 80 },
+    { name: "Heating element", quantity: 10, unit_price: 50 },
+  ],
+  tax_rate: null,
+  total: 580,
+  uncertain: [],
+};
+
+export const QUANTITY_DESCRIPTION = {
+  job_summary: "Dryer would not heat again: heating element, heats up fine now",
+  job_site: "",
+  service_date: "",
+  service_date_words: "",
+  lines: {
+    Labor: "An hour on the dryer that would not heat again. It heats up fine now.",
+    "Heating element": "Heating element for the dryer",
+  } as Record<string, string>,
+};
+
+/** Labor $80; ten elements $500 as heard, one element $50 as meant. */
+export const QUANTITY_AMOUNTS = { laborCents: 8_000, heardTotalCents: 58_000, fixedTotalCents: 13_000 };

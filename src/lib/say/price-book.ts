@@ -15,7 +15,7 @@ export interface PriceEntry {
   source: "seed" | "learned";
   updatedAt: string;
   /** Read from the trade's past PayPal invoices: how many had it, and the newest price. */
-  paypal?: { invoices: number; lastCents: number; lastAt: string };
+  paypal?: { invoices: number; lastCents: number; lastAt: string; quantities?: number[] };
   /** How many of this browser's sent invoices had it. */
   sentHere?: number;
 }
@@ -97,6 +97,37 @@ export function soundAlike(cents: number): SoundAlike | null {
   if (dollars in TEEN_WORDS) return { cents: (dollars - 10) * 1000, heard: TEEN_WORDS[dollars], said: TENS_WORDS[(dollars - 10) * 10] };
   if (dollars in TENS_WORDS) return { cents: (dollars / 10 + 10) * 100, heard: TENS_WORDS[dollars], said: TEEN_WORDS[dollars / 10 + 10] };
   return null;
+}
+
+/**
+ * A quantity far from the one the trade's PayPal invoices always had: "ten heating element" when
+ * every past invoice had one. Only for an item whose invoices all had the same count, at least
+ * MIN_SAMPLES of them, and only for a count QUANTITY_RATIO times off or more, so two belts on a job
+ * that usually takes one isn't flagged. Labor never has PayPal history here (hours vary), so it's never checked.
+ */
+export const QUANTITY_RATIO = 3;
+
+export interface FarQuantity {
+  usualMilli: number;
+  invoices: number;
+  lastCents: number;
+}
+
+export function farQuantity(line: { name: string; quantityMilli: number }, book: PriceEntry[]): FarQuantity | null {
+  const entry = findEntry(line.name, book);
+  const seen = entry?.paypal?.quantities;
+  if (!entry?.paypal || !seen || seen.length < MIN_SAMPLES || seen.length !== entry.paypal.invoices || line.quantityMilli <= 0) return null;
+  const usual = seen[0];
+  if (usual <= 0 || seen.some((q) => q !== usual)) return null;
+  const ratio = Math.max(line.quantityMilli / usual, usual / line.quantityMilli);
+  return ratio >= QUANTITY_RATIO ? { usualMilli: usual, invoices: entry.paypal.invoices, lastCents: entry.paypal.lastCents } : null;
+}
+
+/** "always 1 each": an item whose PayPal invoices all had the same quantity. Null otherwise. */
+export function steadyQuantity(entry: PriceEntry): number | null {
+  const seen = entry.paypal?.quantities;
+  if (!seen || seen.length < MIN_SAMPLES || seen.length !== entry.paypal!.invoices) return null;
+  return seen.every((q) => q === seen[0]) ? seen[0] : null;
 }
 
 /** The book after one invoice went out at these prices. */

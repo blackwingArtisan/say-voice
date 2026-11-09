@@ -5,16 +5,28 @@ import { Landmark } from "lucide-react";
 import { useKit } from "@/components/kit/kit-provider";
 import { PageHeader } from "@/components/shell/app-shell";
 import { Badge, Button, Card, EmptyState, SkeletonCard } from "@/components/ui";
-import { formatCents } from "@/lib/say/money";
-import { FAR_RATIO, MIN_SAMPLES, provenance, usualCents, type PriceEntry } from "@/lib/say/price-book";
+import { formatCents, formatQuantity } from "@/lib/say/money";
+import { FAR_RATIO, MIN_SAMPLES, provenance, steadyQuantity, usualCents, type PriceEntry } from "@/lib/say/price-book";
+
+/** The PayPal call a price came from, as a small chip. */
+function ApiChip() {
+  return (
+    <span className="inline-flex items-center rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 font-mono text-[11px] leading-none text-sky-800" data-testid="price-source-chip">
+      GET /v2/invoicing/invoices
+    </span>
+  );
+}
 
 function Row({ entry }: { entry: PriceEntry }) {
+  const steady = steadyQuantity(entry);
   return (
     <li className="flex items-center gap-3 px-5 py-3" data-testid="price-row">
       <div className="min-w-0 flex-1">
         <p className="truncate text-[15px] font-medium text-zinc-900" data-testid="price-name">{entry.name}</p>
-        <p className="text-sm text-zinc-500" data-testid="price-count">
-          {provenance(entry)}
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-zinc-500">
+          <span data-testid="price-count">{provenance(entry)}</span>
+          {steady !== null ? <span data-testid="price-qty">· {formatQuantity(steady)} on every one</span> : null}
+          {entry.paypal ? <ApiChip /> : null}
         </p>
       </div>
       <Badge tone={entry.source === "seed" ? "neutral" : "brand"}>{entry.paypal ? "PayPal" : entry.source === "seed" ? "Demo start" : "Learned"}</Badge>

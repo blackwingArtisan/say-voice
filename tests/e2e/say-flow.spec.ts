@@ -6,7 +6,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { checkCount, fixElementPrice, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, sentSample, settleAiNotes, startSample, tradeHistoryReady, visitorHeaders, openNewJob, settleChecks, showLineDetails, showAllSteps } from "./flow";
-import { PLUS_TAX_AMOUNTS, PLUS_TAX_TRANSCRIPT, SAMPLE_AMOUNTS, ROOFER_AMOUNTS, ROOFER_CUSTOMER, ROOFER_DESCRIPTION, ROOFER_TRANSCRIPT } from "../../src/lib/say/sample";
+import { PLUS_TAX_AMOUNTS, PLUS_TAX_TRANSCRIPT, QUANTITY_AMOUNTS, QUANTITY_TRANSCRIPT, SAMPLE_AMOUNTS, ROOFER_AMOUNTS, ROOFER_CUSTOMER, ROOFER_DESCRIPTION, ROOFER_TRANSCRIPT } from "../../src/lib/say/sample";
 import { readInvoiceFromPayPal } from "./paypal-reread";
 import { appConfig } from "../../src/app.config";
 import type { PriceEntry } from "../../src/lib/say/price-book";
@@ -798,5 +798,60 @@ test("compact confirm: the total, the checks and the lines first; heard words be
   await expect(page.getByTestId("flags-panel")).toHaveCount(0);
   await expect(page.getByTestId("job-summary")).toBeVisible();
   await expect(page.getByTestId("details-summary")).toBeHidden();
+});
+
+test("the price book catches a misheard quantity against the trade's PayPal invoices, and Prices says where each price came from", async ({ page, request }) => {
+  test.setTimeout(240_000);
+  const { live, paypal } = await kitStatus(request);
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
+  const hosted = !!process.env.E2E_BASE_URL;
+
+  // Prices: each item read from PayPal says from how many invoices, the last price, and the call it came from.
+  await paceAiCalls(2);
+  await openNewJob(page);
+  await page.goto("/prices");
+  await page.getByTestId("learn-from-paypal").click();
+  await expect(page.getByTestId("learned-from-paypal")).toContainText(/Learned from your last \d+ PayPal invoices/, { timeout: 90_000 });
+  const elementRow = page.getByTestId("price-row").filter({ hasText: "Heating element" });
+  await expect(elementRow.getByTestId("price-count")).toContainText(/^from \d+ PayPal invoices, last \$\d+\.\d\d/);
+  await expect(elementRow.getByTestId("price-source-chip")).toHaveText("GET /v2/invoicing/invoices");
+  // Every row read from PayPal has the chip; the demo prices don't.
+  for (const row of await page.getByTestId("price-row").all()) {
+    const fromPayPal = /PayPal invoices?, last/.test(await row.getByTestId("price-count").innerText());
+    await expect(row.getByTestId("price-source-chip")).toHaveCount(fromPayPal ? 1 : 0);
+  }
+  // The seeded history had one heating element on every invoice.
+  if (!hosted) await expect(elementRow.getByTestId("price-qty")).toHaveText("· 1 on every one");
+  await page.screenshot({ path: `screenshots/prices-${paypal}.png`, fullPage: true });
+
+  // "Then heating element" written as "ten heating element": the count is held against PayPal's.
+  const today = await page.evaluate(() => new Date().toLocaleDateString("en-CA"));
+  const made = await page.request.post("/api/jobs", { headers: await visitorHeaders(page), data: { source: "mic", today, customer: { name: "Ben Kowalski", email: "ben.kowalski@example.com" }, transcript: QUANTITY_TRANSCRIPT, speech: { mocked: true, model: "Speech mock" } } });
+  expect(made.ok()).toBe(true);
+  await page.goto(`/jobs/${(await made.json()).id}`);
+  await expect(page.getByTestId("invoice-line")).toHaveCount(2);
+  const row = page.getByTestId("invoice-line").nth(1);
+  await expect(row.getByTestId("line-name")).toHaveValue(/heating element/i);
+  const heard = await row.getByTestId("line-quantity").inputValue();
+  if (heard === "10") {
+    await expect(row.getByTestId("line-usual-qty")).toContainText(/Quantity: usually 1, on all \d+ PayPal invoices \(last \$\d+\.\d\d each\)\. This says 10\./);
+    if (!hosted) await expect(page.getByTestId("invoice-total")).toHaveText(money(QUANTITY_AMOUNTS.heardTotalCents));
+    await expect(page.getByTestId("send-invoice")).toHaveCount(0);
+    await page.screenshot({ path: `screenshots/quantity-catch-${paypal}.png`, fullPage: true });
+    await row.getByTestId("use-usual-qty").click();
+    await expect(row.getByTestId("line-quantity")).toHaveValue("1");
+    await expect(row.getByTestId("line-usual-qty")).toHaveCount(0);
+  } else {
+    // Live AI may read "ten heating element" as one. Then there's nothing to catch, and nothing is flagged.
+    console.log(`Live AI read the quantity as ${heard}; the quantity check had nothing to catch.`);
+    await expect(row.getByTestId("line-usual-qty")).toHaveCount(0);
+  }
+  await settleAiNotes(page);
+  await settleChecks(page);
+  if (!hosted) {
+    await expect(page.getByTestId("invoice-total")).toHaveText(money(QUANTITY_AMOUNTS.fixedTotalCents));
+    const done = await sendAndVerify(page, request, QUANTITY_AMOUNTS.fixedTotalCents, "quantity");
+    expect(done.lines.map((l) => l.quantityMilli)).toEqual([1000, 1000]);
+  }
 });
 

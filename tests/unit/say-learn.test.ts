@@ -5,7 +5,7 @@ import { PAST_JOBS, pastInvoiceRequest, seedPastInvoices } from "@/lib/demo/past
 import { MockPayPal } from "@/lib/paypal/mock";
 import { APP_MEMO, sentByApp } from "@/lib/say/app-memo";
 import { findChecks } from "@/lib/say/checks";
-import { learnedDifference, provenance, type PriceEntry } from "@/lib/say/price-book";
+import { learnedDifference, provenance, type PriceEntry, steadyQuantity } from "@/lib/say/price-book";
 import { SAMPLE_TRANSCRIPT } from "@/lib/say/sample";
 import type { JobLine } from "@/lib/say/types";
 
@@ -72,6 +72,11 @@ describe("learn from my PayPal invoices", () => {
     const pastElements = PAST_JOBS.flatMap((j) => j.lines.filter(([name]) => name === "Heating element")).map(([, , price]) => Math.round(Number(price) * 100));
     expect(element.samples).toEqual(pastElements);
     expect(element.paypal?.lastCents).toBe(5_000);
+    // Each invoice's count too, for the quantity check: every past heating element was one.
+    expect(element.paypal?.quantities).toEqual(pastElements.map(() => 1_000));
+    expect(steadyQuantity(element)).toBe(1_000);
+    // Labor's hours differ job to job, and labor isn't in the PayPal book at all.
+    expect(book.find((e) => e.name === "Labor")?.paypal).toBeUndefined();
     // Demo-only items say so.
     expect(provenance(book.find((e) => e.name === "Wax ring")!)).toBe("3 invoices, $12.00 to $14.00");
     expect(priceBook("someone-else").find((e) => e.name === "Drain pump")).toBeUndefined();

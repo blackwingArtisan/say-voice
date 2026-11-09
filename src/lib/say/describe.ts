@@ -9,7 +9,7 @@ import { z } from "zod";
 import { generateObject } from "@/lib/ai";
 import { modelLabel } from "@/lib/ai/config";
 import { formatCents, formatQuantity } from "./money";
-import { PLUS_TAX_DESCRIPTION, PLUS_TAX_TRANSCRIPT, ROOFER_DESCRIPTION, ROOFER_TRANSCRIPT, SAMPLE_DESCRIPTION, SAMPLE_TRANSCRIPT } from "./sample";
+import { PLUS_TAX_DESCRIPTION, PLUS_TAX_TRANSCRIPT, QUANTITY_DESCRIPTION, QUANTITY_TRANSCRIPT, ROOFER_DESCRIPTION, ROOFER_TRANSCRIPT, SAMPLE_DESCRIPTION, SAMPLE_TRANSCRIPT } from "./sample";
 import { WORDY_DESCRIPTION, WORDY_TRANSCRIPT } from "./sample-wordy";
 import { heardFor } from "./spoken";
 import type { AiWording, JobDetails, JobFlag, JobLine } from "./types";
@@ -66,7 +66,7 @@ function wordyMockDescription(transcript: string, lines: JobLine[]): Description
 /** Mock fixtures: the sample and the tax job have their own, anything else gets the words heard by each price. */
 export function mockDescription(transcript: string, lines: JobLine[], today: string): Description {
   const said = transcript.trim();
-  const fixture = said === SAMPLE_TRANSCRIPT ? SAMPLE_DESCRIPTION : said === PLUS_TAX_TRANSCRIPT ? PLUS_TAX_DESCRIPTION : said === ROOFER_TRANSCRIPT ? ROOFER_DESCRIPTION : null;
+  const fixture = said === SAMPLE_TRANSCRIPT ? SAMPLE_DESCRIPTION : said === PLUS_TAX_TRANSCRIPT ? PLUS_TAX_DESCRIPTION : said === ROOFER_TRANSCRIPT ? ROOFER_DESCRIPTION : said === QUANTITY_TRANSCRIPT ? QUANTITY_DESCRIPTION : null;
   if (fixture) {
     return {
       job_summary: fixture.job_summary,
