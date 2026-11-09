@@ -211,3 +211,59 @@ export class DemoClock {
     if (s > this.limitSeconds) throw new Error(`Demo is ${s}s at "${label}" (limit ${this.limitSeconds}s). Cut scenes or shorten captions.`);
   }
 }
+
+/**
+ * Subtitles beside the phone for the voice, as it's said: the words show one by one over the clip,
+ * paced by their length, starting when the microphone starts. Runs in the page, so it keeps time
+ * with the audio and not with the test.
+ */
+export async function subtitles(page: Page, text: string, opts: { startedAt: number; seconds: number; leadMs?: number; label?: string }) {
+  await page.evaluate(
+    ({ text, startedAt, seconds, leadMs, label }) => {
+      const side = document.getElementById("__demo_side");
+      if (!side) return;
+      const words = text.split(/\s+/).filter(Boolean);
+      const weights = words.map((w) => w.length + 2);
+      const total = weights.reduce((a, b) => a + b, 0);
+      // The clip has a short lead-in and a little silence at the end.
+      const speakMs = Math.max(1000, seconds * 1000 - leadMs - 400);
+      const ends = weights.map((_, i) => leadMs + (speakMs * weights.slice(0, i + 1).reduce((a, b) => a + b, 0)) / total);
+      side.innerHTML = `<div style="font:700 15px/1.3 ui-sans-serif,system-ui;letter-spacing:.06em;text-transform:uppercase;color:#fdba74;margin-bottom:14px">${label}</div><div id="__demo_sub" style="font:600 34px/1.35 ui-sans-serif,system-ui,-apple-system,sans-serif"></div>`;
+      const sub = document.getElementById("__demo_sub")!;
+      const tick = () => {
+        const ms = Date.now() - startedAt;
+        const n = ends.filter((e) => e - 250 <= ms).length;
+        sub.innerHTML = `${words.slice(0, n).join(" ")}<span style="opacity:.28"> ${words.slice(n).join(" ")}</span>`;
+        if (n < words.length && document.getElementById("__demo_sub") === sub) requestAnimationFrame(tick);
+      };
+      tick();
+    },
+    { text, startedAt: opts.startedAt, seconds: opts.seconds, leadMs: opts.leadMs ?? 300, label: opts.label ?? "Said in the van" },
+  );
+}
+
+/**
+ * A closer look: a copy of the element, at `scale` times its size, in the middle of the frame over
+ * a dimmed page, so small print reads in the video. `null` takes it away.
+ */
+export async function magnify(page: Page, target: Locator | null, scale = 1.6) {
+  if (!target) {
+    await page.evaluate(() => document.getElementById("__demo_magnify")?.remove());
+    return;
+  }
+  await bringIntoView(target);
+  await target.evaluate(
+    (node, { scale, band }) => {
+      const box = node.getBoundingClientRect();
+      const wrap = document.createElement("div");
+      wrap.id = "__demo_magnify";
+      Object.assign(wrap.style, { position: "fixed", inset: `0 0 ${band}px 0`, zIndex: "2147483645", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(11,16,32,.72)", pointerEvents: "none" });
+      const card = document.createElement("div");
+      Object.assign(card.style, { width: `${box.width}px`, zoom: String(Math.min(scale, (window.innerWidth - 80) / box.width, (window.innerHeight - band - 60) / box.height)), background: "#fff", borderRadius: "14px", boxShadow: "0 0 0 4px #f59e0b, 0 24px 70px rgba(0,0,0,.5)", overflow: "hidden" });
+      card.appendChild(node.cloneNode(true));
+      wrap.appendChild(card);
+      document.body.appendChild(wrap);
+    },
+    { scale, band: BAND_PX },
+  );
+}
