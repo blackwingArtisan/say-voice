@@ -7,7 +7,7 @@ import { Activity, CircleHelp, Menu, Mic, Tags, X, type LucideIcon } from "lucid
 import { appConfig } from "@/app.config";
 import { cn } from "../ui/cn";
 import { AppLogo } from "./app-logo";
-import { ModeBadges } from "./mode-badges";
+import { ForJudges } from "./for-judges";
 
 const ICONS: Record<string, LucideIcon> = { "/jobs": Mic, "/prices": Tags, "/activity": Activity, "/#how": CircleHelp };
 
@@ -50,8 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Nav />
           </Suspense>
         </div>
-        <ModeBadges vertical className="px-1" />
-        <p className="mt-4 px-1 text-[11px] leading-relaxed text-zinc-400">Sandbox only. No live PayPal calls are possible from this app.</p>
+        <ForJudges vertical className="px-1" />
       </aside>
 
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur lg:hidden">
@@ -60,13 +59,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           {open ? <X className="size-5" /> : <Menu className="size-5" />}
         </button>
       </header>
-      {/* On a phone the badges stay in view: which PayPal, which models, and today's AI spend. */}
-      <ModeBadges className="border-b border-zinc-200 bg-zinc-50/90 px-4 py-2 lg:hidden" />
       {open ? (
         <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 lg:hidden">
           <Suspense>
             <Nav onNavigate={() => setOpen(false)} />
           </Suspense>
+          <ForJudges className="mt-3 border-t border-zinc-200 px-1 pt-2" />
         </div>
       ) : null}
 

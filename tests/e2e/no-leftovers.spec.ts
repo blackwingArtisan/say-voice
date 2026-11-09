@@ -4,7 +4,7 @@
  * promises nothing goes out until a person approves it.
  */
 import { expect, test } from "@playwright/test";
-import { expectNoMockWords, kitStatus } from "./flow";
+import { expectNoMockWords, kitStatus, startSample } from "./flow";
 
 test("nothing from the starter kit is left for a judge to find", async ({ page, request }) => {
   await page.goto("/");
@@ -89,4 +89,41 @@ test("with AI and speech live, no page says mock", async ({ page, request }) => 
   await page.goto("/jobs/job_sample");
   await expect(page.getByTestId("invoice-amount")).toBeVisible();
   await expectNoMockWords(page);
+});
+
+/** The badges a judge reads (which PayPal, which models, the AI spend) and PayPal's debug ids. */
+const MACHINERY = /PayPal mock|mock PayPal|AI mock|Speech mock|AI today|debug[ _]id/i;
+
+async function expectCleanChrome(page: import("@playwright/test").Page, where: string) {
+  await expect(page.getByTestId("mode-badges"), where).toHaveCount(0);
+  await expect(page.getByTestId("ai-spend"), where).toHaveCount(0);
+  const text = await page.locator("body").innerText();
+  expect(text.match(new RegExp(`.{0,30}(${MACHINERY.source}).{0,30}`, "i"))?.[0] ?? null, where).toBeNull();
+}
+
+test("the trade's screens carry no mode badges, AI spend or debug ids until For judges is opened", async ({ page }) => {
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width > 400 ? 1000 : 844 });
+    await page.goto("/");
+    await expect(page.getByTestId("hero-preview")).toBeVisible();
+    await expectCleanChrome(page, `/ at ${width}`);
+    await page.goto("/jobs");
+    await expect(page.getByTestId(/^contact-(?!other)/).first()).toBeVisible();
+    await expectCleanChrome(page, `/jobs at ${width}`);
+  }
+  // The phone confirm screen, with a job waiting to be checked and sent.
+  await startSample(page);
+  await expect(page.getByTestId("invoice-total")).toBeVisible();
+  await expectCleanChrome(page, "phone confirm");
+
+  // One tap on For judges (in the menu, on a phone) shows them.
+  await page.getByRole("button", { name: "Menu" }).click();
+  await page.getByTestId("for-judges-toggle").locator("visible=true").click();
+  await expect(page.getByTestId("mode-badges")).toBeVisible();
+  await expect(page.getByTestId("mode-badges")).toContainText(/PayPal (sandbox|mock)/);
+  await expect(page.getByTestId("for-judges").locator("visible=true")).toContainText(/debug ids/);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/jobs");
+  await page.getByTestId("for-judges-toggle").locator("visible=true").click();
+  await expect(page.getByTestId("mode-badges")).toBeVisible();
 });
