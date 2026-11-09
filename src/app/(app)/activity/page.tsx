@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, RefreshCw, ShieldCheck, ShieldX, Webhook } from "lucide-react";
 import { cn } from "@/components/ui/cn";
-import { plainAudit } from "@/lib/say/plain-steps";
+import { plainAudit, TOOLKIT_READS } from "@/lib/say/plain-steps";
+import { ToolkitChip } from "@/components/say/toolkit-chip";
 import { col, DataGrid } from "@/components/data-grid";
 import { useKit } from "@/components/kit/kit-provider";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -58,7 +59,10 @@ function StepList({ steps }: { steps: Step[] }) {
       {steps.map(({ entry, text }) => (
         <li key={entry.seq} className="flex flex-col gap-0.5 py-2.5 text-sm sm:flex-row sm:items-baseline sm:gap-3" data-testid="activity-row">
           <span className="shrink-0 tabular-nums text-zinc-500 sm:w-36">{when(entry.ts)}</span>
-          <span className="min-w-0 flex-1 break-words text-zinc-800">{text}</span>
+          <span className="min-w-0 flex-1 break-words text-zinc-800">
+            {text}
+            {entry.tool && TOOLKIT_READS[entry.tool] ? <> <ToolkitChip tool={entry.tool} /></> : null}
+          </span>
         </li>
       ))}
     </ul>

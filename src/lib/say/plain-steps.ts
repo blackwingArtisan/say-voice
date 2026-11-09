@@ -14,7 +14,15 @@ export interface PlainStep {
   text: string;
   tone: PlainTone;
   at: string;
+  /** The PayPal Agent Toolkit tool behind this step, for its chip. */
+  toolkit?: string;
 }
+
+/** The reads the reminder agent makes through PayPal's Agent Toolkit, in plain words. */
+export const TOOLKIT_READS: Record<string, [doing: string, done: string]> = {
+  search_invoicing: ["The reminder agent is looking the invoice up on PayPal", "The reminder agent found the invoice on PayPal"],
+  get_invoice: ["The reminder agent is reading the invoice from PayPal", "The reminder agent read the invoice and the work on it from PayPal"],
+};
 
 const TONE: Record<TimelineStatus, PlainTone> = {
   pending: "working",
@@ -43,6 +51,7 @@ const PAYPAL_WORDS: Record<string, [doing: string, done: string]> = {
   "toolkit.send_invoice_reminder": ["PayPal is sending the reminder", "PayPal sent the reminder"],
   "toolkit.get_invoice": ["Reading the invoice back from PayPal", "Read the invoice back from PayPal"],
   "toolkit.list_invoices": ["Reading your past PayPal invoices", "Read your past PayPal invoices"],
+  "toolkit.search_invoicing": ["Searching PayPal for the invoice", "Found the invoice on PayPal"],
   "toolkit.cancel_sent_invoice": ["Cancelling the invoice on PayPal", "Cancelled the invoice on PayPal"],
 };
 
@@ -108,6 +117,8 @@ export function plainStep(step: TimelineStep): PlainStep | null {
       if (step.status === "denied" || step.status === "failed") return { ...base, text: plainStop(step) };
       if (step.status === "awaiting_approval") return { ...base, text: `${step.title}: waiting for you to approve` };
       if (step.tool?.name === "read_job_invoice") return step.status === "succeeded" ? { ...base, text: "The reminder agent read the invoice from PayPal" } : null;
+      const read = step.tool?.source === "paypal-agent-toolkit" ? TOOLKIT_READS[step.tool.name] : undefined;
+      if (read) return { ...base, text: step.status === "succeeded" ? read[1] : read[0], toolkit: step.tool!.name };
       return { ...base, text: step.status === "succeeded" ? `${step.title}: done` : step.title };
     }
     case "webhook": {
@@ -125,8 +136,16 @@ export function plainStep(step: TimelineStep): PlainStep | null {
   }
 }
 
+/** A PayPal read made inside a toolkit read: the toolkit step already says it. */
+const READ_OPS = /^(invoicing\.(get|list)|toolkit\.(get_invoice|search_invoicing))$/;
+function insideToolkitRead(step: TimelineStep, steps: TimelineStep[]): boolean {
+  if (step.kind !== "paypal" || step.status === "failed" || !READ_OPS.test(step.paypal?.operation ?? "")) return false;
+  return steps.some((tool) => tool.kind === "tool" && tool.tool?.source === "paypal-agent-toolkit" && !!TOOLKIT_READS[tool.tool.name] && tool.startedAt <= step.startedAt && step.startedAt <= tool.updatedAt);
+}
+
 export function plainSteps(steps: TimelineStep[]): PlainStep[] {
   return steps.flatMap((step) => {
+    if (insideToolkitRead(step, steps)) return [];
     const plain = plainStep(step);
     return plain ? [{ ...plain, text: plainWords(plain.text) }] : [];
   });
@@ -149,6 +168,8 @@ const ACTION_WORDS: Partial<Record<AuditEntry["action"], string>> = {
 
 /** One line of the audit log a person can read, or nothing for the bookkeeping steps in between. */
 export function plainAudit(entry: AuditEntry): string | null {
+  const read = entry.tool ? TOOLKIT_READS[entry.tool] : undefined;
+  if (read) return entry.action === "tool.executed" ? `${read[1]}, through PayPal's Agent Toolkit.` : entry.action === "tool.failed" ? "The reminder agent couldn't read the invoice through PayPal's Agent Toolkit." : null;
   const what = entry.tool ? TOOL_WORDS[entry.tool] : undefined;
   const action = ACTION_WORDS[entry.action];
   if (!what || !action) return null;

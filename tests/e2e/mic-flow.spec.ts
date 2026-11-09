@@ -93,6 +93,8 @@ test("records with the real microphone path, then reaches a sent invoice", async
   await expect(prompt).toContainText(done.invoice!.number);
   const proposed = await readJob(request, done.id);
   console.log(`Reminder agent proposed: ${proposed.approval?.note}`);
+  // real AI: the model is told to look the invoice up through PayPal's Agent Toolkit before it writes.
+  for (const tool of ["search_invoicing", "get_invoice"]) expect(await auditedActions(request, tool, proposed.reminderRunId)).toContain("tool.executed");
   expect(proposed.reminders ?? []).toEqual([]);
   await page.getByTestId("approve-button").click();
   await expect(page.getByTestId("reminder-sent")).toContainText(done.invoice!.number, { timeout: 30_000 });

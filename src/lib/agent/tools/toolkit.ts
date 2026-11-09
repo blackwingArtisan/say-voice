@@ -161,6 +161,20 @@ const MOCK_ADAPTERS: Record<string, (pp: PayPalApi, a: Args, ctx: ToolContext) =
   create_invoice: (pp, a) => pp.invoicing.create(toolkitInvoiceRequest(a)),
   list_invoices: (pp, a) => pp.invoicing.list({ page: a.page, page_size: a.page_size, total_required: a.total_required }),
   get_invoice: (pp, a) => pp.invoicing.get(a.invoice_id),
+  search_invoicing: async (pp, a) => {
+    // Mirrors POST /v2/invoicing/search-invoices for the filters the mock can answer; recurring series aren't modelled.
+    const f = (a.invoice_filters ?? {}) as { invoice_number?: string; recipient_email?: string; status?: string[] };
+    const all = (await pp.invoicing.list({ page_size: 100 })).items;
+    const items = all.filter(
+      (inv) =>
+        (!f.invoice_number || inv.detail.invoice_number === f.invoice_number) &&
+        (!f.recipient_email || inv.primary_recipients?.some((r) => r.billing_info?.email_address?.toLowerCase() === f.recipient_email!.toLowerCase())) &&
+        (!f.status?.length || f.status.includes(inv.status)),
+    );
+    const size = a.page_size ?? 20;
+    const page = a.page ?? 1;
+    return { items: items.slice((page - 1) * size, page * size), total_items: items.length, total_pages: Math.max(1, Math.ceil(items.length / size)), links: [] };
+  },
   send_invoice: (pp, a) => pp.invoicing.send(a.invoice_id, { note: a.note, send_to_recipient: a.send_to_recipient, additional_recipients: a.additional_recipients }),
   send_invoice_reminder: async (pp, a) => {
     await pp.invoicing.remind(a.invoice_id, { subject: a.subject, note: a.note, additional_recipients: a.additional_recipients });
@@ -235,6 +249,7 @@ const META: Record<string, { risk: ToolRisk; title?: (a: Args) => string; impact
   },
   list_invoices: { risk: "read", title: () => "List invoices" },
   get_invoice: { risk: "read", title: (a) => `Look up invoice ${a.invoice_id}` },
+  search_invoicing: { risk: "read", title: (a) => (a.invoice_filters?.invoice_number ? `Search PayPal for invoice ${a.invoice_filters.invoice_number}` : "Search invoices") },
   send_invoice: {
     risk: "write",
     impact: async (a, pp) => {
