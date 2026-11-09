@@ -47,12 +47,25 @@ const PAYPAL_WORDS: Record<string, [doing: string, done: string]> = {
 };
 
 const WEBHOOK_WORDS: Record<string, string> = {
-  "INVOICING.INVOICE.PAID": "PayPal says the customer paid",
-  "INVOICING.INVOICE.REFUNDED": "PayPal says the payment was refunded",
-  "INVOICING.INVOICE.CANCELLED": "PayPal says the invoice was cancelled",
+  "INVOICING.INVOICE.PAID": "PayPal told us the customer paid",
+  "INVOICING.INVOICE.REFUNDED": "PayPal told us the payment was refunded",
+  "INVOICING.INVOICE.CANCELLED": "PayPal told us the invoice was cancelled",
   "INVOICING.INVOICE.CREATED": "PayPal confirmed the invoice exists",
   "INVOICING.INVOICE.SCHEDULED": "PayPal scheduled the invoice",
 };
+
+/**
+ * The last word on what a person reads: PayPal's event names (INVOICING.INVOICE.PAID) and webhook
+ * ids (WH-…) stay behind Details and on Activity, even when an error or the agent quotes them.
+ */
+export function plainWords(text: string): string {
+  return text
+    .replace(/[\s,]*\bWH-[A-Z0-9-]+/g, "")
+    .replace(/\s*\(\s*\)/g, "")
+    .replace(/\b[A-Z]+(?:\.[A-Z_]+)+\b/g, "PayPal's update")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
 
 function aiWords(step: TimelineStep): string | null {
   const t = step.title.toLowerCase();
@@ -113,7 +126,10 @@ export function plainStep(step: TimelineStep): PlainStep | null {
 }
 
 export function plainSteps(steps: TimelineStep[]): PlainStep[] {
-  return steps.flatMap((step) => plainStep(step) ?? []);
+  return steps.flatMap((step) => {
+    const plain = plainStep(step);
+    return plain ? [{ ...plain, text: plainWords(plain.text) }] : [];
+  });
 }
 
 const TOOL_WORDS: Record<string, string> = {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AuditEntry } from "@/lib/agent/audit";
 import type { TimelineStep } from "@/lib/events/types";
-import { plainAudit, plainStep, plainSteps, plainStop } from "@/lib/say/plain-steps";
+import { plainAudit, plainStep, plainSteps, plainStop, plainWords } from "@/lib/say/plain-steps";
 
 const at = "2026-11-08T12:00:00.000Z";
 const step = (s: Partial<TimelineStep>): TimelineStep => ({ id: "e", stepId: s.stepId ?? Math.random().toString(36), channel: "c", ts: at, startedAt: at, updatedAt: at, history: [], kind: "info", status: "succeeded", title: "", ...s });
@@ -32,7 +32,7 @@ describe("the timeline in plain words", () => {
       "PayPal made the invoice (a draft, not sent yet)",
       "PayPal sent the invoice to the customer",
       "PayPal sent the invoice to the customer",
-      "PayPal says the customer paid",
+      "PayPal told us the customer paid",
       "Stopped: this test site only sends to made-up @example.com addresses. Nothing was sent",
     ]);
   });
@@ -48,6 +48,25 @@ describe("the timeline in plain words", () => {
     const failed = plainStep(step({ kind: "paypal", status: "failed", paypal: { operation: "invoicing.send", method: "POST", path: "/x", mode: "sandbox" }, error: { name: "UNPROCESSABLE_ENTITY", message: "A cancelled invoice cannot be sent.", debugId: "abc" } }));
     expect(failed?.text).toBe("PayPal said no: A cancelled invoice cannot be sent.");
     expect(failed?.tone).toBe("stopped");
+  });
+});
+
+describe("PayPal's event names and webhook ids stay behind Details", () => {
+  const RAW = /INVOICING\.|PAYMENT\.|WH-/;
+
+  it("says the paid event in plain words, with no event name or id", () => {
+    const [paid] = plainSteps([step({ kind: "webhook", title: "INVOICING.INVOICE.PAID", subtitle: "Webhook · WH-4KD71836RL098912X-2MD54219AY0384620", detail: "Invoice 0803 paid", data: { event: { id: "WH-4KD71836RL098912X-2MD54219AY0384620" } } })]);
+    expect(paid.text).toBe("PayPal told us the customer paid");
+  });
+
+  it("takes event names and ids out of anything else a step quotes", () => {
+    const quoted = plainSteps([
+      step({ kind: "agent.message", detail: "The invoice is paid (INVOICING.INVOICE.PAID, WH-4KD71836RL098912X-2MD54219AY0384620), so no reminder." }),
+      step({ kind: "paypal", status: "failed", paypal: { operation: "invoicing.send", method: "POST", path: "/x", mode: "sandbox" }, error: { name: "X", message: "Event PAYMENT.CAPTURE.COMPLETED WH-1AB2 not handled." } }),
+    ]);
+    expect(quoted.map((p) => p.text)).toEqual(["Reminder agent: The invoice is paid (PayPal's update), so no reminder.", "PayPal said no: Event PayPal's update not handled."]);
+    for (const p of quoted) expect(p.text).not.toMatch(RAW);
+    expect(plainWords("Paid (WH-9ABC).")).toBe("Paid.");
   });
 });
 
