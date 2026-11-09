@@ -33,15 +33,15 @@ describe("the usual price", () => {
 describe("a far-off price", () => {
   const far = (name: string, unitCents: number) => farFromUsual({ name, unitCents }, book);
 
-  it("catches fifty heard as fifteen, with no AI involved", () => {
+  it("catches fifteen said for a usual fifty, with no AI involved", () => {
     expect(far("Heating element", 1500)).toEqual({ usualCents: 5000, samples: 5 });
   });
 
-  it("catches an hourly rate heard as a teen", () => {
+  it("catches an hourly rate said as a teen", () => {
     expect(far("Labor", 1600)?.usualCents).toBe(8000);
   });
 
-  it("catches every tens word heard as its teen, and the reverse", () => {
+  it("catches every tens word said as its teen, and the reverse", () => {
     for (const dollars of [30, 40, 50, 60, 70, 80, 90]) {
       const teen = soundAlike(dollars * 100)!;
       expect(farFromUsual({ name: "Part", unitCents: teen.cents }, [entry("Part", [dollars * 100, dollars * 100])]), `${dollars}`).not.toBeNull();
@@ -91,7 +91,7 @@ describe("flat-rate labor", () => {
     expect(flat(1600, "Labor took about an hour, sixteen per hour.")).toBe(false);
   });
 
-  it("isn't one hour at a rate, which is exactly where a misheard rate shows up", () => {
+  it("isn't one hour at a rate, which is exactly where a wrong rate shows up", () => {
     expect(flat(1600, "I was there an hour at sixteen an hour.")).toBe(false);
     expect(flat(1600, "One hour of labor, sixteen.")).toBe(false);
   });
