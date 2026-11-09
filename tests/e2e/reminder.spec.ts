@@ -15,6 +15,11 @@ test.describe("the reminder agent", () => {
   test("proposes a reminder for an unpaid invoice and sends it only after approval", async ({ page, request }) => {
     test.setTimeout(150_000);
     const sent = await sentSample(page, request);
+    // Why remind: the late-payment figures sit under the reminder, each with its source.
+    const why = page.getByTestId("reminder-why");
+    await expect(why).toContainText("56%");
+    await expect(why).toContainText("49%");
+    for (const href of await why.getByTestId("reminder-why-source").evaluateAll((links) => links.map((a) => a.getAttribute("href") ?? ""))) expect(href).toMatch(/^https:\/\/(quickbooks\.intuit\.com|levelset\.com)\//);
     const prompt = await proposeReminder(page);
     await expect(prompt).toBeInViewport();
     await expect(prompt).toContainText(sent.invoice!.number);

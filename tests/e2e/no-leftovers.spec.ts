@@ -20,41 +20,38 @@ test("no money route gets around the approval gate", async ({ request }) => {
   for (const path of routes) expect((await request.post(path, { data: {} })).status(), path).toBe(404);
 });
 
-test("the landing page leads with who it's for, the pain points and their sources, and how 6 of 20 was counted", async ({ page }) => {
+test("the landing page leads with billing accuracy and the trades' distrust of AI, sourced; then the catch, three steps and real jobs", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByTestId("hero-lead")).toContainText("2.9 million");
-  await expect(page.getByTestId("hero-lead-source")).toHaveAttribute("href", /census\.gov/);
-  await expect(page.getByTestId("pain-point")).toHaveCount(3);
-  const sources = page.getByTestId("pain-source");
-  await expect(sources).toHaveCount(3);
-  for (const href of await sources.evaluateAll((links) => links.map((a) => a.getAttribute("href") ?? ""))) expect(href).toMatch(/^https:\/\//);
+  const lead = page.getByTestId("hero-lead");
+  await expect(lead).toContainText("One wrong number on an invoice can cost you the customer.");
+  await expect(lead).toContainText("58%");
+  await expect(page.getByTestId("hero-lead-source")).toHaveAttribute("href", /^https:\/\/www\.phcppros\.com\//);
+  await expect(page.getByTestId("hero-who")).toContainText("2.9 million");
+  await expect(page.getByTestId("hero-who-source")).toHaveAttribute("href", /census\.gov/);
+  // Late payment isn't the lead: it sits under the reminders on a sent job.
+  await expect(page.locator("main")).not.toContainText("56%");
+  await expect(page.locator("main")).not.toContainText("paid late");
+  // The page is the hero, the catch as proof, three steps and real jobs. Nothing else.
+  await expect(page.getByTestId("catch-proof-flag")).toContainText(/.fifteen. sounds like .fifty./);
+  await expect(page.getByTestId("catch-proof")).toContainText("GET /v2/invoicing/invoices");
+  await expect(page.locator("#how h3")).toHaveCount(3);
+  await expect(page.getByTestId("real-job")).toHaveCount(2);
+  for (const gone of ["compare", "pain-points"]) await expect(page.getByTestId(gone)).toHaveCount(0);
+  await expect(page.locator("main > *")).toHaveCount(4);
   await expect(page.locator("body")).not.toContainText("evening");
   await page.getByTestId("proof-method-link").click();
   await expect(page).toHaveURL(/#method$/);
   await expect(page.getByTestId("method")).toBeInViewport();
   await expect(page.getByTestId("method")).toContainText("0 of 20");
+  await page.screenshot({ path: "screenshots/landing-desktop.png", fullPage: true });
+  console.log(`Landing at ${page.viewportSize()!.width} wide: ${await page.evaluate(() => document.documentElement.scrollHeight)}px`);
 });
 
-test("the landing page leads with the price book from your PayPal invoices, and every claim about the others is sourced or says we couldn't find it", async ({ page }) => {
+test("the landing page's headline is the price book from your PayPal invoices", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Fifty heard as fifteen? Your PayPal invoices catch it.");
   await expect(page.locator("main")).toContainText("A price book learned from your own past PayPal invoices stops a sound-alike number");
-  const compare = page.getByTestId("compare");
-  await expect(compare.getByRole("heading", { name: "What the others don't do" })).toBeVisible();
-  const rows = compare.getByTestId("compare-row");
-  await expect(rows).toHaveCount(3);
-  await expect(rows.nth(0)).toContainText("Sums done by code");
-  await expect(rows.nth(1)).toContainText("A price book from your own PayPal invoices");
-  await expect(rows.nth(2)).toContainText("Nothing sent until you approve the exact amount");
-  // Two products a row, and each says only what its page says, or that we couldn't find it.
-  const theirs = await compare.getByTestId("compare-theirs").allInnerTexts();
-  expect(theirs).toHaveLength(6);
-  for (const text of theirs) expect(text).toMatch(/We couldn't find/);
-  const sources = await compare.getByTestId("compare-source").evaluateAll((links) => links.map((a) => [a.textContent ?? "", a.getAttribute("href") ?? ""]));
-  expect(sources.map(([label]) => label)).toEqual([expect.stringContaining("Housecall Pro"), expect.stringContaining("Jobber")]);
-  for (const [, href] of sources) expect(href).toMatch(/^https:\/\/(contractingbusiness\.com|help\.getjobber\.com)\//);
-  await expect(compare).toContainText("not that the product can't do it");
-  await compare.screenshot({ path: "screenshots/compare.png" });
+  await expect(page.getByTestId("hero-why-not")).toContainText("Why not Housecall Pro or Jobber?");
 });
 
 test("real jobs: only what the proof shows, with no quotes and no real names", async ({ page }) => {
