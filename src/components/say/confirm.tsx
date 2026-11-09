@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { AlertTriangle, ArrowDown, Check as CheckIcon, ChevronDown, Plus, Send, Trash2 } from "lucide-react";
 import { Button, Card, CardBody, CardHeader, Field, Input, MoneyInput, Textarea } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
@@ -287,18 +288,19 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
     return i < 0 ? [] : [{ check, line: draft.lines[i], number: i + 1 }];
   });
 
-  // On a phone, what the customer reads, the due date and the tax fold into one line until there's a reason to open them.
+  // What the customer reads, the due date and the tax fold into one line until there's a reason to open them, so a
+  // two-line job fits one desktop screen.
   const [editDetails, setEditDetails] = useState(false);
-  // A due date or tax rate that can't be read opens them too, so "Show me" has a field to go to.
+  // A due date or tax rate that can't be read opens them too, so "Show me" has a field to go to. Once open they stay open.
   const detailsNeedALook = open.some((check) => check.kind === "tax" || (check.kind === "words" && !check.lineKey)) || problems.some((p) => p.field === "due" || p.field === "tax");
+  if (detailsNeedALook && !editDetails) setEditDetails(true);
   const folded = !editDetails && !detailsNeedALook;
-  // On a desktop it opens once the checks are clear: until then the numbers come first.
-  const foldedWide = folded && open.length > 0;
-  const fold = folded ? "max-lg:hidden" : "";
+  const fold = folded ? "hidden" : "";
   const updateDetails = (patch: Partial<JobDetails>) => setDraft({ ...draft, details: { ...draft.details, ...patch } });
   const setRate = (rateMilli: number) => setDraft({ ...draft, taxPercent: formatRate(rateMilli) });
   const noTax = (id: string) => setDraft({ ...draft, taxPercent: "0", acknowledged: [...new Set([...draft.acknowledged, id])] });
   const otherRate = () => {
+    setEditDetails(true);
     const input = document.getElementById("tax-rate") as HTMLInputElement | null;
     input?.scrollIntoView({ behavior: "smooth", block: "center" });
     input?.focus();
@@ -363,6 +365,14 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
           <p className="font-mono text-2xl font-semibold tabular-nums text-zinc-950">{holdTotal ? "--" : formatCents(totals.totalCents)}</p>
         </div>
       )}
+      {job.dayOne && !sending ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700" data-testid="day-one">
+          <span className="min-w-0 flex-1">Day one: no PayPal history yet, so there&apos;s no usual price to hold these against. A price that sounds like another still gets asked about.</span>
+          <Link href="/prices" className="font-medium text-brand-700 underline underline-offset-2" data-testid="day-one-learn">
+            Learn from my PayPal invoices
+          </Link>
+        </div>
+      ) : null}
       {problems.length && !sending ? (
         <div className="space-y-2" data-testid="input-problems">
           {problems.map((p) => (
@@ -560,7 +570,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
       </Card>
 
       {folded ? (
-        <Card className={foldedWide ? undefined : "lg:hidden"} data-testid="details-summary">
+        <Card data-testid="details-summary">
           <CardBody className="flex items-center gap-3">
             <p className="min-w-0 flex-1 truncate text-sm text-zinc-700">
               Due {dueLabel(draft.dueDate)}
@@ -576,7 +586,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
         </Card>
       ) : null}
 
-      <Card className={foldedWide ? "hidden" : fold}>
+      <Card className={fold}>
         <CardHeader title="What the customer reads" description="What the job was, where and when. It goes at the top of the PayPal invoice." />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           <Field label="Job summary" htmlFor="job-summary" className="sm:col-span-2">
@@ -592,8 +602,8 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
       </Card>
 
       {sending ? null : (
-        // On a phone this sits under the thumb. On a desktop it follows the totals.
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-zinc-200 bg-white/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur lg:static lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
+        // On a phone this sits under the thumb. On a desktop it follows the totals and stays at the bottom of the window until it gets there.
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-zinc-200 bg-white/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur lg:sticky lg:bottom-4 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
           {blockedBy ? (
             <div className="space-y-1.5">
               <Button size="lg" className="w-full" icon={<Send className="size-4" />} disabled data-testid="send-invoice">

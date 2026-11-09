@@ -9,7 +9,7 @@ import { collection } from "@/lib/store/collection";
 import { describeJob, savedSampleWording, undescribed } from "./describe";
 import { dueFromTranscript } from "./due";
 import { extractJob, savedSampleReading, type ExtractedJob } from "./extract";
-import { priceBook } from "./price-store";
+import { bookForJob } from "./price-store";
 import { dayOf, whyNoReminder } from "./reminder-rules";
 import { rateWasSaid, taxedLineKeys, untaxedLineKeys } from "./tax";
 import type { Job, JobCustomer, JobSource, JobView, PendingApproval, ReminderRun, SpeechMeta } from "./types";
@@ -30,6 +30,7 @@ interface NewJob {
   visitor?: string;
   /** When the words reached the app: the recording's arrival, or the sample's start. */
   saidAt?: string;
+  dayOne?: boolean;
 }
 
 async function readJob({ source, transcript }: NewJob) {
@@ -134,7 +135,7 @@ export function viewJob(input: Job): JobView {
   if (job.status === "awaiting_approval" && !activeSends().has(job.id)) {
     job = saveJob({ ...job, status: "review", error: "The approval was lost when the server restarted. Press send again." });
   }
-  return { ...job, approval: pendingApproval(job), priceBook: priceBook(job.visitor), reminderRun: reminderRun(job), noReminderBecause: whyNoReminder(job.invoice, job.reminders, dayOf(new Date())), saidToSentSec: saidToSentOf(job) };
+  return { ...job, approval: pendingApproval(job), priceBook: bookForJob(job), reminderRun: reminderRun(job), noReminderBecause: whyNoReminder(job.invoice, job.reminders, dayOf(new Date())), saidToSentSec: saidToSentOf(job) };
 }
 
 export function listJobs(visitor?: string): JobView[] {

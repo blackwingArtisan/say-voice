@@ -57,7 +57,7 @@ export const appConfig = {
       "Say the job in the van. A price book learned from your own past PayPal invoices stops a sound-alike number before the customer sees it, code does every sum, and the invoice goes out once you approve the exact amount.",
     proof: [
       { figure: "6 of 20", body: "test clips where an AI model stated a wrong total. Here code adds up every cent, and the AI never states one.", href: "#method" },
-      { figure: "$600", body: "a real roofer's job, sent through PayPal's sandbox with what was fixed on every line (below, as the customer's PayPal page shows it)." },
+      { figure: "$600", body: "a real roofer's job, sent through PayPal's sandbox with what was fixed on every line, as the customer's PayPal page shows it on the home page." },
     ],
     /**
      * Both have a price list of their own (their pages, re-read 2026-11-08). What's different here is
