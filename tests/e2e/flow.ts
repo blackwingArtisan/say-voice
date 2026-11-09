@@ -87,17 +87,20 @@ export async function startSample(page: Page) {
 /** Fifty heard as fifteen: takes the price book's one-tap fix, so the job is clear to send. */
 export async function fixElementPrice(page: Page) {
   const element = page.getByTestId("invoice-line").nth(1);
-  await element.getByTestId("use-usual").click();
+  // On a phone the catch is answered in its card under the words; on a desktop, on the row.
+  const card = page.getByTestId("catch-card").filter({ visible: true, hasText: "Heating element" });
+  await (await card.count() ? card.getByTestId("catch-use-usual") : element.getByTestId("use-usual")).click();
   await expect(element.getByTestId("line-price")).toHaveValue("50.00");
   await settleAiNotes(page);
 }
 
 async function pressAll(buttons: Locator) {
   while (await buttons.count()) {
-    const before = await buttons.count();
+    const pressed = await buttons.first().elementHandle();
     await buttons.first().click();
-    // One press can settle more than one button's note (all the words notes on a row), never none.
-    await expect.poll(() => buttons.count()).toBeLessThan(before);
+    // One press can settle more than one button's note (all the words notes on a row), never none. On a phone the next
+    // check comes up in its place once one is settled, so wait for the pressed one to go rather than for fewer buttons.
+    await pressed!.waitForElementState("hidden");
   }
 }
 
