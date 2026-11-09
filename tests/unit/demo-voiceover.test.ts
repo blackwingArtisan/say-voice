@@ -24,15 +24,15 @@ describe("the demo's voiceover.json", () => {
     expect(lines.map((l) => l.at)).toEqual([0.5, 9]);
   });
 
-  it("says when a line runs past the next one at 2.6 words a second", () => {
+  it("says when a line runs past the next one at 15 characters a second", () => {
     const lines = [
-      { shot: 1, at: 10, text: "One two three four five six seven eight nine ten eleven twelve thirteen" },
-      { shot: 2, at: 14, text: "Short." },
+      { shot: 1, at: 10, text: "x".repeat(75) },
+      { shot: 2, at: 14, text: "Short. Fits." },
     ];
-    expect(words(lines[0].text)).toBe(13);
+    expect(words("One two three")).toBe(3);
     expect(fit(lines, 20)).toEqual([
       { shot: 1, need: 5, room: 4, fits: false },
-      { shot: 2, need: 0.4, room: 6, fits: true },
+      { shot: 2, need: 0.8, room: 6, fits: true },
     ]);
   });
 
