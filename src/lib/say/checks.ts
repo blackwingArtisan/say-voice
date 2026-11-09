@@ -7,12 +7,12 @@
 import { lineCents, formatCents } from "./money";
 import { isPriceDoubt } from "./flags";
 import { farFromUsual, findEntry, itemKey, MIN_SAMPLES, provenance, soundAlike, usualCents, type PriceEntry } from "./price-book";
-import { findMissingAmounts, heardFor } from "./spoken";
+import { findMissingAmounts, findNumbers, heardFor } from "./spoken";
 import { rateChoices, rateSpoken, stateFor, taxSaid, type RateChoice } from "./tax";
 import type { AiWording, JobDetails, JobFlag, JobLine } from "./types";
 import { inventedWords, isGenericName, wordsKey } from "./wording";
 
-export type CheckKind = "far" | "flag" | "unheard" | "missing" | "vague" | "words" | "tax";
+export type CheckKind = "far" | "alike" | "flag" | "unheard" | "missing" | "vague" | "words" | "tax";
 
 /** Checks only an edit can close: a generic line needs words, not a tap. */
 const MUST_FIX: CheckKind[] = ["vague"];
@@ -26,7 +26,7 @@ export interface Check {
   cents?: number;
   /** Far-off prices: what this item usually costs. */
   usualCents?: number;
-  /** Far-off prices: a different price that sounds like the one heard, when there is one. */
+  /** Far-off prices, and day-one sound-alikes: a different price that sounds like the one heard. */
   alikeCents?: number;
   excerpt?: string;
   /** Unsaid words: which text they're in. */
@@ -94,6 +94,29 @@ function farCheck(line: JobLine, book: PriceEntry[], transcript: string): Check 
   };
 }
 
+/**
+ * Day one: the book has no history for this item, so there's no usual price to hold it against. A
+ * price said as a teen or a round ten (fifteen/fifty, thirteen/thirty) is the pair speech mixes up
+ * most, so it still gets a look, with both readings and no claim about what it usually costs. Any
+ * other amount ($12, $20, $55, $15.50, $150) has no sound-alike and isn't flagged.
+ */
+function alikeCheck(line: JobLine, book: PriceEntry[], transcript: string): Check | null {
+  if (knownUsual(line, book) !== null) return null; // with history, the book's check decides
+  const alike = soundAlike(line.unitCents);
+  if (!alike) return null;
+  // Only a price that was said as that one number ("fifteen", "15", "$15"), not "fifteen fifty". The unheard check covers the rest.
+  const said = findNumbers(transcript).some((m) => Math.round(m.value * 100) === line.unitCents && m.alternative === undefined);
+  if (!said) return null;
+  return {
+    id: `alike:${line.key}:${line.unitCents}`,
+    kind: "alike",
+    lineKey: line.key,
+    text: `Check this amount: "${alike.heard}" or "${alike.said}"? This says ${formatCents(line.unitCents)}; it could be ${formatCents(alike.cents)}. No past invoices for this item yet.`,
+    cents: line.unitCents,
+    alikeCents: alike.cents,
+  };
+}
+
 const unchanged = (row: JobLine, before: JobLine) => row.unitCents === before.unitCents && row.quantityMilli === before.quantityMilli;
 
 /** Tax was said but no rate: hold the send until a rate is tapped or typed, or "No tax". */
@@ -134,7 +157,7 @@ export function findChecks({ transcript, heardLines, flags, lines, taxRateMilli,
   }
   checks.push(...wordChecks(lines, details, aiWording, transcript));
   for (const line of lines) {
-    const far = farCheck(line, book, transcript);
+    const far = farCheck(line, book, transcript) ?? alikeCheck(line, book, transcript);
     if (far) checks.push(far);
   }
   flags.forEach((flag, i) => {
@@ -144,7 +167,7 @@ export function findChecks({ transcript, heardLines, flags, lines, taxRateMilli,
     if (taxByCode && /\btax/i.test(flag.text)) return;
     const aboutPrice = row !== undefined && isPriceDoubt(flag.text, row);
     // The AI's words differ from run to run. The book's check says it the same way every time.
-    if (aboutPrice && checks.some((check) => check.kind === "far" && check.lineKey === row.key)) return;
+    if (aboutPrice && checks.some((check) => (check.kind === "far" || check.kind === "alike") && check.lineKey === row.key)) return;
     const usual = aboutPrice && !isFlatLabor(row, transcript) ? knownUsual(row, book) : null;
     checks.push({ id: `flag:${i}`, kind: "flag", lineKey: row?.key, text: usual ? `${flag.text} Usually ${formatCents(usual)}.` : flag.text });
   });

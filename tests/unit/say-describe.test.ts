@@ -39,7 +39,8 @@ describe("the description step", () => {
     expect(done.lines.every((line) => line.description)).toBe(true);
     expect(done.flags).toEqual([]);
     const checks = findChecks({ transcript: SAMPLE_TRANSCRIPT, heardLines: done.lines, flags: [], lines: done.lines, taxRateMilli: 0, book: [], details: done.details, aiWording: done.aiWording });
-    expect(checks).toEqual([]);
+    // With an empty book, the day-one price check asks about fifteen and eighty (tests/unit/say-checks.test.ts). Nothing about the wording.
+    expect(checks.filter((check) => check.kind !== "alike")).toEqual([]);
   });
 
   it("merges only text onto the lines it was given: it can't add, remove or change an item", () => {
@@ -209,11 +210,13 @@ describe("tax said with no rate", () => {
     const job = toJobFields(PLUS_TAX_EXTRACTION);
     const lines = job.lines.map((line) => ({ ...line, description: "As said" }));
     const input: CheckInput = { transcript: PLUS_TAX_TRANSCRIPT, heardLines: lines, flags: [{ text: "Tax rate for Iowa not stated" }], lines, taxRateMilli: 0, book: [] };
-    const checks = findChecks(input);
+    // An empty book: the day-one check asks about "seventy an hour", which has its own tests. Only tax counts here.
+    const notPrice = (list: ReturnType<typeof findChecks>) => list.filter((check) => check.kind !== "alike");
+    const checks = notPrice(findChecks(input));
     expect(checks).toHaveLength(1); // the AI's own note on tax is the same thing, so it doesn't count twice
     expect(checks[0]).toMatchObject({ kind: "tax", state: "Iowa" });
     expect(checks[0].text).toContain("Check your local rate");
-    expect(findChecks({ ...input, taxRateMilli: 7000 })).toEqual([]); // and the AI's note stays quiet once a rate is chosen
+    expect(notPrice(findChecks({ ...input, taxRateMilli: 7000 }))).toEqual([]); // and the AI's note stays quiet once a rate is chosen
     expect(openChecks(checks, ["tax:rate"])).toEqual([]);
   });
 

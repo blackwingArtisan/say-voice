@@ -11,6 +11,12 @@ test("one visitor's jobs and prices stay out of the next visitor's way", async (
   await startSample(page);
   await page.getByTestId("invoice-line").nth(1).getByTestId("keep-line").click();
   await page.getByTestId("line-name").nth(0).fill("Sump pump labor");
+  // An item with no history yet: "eighty" can be eighteen, so the day-one check asks, and claims no usual price.
+  const renamed = page.getByTestId("invoice-line").nth(0);
+  await expect(renamed.getByTestId("line-alike")).toContainText('Check this amount: "eighty" or "eighteen"?');
+  await expect(renamed.getByTestId("line-alike")).not.toContainText(/usually/i);
+  await expect(renamed.getByTestId("use-alike")).toHaveText("Use $18.00");
+  await renamed.getByTestId("keep-line").click();
   await page.getByTestId("send-invoice").click();
   await page.getByTestId("approve-button").click();
   await expect(page.getByTestId("result")).toBeVisible({ timeout: 60_000 });

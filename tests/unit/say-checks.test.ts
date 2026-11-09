@@ -70,9 +70,9 @@ describe("the sample job, where fifty was heard as fifteen", () => {
   });
 
   it("leaves a doubt alone when the book doesn't know the item", () => {
-    const lines = [{ ...element, name: "Sump pump" }];
-    const [check] = findChecks({ ...base, heardLines: lines, lines, transcript: "Sump pump, fifteen dollars.", flags: [{ text: "$15 seems low for a sump pump", lineKey: element.key }] });
-    expect(check.text).toBe("$15 seems low for a sump pump");
+    const lines = [{ ...element, name: "Sump pump", unitCents: 1200 }];
+    const [check] = findChecks({ ...base, heardLines: lines, lines, transcript: "Sump pump, twelve dollars.", flags: [{ text: "$12 seems low for a sump pump", lineKey: element.key }] });
+    expect(check.text).toBe("$12 seems low for a sump pump");
   });
 
   it("is clear once the price is corrected", () => {
@@ -133,5 +133,68 @@ describe("a doubt about the whole job", () => {
     const [check] = findChecks({ ...base, flags: [{ text: "Unsure if this is one visit or two" }], lines: withPrice(5000), heardLines: withPrice(5000) });
     expect(check).toMatchObject({ kind: "flag" });
     expect(check.lineKey).toBeUndefined();
+  });
+});
+
+describe("day one: no price history, and a price that sounds like another", () => {
+  const item = (name: string, unitCents: number, quantityMilli = 1000) => [{ key: "a", name, quantityMilli, unitCents, description: "As said" }];
+  const day1 = (transcript: string, lines: ReturnType<typeof item>, onBook: PriceEntry[] = []) => findChecks({ ...base, transcript, heardLines: lines, lines, flags: [], book: onBook });
+
+  it("flags fifteen, with both readings and no usual price", () => {
+    const [check, ...rest] = day1("Sump pump, fifteen dollars.", item("Sump pump", 1500));
+    expect(rest).toEqual([]);
+    expect(check).toMatchObject({ kind: "alike", lineKey: "a", cents: 1500, alikeCents: 5000 });
+    expect(check.usualCents).toBeUndefined();
+    expect(check.text).toBe('Check this amount: "fifteen" or "fifty"? This says $15.00; it could be $50.00. No past invoices for this item yet.');
+    expect(check.text).not.toMatch(/usually/i);
+  });
+
+  it("flags thirty the other way, and digits the same as words", () => {
+    expect(day1("Hose bib, thirty.", item("Hose bib", 3000))[0]).toMatchObject({ kind: "alike", alikeCents: 1300 });
+    expect(day1("Hose bib $30.", item("Hose bib", 3000))[0]).toMatchObject({ kind: "alike", alikeCents: 1300 });
+    expect(day1("Two hours at seventeen an hour.", item("Helper", 1700, 2000))[0]).toMatchObject({ kind: "alike", alikeCents: 7000 });
+  });
+
+  it("flags the sample job's element on a book with nothing in it, and its labor rate, which sounds like eighteen", () => {
+    const checks = findChecks({ ...base, flags: [], book: [] });
+    expect(checks.map((check) => [check.kind, check.cents, check.alikeCents])).toEqual([
+      ["alike", 8000, 1800],
+      ["alike", 1500, 5000],
+    ]);
+  });
+
+  it("doesn't flag an amount with no sound-alike", () => {
+    const cases: [string, number][] = [
+      ["Wax ring, twelve dollars.", 1200],
+      ["Wax ring, twenty dollars.", 2000],
+      ["Wax ring, fifty five dollars.", 5500],
+      ["Wax ring, fifteen fifty.", 1550],
+      ["Wax ring, a hundred and fifty dollars.", 15000],
+      ["Wax ring, fifteen hundred dollars.", 150000],
+      ["Wax ring $15.50.", 1550],
+      ["Wax ring, one forty.", 14000],
+    ];
+    for (const [transcript, cents] of cases) expect(day1(transcript, item("Mystery part", cents)), transcript).toEqual([]);
+  });
+
+  it("doesn't flag a price that wasn't said that way: the unheard check covers it", () => {
+    expect(day1("Sump pump, put it in.", item("Sump pump", 1500)).map((check) => check.kind)).toEqual(["unheard"]);
+  });
+
+  it("with history, keeps the book's catch, sourced, instead", () => {
+    const checks = findChecks({ ...base, flags: [] });
+    expect(checks.map((check) => check.kind)).toEqual(["far"]);
+    expect(checks[0].text).toContain("Usually $50.00");
+  });
+
+  it("with history that agrees, says nothing", () => {
+    expect(day1("Labor, an hour at eighty an hour.", item("Labor", 8000), book)).toEqual([]);
+  });
+
+  it("closes when the person keeps it or picks the other reading", () => {
+    const lines = item("Sump pump", 1500);
+    const checks = day1("Sump pump, fifteen dollars.", lines);
+    expect(openChecks(checks, checks.map((check) => check.id))).toEqual([]);
+    expect(day1("Sump pump, fifteen dollars.", item("Sump pump", 5000)).filter((check) => check.kind === "alike")).toEqual([]);
   });
 });
