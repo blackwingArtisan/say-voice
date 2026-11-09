@@ -16,7 +16,7 @@ export interface OwnerLineAsk {
 const when = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 /** The agent writes the note. It reaches the customer only through the approval card. */
-export function ReminderCard({ job, busy, onAsk }: { job: JobView; busy: boolean; onAsk: (ask: string, ownerLine?: OwnerLineAsk) => void }) {
+export function ReminderCard({ job, busy, problem, onAsk }: { job: JobView; busy: boolean; problem?: string | null; onAsk: (ask: string, ownerLine?: OwnerLineAsk) => void }) {
   const [ask, setAsk] = useState("");
   const [lineKind, setLineKind] = useState<OwnerLineKind | "">("");
   const [lineAmount, setLineAmount] = useState("");
@@ -56,6 +56,11 @@ export function ReminderCard({ job, busy, onAsk }: { job: JobView; busy: boolean
             <p className="mt-1 font-medium" data-testid="reminder-refused-reason">{r.reason}</p>
           </div>
         ))}
+        {problem && !working ? (
+          <p role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900" data-testid="reminder-problem">
+            Nothing was sent. {problem}
+          </p>
+        ) : null}
         {run?.state === "nothing_sent" ? (
           <p className="text-sm text-zinc-700" data-testid="reminder-nothing">
             Nothing was sent. {run.reason}

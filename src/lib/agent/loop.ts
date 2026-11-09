@@ -17,6 +17,7 @@ import { runTool } from "./execute";
 import type { Guard } from "./guard";
 import { describePolicy } from "./policy";
 import type { AgentTool } from "./tool";
+import { WorkClock } from "./work-clock";
 
 export interface AgentRunResult {
   summary: string;
@@ -58,9 +59,11 @@ export async function runClaudeAgent(opts: { runId: string; channel: string; def
   const messages: BetaMessageParam[] = [{ role: "user", content: userGoal(opts.input) }];
   let costUsd = 0;
   let lastText = "";
+  // Model calls and reads count toward the run's deadline; a money tool waiting on the person doesn't.
+  const clock = new WorkClock(def.workDeadlineMs, `${def.name}, before it reached you`);
 
   for (let turn = 1; turn <= maxTurns; turn++) {
-    const { message, costUsd: turnCost } = await guardedClaudeCall(
+    const { message, costUsd: turnCost } = await clock.time(() => guardedClaudeCall(
       {
         model,
         max_tokens: FEATURE_DEFAULTS.agent.maxTokens,
@@ -76,7 +79,7 @@ export async function runClaudeAgent(opts: { runId: string; channel: string; def
       },
       { feature: `agent turn ${turn}`, quiet: true },
       (client, params) => client.beta.messages.create(params),
-    );
+    ));
     costUsd += turnCost;
 
     for (const block of message.content) {
@@ -105,7 +108,8 @@ export async function runClaudeAgent(opts: { runId: string; channel: string; def
         results.push({ type: "tool_result", tool_use_id: tu.id, is_error: true, content: `Unknown tool "${tu.name}". Available tools: ${tools.map((t) => t.name).join(", ")}` });
         continue;
       }
-      const r = await runTool(tool, tu.input, { runId, actor, channel, guard });
+      const call = () => runTool(tool, tu.input, { runId, actor, channel, guard });
+      const r = tool.risk === "money" ? await call() : await clock.time(call);
       results.push({ type: "tool_result", tool_use_id: tu.id, content: r.content, is_error: r.isError });
     }
     // All results for one assistant turn go back in a single user message.

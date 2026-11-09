@@ -1,17 +1,21 @@
 /** Starts the reminder agent. The route returns at once and the browser follows the job. */
 import { reminderAgent } from "@/agents/reminder";
+import { getApprovals } from "@/lib/agent/approvals";
 import { getRun, startAgentRun } from "@/lib/agent/runs";
 import { HttpError } from "@/lib/http";
 import { requireJob, saveJob } from "./jobs";
 import { syncInvoice } from "./paid";
-import { dayOf, ownerLineProblem, plainAsk, whyNoReminder } from "./reminder-rules";
+import { dayOf, ownerLineProblem, plainAsk, runStalled, whyNoReminder } from "./reminder-rules";
 import { isPaid, type Job, type OwnerLine } from "./types";
 
 /** `ask` goes in the note word for word, without markup. `ownerLine` is a late fee or deposit only the person can add. */
 export async function requestReminder(id: string, channel: string, ask?: string, ownerLine?: OwnerLine): Promise<Job> {
   const job = requireJob(id);
   if (!job.invoice) throw new HttpError(409, "This job has no invoice yet.", "conflict");
-  if (job.reminderRunId && getRun(job.reminderRunId)?.status === "running") throw new HttpError(409, "A reminder is already being drafted.", "conflict");
+  const before = job.reminderRunId ? getRun(job.reminderRunId) : undefined;
+  // One that stalled was shown as not finished, so asking again starts afresh.
+  const waiting = !!before && getApprovals().list({ runId: before.id, state: "pending" }).length > 0;
+  if (before?.status === "running" && !runStalled(before, waiting)) throw new HttpError(409, "A reminder is already being drafted.", "conflict");
   // PayPal may know about a payment that no webhook has told us of yet.
   const fresh = (await syncInvoice(job.invoice.id)) ?? job;
   if (isPaid(fresh.invoice)) return fresh;

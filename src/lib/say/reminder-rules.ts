@@ -97,3 +97,14 @@ export function noteProblem(note: string, invoice: Pick<SentInvoice, "dueCents" 
   if (/\b(?:dollars?|bucks)\b/i.test(words)) return "Write the amount in figures, so it can be checked.";
   return null;
 }
+
+/**
+ * Longer than the reminder agent's own 100 s work deadline plus a slow approval request. A run still
+ * working after this, with nothing waiting on the person, is shown as not finished, never as a spinner,
+ * and the person can ask again. It covers a hang the run's own deadline can't see.
+ */
+export const REMINDER_STALL_MS = 150_000;
+
+export function runStalled(run: { status: string; startedAt: string }, waitingOnPerson: boolean, now = Date.now()): boolean {
+  return run.status === "running" && !waitingOnPerson && now - Date.parse(run.startedAt) > REMINDER_STALL_MS;
+}

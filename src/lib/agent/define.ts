@@ -44,6 +44,12 @@ export interface AgentDefinition {
   model?: ModelRole | string;
   effort?: Effort;
   maxTurns?: number;
+  /**
+   * How long the run may work (model calls and reads) before it must reach the person. Time a
+   * money tool spends waiting on the person's approval doesn't count. Past it the run stops with
+   * an AiTimeoutError, so the screen says it didn't finish instead of spinning.
+   */
+  workDeadlineMs?: number;
   /** Used when there is no ANTHROPIC_API_KEY, so the demo still runs end to end. */
   mockScript?: (input: AgentInput) => ScriptStep[];
   /** Optional, sandbox only, READ-ONLY tools via Anthropic's MCP connector (bypasses the guard, so never allow writes). */

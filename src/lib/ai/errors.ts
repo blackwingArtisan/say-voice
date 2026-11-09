@@ -36,6 +36,18 @@ export const isOutOfCredit = (error: unknown) => {
   return status === 402 || ((status === 400 || status === 403) && OUT_OF_CREDIT.test(message ?? ""));
 };
 
+/** A model call, or an agent's work, that didn't come back in time: it stops here with a plain message instead of hanging. */
+export class AiTimeoutError extends Error {
+  readonly status = 504;
+  constructor(
+    readonly feature: string,
+    readonly afterMs: number,
+  ) {
+    super(`Claude didn't answer in time (${feature}, ${Math.round(afterMs / 1000)} s), so this stopped. Try again.`);
+    this.name = "AiTimeoutError";
+  }
+}
+
 export class AiRefusalError extends Error {
   readonly status = 422;
   constructor(
