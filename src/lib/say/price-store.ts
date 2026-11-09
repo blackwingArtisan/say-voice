@@ -7,7 +7,7 @@
 import { collection } from "@/lib/store/collection";
 import { isFlatLabor } from "./checks";
 import { findEntry, itemKey, learned, type PriceEntry } from "./price-book";
-import { tradeHistoryFor } from "./paypal-history";
+import { isPricedItem, tradeHistoryFor } from "./paypal-history";
 import { SEED_PRICES } from "./sample";
 import type { Job } from "./types";
 
@@ -20,7 +20,7 @@ export function priceBook(visitor?: string): PriceEntry[] {
   // without the words said around it.
   const history = tradeHistoryFor(visitor);
   const fromPayPal = new Map<string, PriceEntry>();
-  for (const line of history?.lines.filter((l) => !/\blabou?r\b/i.test(l.name)) ?? []) {
+  for (const line of history?.lines.filter((l) => !/\blabou?r\b/i.test(l.name) && isPricedItem(l.name)) ?? []) {
     const when = line.invoicedAt || history!.learnedAt;
     const known = fromPayPal.get(itemKey(line.name)) ?? findEntry(line.name, [...fromPayPal.values()]);
     const seed = known ? undefined : findEntry(line.name, [...book.values()]);
@@ -38,7 +38,7 @@ export function priceBook(visitor?: string): PriceEntry[] {
     .filter((job) => job.status === "sent" && job.visitor === visitor && !job.example)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   for (const job of sent) {
-    const lines = job.lines.filter((line) => !isFlatLabor(line, job.transcript));
+    const lines = job.lines.filter((line) => !isFlatLabor(line, job.transcript) && isPricedItem(line.name));
     for (const entry of learned([...book.values()], lines, job.createdAt)) book.set(entry.id, { ...entry, sentHere: (entry.sentHere ?? 0) + 1 });
   }
   return [...book.values()].sort((a, b) => a.name.localeCompare(b.name));
