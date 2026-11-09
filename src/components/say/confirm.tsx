@@ -11,6 +11,7 @@ import { computeTotals, formatCents, formatQuantity, formatRate, parseDollars, p
 import { inputProblems, priceProblem, quantityProblem, sendBlockedBy, type InputProblem } from "@/lib/say/line-input";
 import { learnedDifference, usuallyWith, usuallyWithText, type PriceEntry } from "@/lib/say/price-book";
 import { findNumbers, heardFor } from "@/lib/say/spoken";
+import { WithReceipts } from "./receipts";
 import type { JobCustomer, JobDetails, JobLine, JobView } from "@/lib/say/types";
 import { MAX_DESCRIPTION, MAX_SITE, MAX_SUMMARY } from "@/lib/say/wording";
 
@@ -174,12 +175,12 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
         check.kind === "far" ? (
           <RowFlag key={check.id} testId="line-usual" tone="red">
             <strong className="font-semibold">{label}: </strong>
-            {check.text}
+            <WithReceipts text={check.text} item={line.name} />
           </RowFlag>
         ) : check.kind === "qty" ? (
           <RowFlag key={check.id} testId="line-usual-qty" tone="red">
             <strong className="font-semibold">{label}: </strong>
-            {check.text}
+            <WithReceipts text={check.text} item={line.name} />
           </RowFlag>
         ) : check.kind === "alike" ? (
           <RowFlag key={check.id} testId="line-alike" tone="red">
@@ -388,7 +389,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
                   <strong className="font-semibold">
                     Line {number}, {line.name || "this item"}:{" "}
                   </strong>
-                  {check.text}
+                  <WithReceipts text={check.text} item={line.name} />
                 </RowFlag>
                 {sending ? null : (
                   <div className="flex gap-2">

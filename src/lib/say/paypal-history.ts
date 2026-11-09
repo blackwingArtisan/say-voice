@@ -42,7 +42,7 @@ const GENERIC = /^(materials?|parts?|supplies|labou?r|misc(ellaneous)?|other|ite
 export const isPricedItem = (name: string) => !OWNER_LINES.has(name.trim().toLowerCase()) && !GENERIC.test(name.trim());
 
 /** Bumped when what counts as history changes, so a history read under the old rules is read again. */
-export const HISTORY_RULES = 4;
+export const HISTORY_RULES = 5;
 
 export interface PayPalHistory {
   id: string;
@@ -53,12 +53,24 @@ export interface PayPalHistory {
   invoiceIds: string[];
   /** quantityMilli: missing on a history read before quantities were kept; invoiceId, before ids were. */
   lines: { name: string; unitCents: number; quantityMilli?: number; invoicedAt: string; invoiceId?: string }[];
+  /** Each invoice read: PayPal's number, its date and, on the sandbox, PayPal's own page for it. Missing on a history read under rules before 5. */
+  invoices?: HistoryInvoice[];
+}
+
+export interface HistoryInvoice {
+  id: string;
+  number: string;
+  date: string;
+  viewUrl?: string;
 }
 
 const histories = () => collection<PayPalHistory>("paypal-history");
 const keyOf = (visitor?: string) => `h_${visitor ?? "anyone"}`;
 
 export const historyOf = (visitor?: string) => histories().get(keyOf(visitor)) ?? null;
+
+/** Whether PayPal invoice `id` is one any price book here was read from. They all come from the one trade's PayPal account. */
+export const readForHistory = (id: string) => histories().list().some((h) => h.invoiceIds.includes(id));
 
 /**
  * The history a visitor's book uses: their own once they've pressed Learn, the trade's shared one
@@ -134,6 +146,8 @@ export async function learnFromPayPal(visitor?: string): Promise<PayPalHistory> 
     visitor,
     learnedAt: new Date().toISOString(),
     invoiceIds: kept.map((inv) => inv.id),
+    // Mock PayPal's pages don't exist, so only the sandbox's own invoice page is linked.
+    invoices: kept.map((inv) => ({ id: inv.id, number: inv.detail.invoice_number ?? "", date: dateOf(inv), ...(paypal.mode === "sandbox" && inv.detail.metadata?.recipient_view_url ? { viewUrl: inv.detail.metadata.recipient_view_url } : {}) })),
     lines: kept.flatMap((inv) => (inv.items ?? []).filter((item) => isPricedItem(item.name)).map((item) => ({ name: item.name, unitCents: toMinor(item.unit_amount.value, "USD"), quantityMilli: quantityMilli(item.quantity), invoicedAt: dateOf(inv), invoiceId: inv.id }))),
   });
 }
