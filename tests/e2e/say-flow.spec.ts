@@ -7,7 +7,7 @@ import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { checkCount, fixElementPrice, totalOnScreen, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, sentSample, settleAiNotes, startSample, tradeHistoryReady, visitorHeaders, openNewJob, settleChecks, showLineDetails, showAllSteps } from "./flow";
 import { PLUS_TAX_AMOUNTS, PLUS_TAX_TRANSCRIPT, QUANTITY_AMOUNTS, QUANTITY_TRANSCRIPT, SAMPLE_AMOUNTS, ROOFER_AMOUNTS, ROOFER_CUSTOMER, ROOFER_DESCRIPTION, ROOFER_TRANSCRIPT } from "../../src/lib/say/sample";
-import { readInvoiceFromPayPal } from "./paypal-reread";
+import { listInvoiceIdsFromPayPal, readInvoiceFromPayPal } from "./paypal-reread";
 import { PAST_JOBS } from "../../src/lib/demo/past-invoices";
 import { appConfig } from "../../src/app.config";
 import type { PriceEntry } from "../../src/lib/say/price-book";
@@ -505,6 +505,55 @@ test("said to sent: the result and Activity say how long from the words to PayPa
   const group = page.locator(`[data-testid="activity-job"][data-job="${sent.id}"]`);
   await expect(group.getByTestId("activity-said-to-sent")).toHaveText(text);
   await page.screenshot({ path: "screenshots/said-to-sent-activity.png" });
+});
+
+test("receipts: \"from N PayPal invoices\" on the catch lists those invoices, each one PayPal's own, and New job says what the book stands on", async ({ page, request }) => {
+  const { live, sandbox } = await kitStatus(request);
+  test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
+  expect(await tradeHistoryReady(request)).toBe(true);
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  // New job: what every price said is checked against.
+  await openNewJob(page);
+  const chip = page.getByTestId("price-book-chip");
+  await expect(chip).toHaveText(/^Price book: \d+ items? from \d+ of your PayPal invoices$/);
+  console.log(`New job chip: ${await chip.innerText()}`);
+
+  // The catch: "from N PayPal invoices" opens the list of them.
+  await startSample(page);
+  const card = page.getByTestId("catch-card").first();
+  const said = await card.innerText();
+  const n = Number(/from (\d+) PayPal invoices?/.exec(said)?.[1]);
+  expect(n).toBeGreaterThan(1);
+  await card.getByTestId("receipts-open").click();
+  const rows = card.getByTestId("receipt");
+  await expect(rows).toHaveCount(n);
+  await page.screenshot({ path: "screenshots/receipts-390.png" });
+  const listed = await rows.evaluateAll((els) => els.map((el) => ({ id: el.getAttribute("data-invoice-id")!, text: (el as HTMLElement).innerText, href: el.querySelector("a")!.getAttribute("href")! })));
+  expect(new Set(listed.map((r) => r.id)).size).toBe(n);
+  for (const row of listed) expect(row.text).toMatch(/^#[\w-]+\s+\w{3} \d{1,2}, \d{4}\s+\$\d+\.\d\d$/);
+
+  // The price on each row is the one PayPal has on that invoice, read back now.
+  const first = listed[0];
+  const read = (await (await request.get(`/api/prices/receipts/${first.id}`)).json()) as { readFrom: string; number: string; items: { name: string; price: string }[] };
+  expect(read.readFrom).toBe(`GET /v2/invoicing/invoices/${first.id}`);
+  expect(first.text).toContain(`#${read.number}`);
+  expect(read.items.map((i) => `$${i.price}`)).toContain(first.text.match(/\$\d+\.\d\d/)![0]);
+  expect((await request.get("/api/prices/receipts/INV2-NOT-ONE-OF-THEM")).status()).toBe(404);
+
+  if (sandbox) {
+    // Every row is an invoice GET /v2/invoicing/invoices lists, and opens PayPal's own page for it.
+    const onPayPal = await listInvoiceIdsFromPayPal();
+    for (const row of listed) {
+      expect(onPayPal.has(row.id), `${row.id} on PayPal's list`).toBe(true);
+      expect(row.href).toMatch(/^https:\/\/www\.sandbox\.paypal\.com\//);
+    }
+    const again = await readInvoiceFromPayPal(first.id);
+    expect(again.items.map((i) => i.name)).toContain("Heating element");
+    console.log(`Receipts: ${listed.length} of ${onPayPal.size} listed by GET /v2/invoicing/invoices, e.g. ${again.id} #${again.detail.invoice_number} ${again.status}: ${listed.map((r) => r.id).join(", ")}`);
+  } else {
+    for (const row of listed) expect(row.href).toBe(`/api/prices/receipts/${row.id}`);
+  }
 });
 
 test("pay now: a QR of PayPal's own page for the invoice and a link to copy, readable at phone width", async ({ page, request, context }) => {

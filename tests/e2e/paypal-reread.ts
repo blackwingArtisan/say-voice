@@ -27,3 +27,17 @@ export async function readInvoiceFromPayPal(invoiceId: string): Promise<PayPalIn
   if (!res.ok) throw new Error(`GET invoice failed: ${res.status}`);
   return (await res.json()) as PayPalInvoice;
 }
+
+/** Every invoice id GET /v2/invoicing/invoices lists for the sandbox account, newest first, up to `pages` pages of 100. */
+export async function listInvoiceIdsFromPayPal(pages = 10): Promise<Set<string>> {
+  const bearer = await token();
+  const ids = new Set<string>();
+  for (let page = 1; page <= pages; page++) {
+    const res = await fetch(`${API}/v2/invoicing/invoices?page=${page}&page_size=100`, { headers: { Authorization: `Bearer ${bearer}` } });
+    if (!res.ok) throw new Error(`GET invoices failed: ${res.status}`);
+    const { items = [] } = (await res.json()) as { items?: { id: string }[] };
+    for (const item of items) ids.add(item.id);
+    if (items.length < 100) break;
+  }
+  return ids;
+}
