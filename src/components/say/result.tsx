@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
+import { CheckCircle2, ExternalLink, RefreshCw, Timer } from "lucide-react";
 import { Button, ButtonLink, Card, CardBody, StatusPill } from "@/components/ui";
 import { computeTotals, formatCents, formatQuantity } from "@/lib/say/money";
+import { saidToSentText } from "@/lib/say/said-to-sent";
 import { isPaid, type JobView, type SentInvoice } from "@/lib/say/types";
 import { PayNow } from "./pay-now";
 
@@ -42,6 +43,12 @@ export function Result({ job, invoice, showLink, onCheck }: { job: JobView; invo
               Read back from PayPal at {new Date(invoice.readAt).toLocaleTimeString("en-US")}.
               {invoice.businessName ? <> From <span className="font-medium text-zinc-700" data-testid="invoice-from">{invoice.businessName}</span>.</> : null}
             </p>
+            {job.saidToSentSec !== undefined ? (
+              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800" data-testid="said-to-sent" title="From your words reaching the app to PayPal sending the invoice, by the audit log">
+                <Timer className="size-4" />
+                {saidToSentText(job.saidToSentSec)}
+              </p>
+            ) : null}
           </div>
         </div>
         {isPaid(invoice) ? <PaidBanner invoice={invoice} customer={job.customer.name} /> : null}

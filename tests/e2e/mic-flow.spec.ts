@@ -87,6 +87,9 @@ test("records with the real microphone path, then reaches a sent invoice", async
   await expect(page.getByTestId("send-invoice")).toHaveCount(job.flags.length || usual.length ? 0 : 1);
   await settleChecks(page);
   const done = await sendAndVerify(page, request, await totalOnScreen(page), "mic");
+  // Said to sent starts when the recording reached the app, before the AI read it.
+  await expect(page.getByTestId("said-to-sent")).toHaveText(/^Said to sent: /);
+  expect(Date.parse(done.saidAt!)).toBeLessThan(Date.parse(done.createdAt));
 
   // The invoice is unpaid, so the agent can chase it. On a live run this is Claude writing to PayPal.
   const prompt = await proposeReminder(page);

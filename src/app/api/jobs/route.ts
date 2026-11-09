@@ -4,6 +4,7 @@ import { contactById } from "@/lib/say/contacts";
 import { exampleJob, kickExampleJob } from "@/lib/say/example-job";
 import { kickTradeHistory } from "@/lib/say/paypal-history";
 import { createJob, listJobs, viewJob } from "@/lib/say/jobs";
+import { saidAtFrom } from "@/lib/say/said-to-sent";
 import { SAMPLE_CONTACT_ID, SAMPLE_TRANSCRIPT } from "@/lib/say/sample";
 import { isPaid } from "@/lib/say/types";
 import { visitorOf } from "@/lib/say/visitor";
@@ -20,6 +21,8 @@ const Body = z.discriminatedUnion("source", [
     customer: Customer,
     transcript: z.string().trim().min(1).max(5000),
     speech: z.object({ mocked: z.boolean(), model: z.string().max(60), durationSec: z.number().optional() }),
+    /** The speech route's own stamp of when the recording arrived. */
+    heardAt: z.string().datetime().optional(),
   }),
 ]);
 
@@ -34,12 +37,16 @@ export const GET = route(async (req) => {
 /** Reads the transcript into a job. Costs one Claude call unless AI is in mock mode. */
 export const POST = route(
   async (req) => {
+    const receivedAt = new Date();
     const body = await readJson(req, Body);
     const visitor = visitorOf(req);
-    if (body.source === "mic") return viewJob(await createJob({ ...body, visitor }));
+    if (body.source === "mic") {
+      const { heardAt, ...mic } = body;
+      return viewJob(await createJob({ ...mic, visitor, saidAt: saidAtFrom(heardAt, receivedAt) }));
+    }
     const contact = contactById(SAMPLE_CONTACT_ID);
     if (!contact) throw new HttpError(500, "The sample customer is missing.");
-    return viewJob(await createJob({ source: "sample", visitor, today: body.today, transcript: SAMPLE_TRANSCRIPT, customer: { name: contact.name, email: contact.email } }));
+    return viewJob(await createJob({ source: "sample", visitor, saidAt: receivedAt.toISOString(), today: body.today, transcript: SAMPLE_TRANSCRIPT, customer: { name: contact.name, email: contact.email } }));
   },
   { rateLimit: "ai" },
 );

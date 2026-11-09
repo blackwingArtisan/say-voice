@@ -170,7 +170,7 @@ export function NewJob() {
       }
       const speech = current.heard!;
       const job = await kitFetch<JobView>("/api/jobs", {
-        json: { source: "mic", today: localDay(), customer: current.customer, transcript: speech.transcript, speech: { mocked: speech.mocked, model: speech.mocked ? "Speech mock" : (status?.speech.model ?? ""), durationSec: speech.durationSec } },
+        json: { source: "mic", today: localDay(), customer: current.customer, transcript: speech.transcript, heardAt: speech.heardAt, speech: { mocked: speech.mocked, model: speech.mocked ? "Speech mock" : (status?.speech.model ?? ""), durationSec: speech.durationSec } },
       });
       void clearTake();
       onLeave.current = () => {
