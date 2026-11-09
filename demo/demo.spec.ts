@@ -1,10 +1,12 @@
 /**
- * DEMO VIDEO (npm run demo:record). Landscape 16:9, under 1:45. It opens on the problem in one card
- * (fifteen said, fifty usual: misheard or misspoken, the trade decides), then the phone: the person saying the job, subtitled as
- * it's said; who it was for; the catch held in red at about 0:15; the list of PayPal invoices the usual price came from, on
+ * DEMO VIDEO (npm run demo:record). Landscape 16:9, under 2:00. It opens on the catch itself, on the phone, in the first
+ * second (fifteen said, fifty usual: misheard or misspoken, the trade decides); then the first visit's Your business step;
+ * the person saying the job, subtitled as it's said; who it was for; the catch again, live; the list of PayPal invoices the usual price came from, on
  * screen while it's said; the Guard's approval card, held; PayPal's own QR code; what the customer sees on PayPal, read back
  * from PayPal; the reminder agent's note refused by code, in one readable beat; the customer paying on PayPal's page; Paid;
- * Activity; day one, with no PayPal history; and who it's for, with the URL. Every narrated beat stays at least 4 s on screen.
+ * Activity; day one, with no PayPal history; and who it's for, with the URL. Every narrated beat stays at least 4 s on screen,
+ * PayPal's guest checkout takes 4 s or less of the cut, and every voiceover line starts at its frame (the first at 0 s) and
+ * fits its room at 15 characters a second. DEMO_VOICE=take.wav swaps the computer voice for the owner's clip, nothing else.
  * Small chips name the PayPal calls behind each scene.
  *
  * It reads the modes from /api/kit/status and says on screen when a part isn't live, so a mock
@@ -46,16 +48,20 @@ const BEAT_MS = 4_000;
 const PAYER_VIEW_MS = 4_200;
 /** Day one: no PayPal history, and the sound-alike check still asks. */
 const DAY_ONE_MS = 5_000;
-/** The opening card: the problem, said before anything else. */
-const OPENING_MS = 4_300;
+/** The cold open: the catch on the phone, said before anything else. */
+const OPENING_MS = 4_600;
+/** The first visit's Your business step. */
+const FIRST_RUN_MS = 4_200;
+/** PayPal's guest checkout, from its invoice page to its window closing, in the cut. */
+const CHECKOUT_MAX_MS = 4_000;
+/** How far a voiceover line may start after its own frame. */
+const DRIFT_MAX_SEC = 0.6;
 /** Where a viewer can try it. */
 const SITE = "say-voice.onrender.com";
 /** The line the trade's PayPal invoices usually have with this item, held this long before the tap. */
 const NUDGE_MS = 4_500;
 /** The spoken job plays first: no narration before this, in seconds of the edited video. */
 const QUIET_SEC = 9;
-/** The most of PayPal's contact and account form a viewer sits through. */
-const CONTACT_FORM_MS = 3_000;
 /** Recording against a running site (the hosted one), which PayPal's webhooks reach. */
 const hosted = !!process.env.DEMO_BASE_URL;
 
@@ -127,22 +133,53 @@ test("demo", async ({ browser }) => {
   /** What isn't live in this take, said on screen instead of passed off as real. */
   const notLive = [!liveSpeech && "speech", !liveAi && "AI", !sandbox && "PayPal"].filter(Boolean).join(", ");
 
-  // Open on the problem, in the first 4 s: one card, said aloud. The page loading under it is cut.
-  await cut(page.goto("/"), { lead: 0, tail: 0 });
-  narrate(1, "Said fifteen. Usually fifty. Misheard or misspoken, you decide.");
-  await titleCard(page, "Said fifteen. Usually fifty.", "Misheard or misspoken, one wrong number on an invoice costs you the customer.<br>So every price you say is checked against your own PayPal invoices, and you decide.", OPENING_MS);
-  const openingSec = at() / 1000;
+  // Cold open on the catch, at 0 s: the sample job on the phone, its price held in red. Everything loading before it is cut.
+  // The cut starts at 0, so the catch is the video's first frame.
+  const { opener, openUsual, openHeard } = await cut(async () => {
+    await page.goto("/");
+    const frame = await phoneStage(page, "/jobs?try=sample");
+    await frame.waitForURL(/\/jobs\/job_/, { timeout: 90_000 });
+    await expect(frame.getByTestId("catch-card")).toHaveCount(1, { timeout: 30_000 });
+    await bringIntoView(frame.getByTestId("catch-card"));
+    // The amounts as the screen has them.
+    const usual = spoken(amountIn(await frame.getByTestId("catch-use-usual").innerText()) ?? "");
+    const heard = spoken(amountIn(await frame.getByTestId("catch-keep").innerText()) ?? "");
+    return { opener: frame, openUsual: usual, openHeard: heard };
+  }, { lead: -at(), tail: 0 });
+  const openCatch = opener.getByTestId("catch-card");
+  narrate(1, `Said ${openHeard}. Usually ${openUsual}. Misheard or misspoken? You decide.`);
+  timeline.holds.catchOnScreenSec = Math.round(((at() - cutBefore(at(), timeline.cuts)) / 1000) * 10) / 10;
+  await held("cold open", () => point(page, `Said ${openHeard}. ${sandbox ? "Your PayPal invoices" : "The price book"} say ${openUsual}. Misheard or misspoken, the send waits for you.`, openCatch, OPENING_MS));
+  await closePhoneStage(page);
 
   // Then the phone: the person presses record and says the job.
   const phone = await cut(async () => {
     const frame = await phoneStage(page, "/jobs");
     await expect(frame.getByTestId("contact-derek-evans")).toBeAttached({ timeout: 30_000 });
-    await bringIntoView(frame.getByTestId("record-start"));
     return frame;
   }, { lead: 0, tail: 0 });
+  // A first visit: the trade's name and email, and the PayPal account it invoices from, said as the sandbox.
+  const firstRun = phone.getByTestId("first-run");
+  if (await firstRun.isVisible().catch(() => false)) {
+    await bringIntoView(firstRun);
+    narrate(2, "First visit: your trade's name and email. PayPal is the sandbox.");
+    await held("first run", async () => {
+      const said = point(page, sandbox ? "First visit: your trade name and email. Invoices go from PayPal's sandbox: test money only." : "First visit: your trade name and email. (PayPal isn't live in this take.)", firstRun, FIRST_RUN_MS);
+      await phone.getByTestId("first-run-name").pressSequentially(appConfig.tradeName, { delay: 25 });
+      await phone.getByTestId("first-run-email").pressSequentially(`office@${appConfig.slug}.example.com`, { delay: 25 });
+      await said;
+    });
+    await cut(async () => {
+      await phone.getByTestId("first-run-save").click();
+      await expect(firstRun).toHaveCount(0);
+    }, { lead: 0, tail: 0 });
+  } else console.log("[demo] no first-run step (this browser already has a business), so that beat is skipped");
+  await bringIntoView(phone.getByTestId("record-start"));
   const contact = phone.getByTestId("contact-derek-evans");
   await caption(page, "", { wait: false });
   await page.waitForTimeout(400);
+  // Lines said before the record press keep their time; the rest wait for the spoken job.
+  const openingSec = at() / 1000;
   await phone.getByTestId("record-start").click();
   await phone.waitForFunction(() => "voiceStartedAt" in window);
   const startedAt = await phone.evaluate(() => (window as unknown as { voiceStartedAt: number }).voiceStartedAt);
@@ -155,7 +192,7 @@ test("demo", async ({ browser }) => {
   await phone.getByTestId("record-stop").click();
   timeline.recordStopMs = at();
   await expect(phone.getByTestId("take-waiting")).toBeVisible();
-  narrate(2, "The customer comes from contacts, never from speech.");
+  narrate(3, "The customer comes from contacts, never from speech.");
   await point(page, liveSpeech ? "ElevenLabs Scribe v2 heard it. Then who it was for, from your contacts. Names never come from speech." : "Then who it was for, from your contacts. Names never come from speech.", contact, BEAT_MS);
   await contact.click();
   await checkpoint("said");
@@ -169,8 +206,8 @@ test("demo", async ({ browser }) => {
   // The amounts as the screen has them: the usual price from PayPal, and what was heard.
   const usual = spoken(amountIn(await phone.getByTestId("catch-use-usual").innerText()) ?? "");
   const heard = spoken(amountIn(await phone.getByTestId("catch-keep").innerText()) ?? "");
-  narrate(3, `The catch: you said ${heard}, your PayPal invoices say ${usual}. The send is held.`);
-  await held("catch", () => point(page, `Said: ${heard}. ${sandbox ? "Your PayPal invoices" : "The price book"} say ${usual}. Misheard or misspoken, the send is held until you choose.`, catchCard, CATCH_MS + 800));
+  narrate(4, `There's the catch, live: ${heard} said, ${usual} usual. Send is held.`);
+  await held("catch", () => point(page, `Live: said ${heard}, ${sandbox ? "your PayPal invoices" : "the price book"} say ${usual}. The send is held until you choose.`, catchCard, CATCH_MS));
 
   // Where the usual price comes from: "from 9 PayPal invoices" is a tap that lists them, each one PayPal's.
   const receiptsOpen = catchCard.getByTestId("receipts-open");
@@ -185,7 +222,7 @@ test("demo", async ({ browser }) => {
     await bringIntoView(receipts);
     await expect(receipts.getByTestId("receipt").last()).toBeInViewport();
     if (sandbox) await apiChips(page, ["GET /v2/invoicing/invoices"]);
-    narrate(4, `Where ${usual} comes from: ${rows} of the trade's own PayPal invoices.`);
+    narrate(5, `Where ${usual} comes from: ${rows} of the trade's own PayPal invoices.`);
     await held("receipts", () => point(page, sandbox ? `Where ${usual} comes from: ${rows} of the trade's own PayPal invoices, read with GET /v2/invoicing/invoices. Each one opens on PayPal.` : `Where ${usual} comes from: ${rows} past invoices. (PayPal isn't live in this take.)`, receipts, RECEIPTS_MS));
     await apiChips(page, []);
     await receiptsOpen.click();
@@ -200,7 +237,7 @@ test("demo", async ({ browser }) => {
     const buttons = phone.getByTestId(id);
     while (await buttons.count()) await buttons.first().click();
   }
-  narrate(5, "One tap. Code redoes the total in cents.");
+  narrate(6, "One tap. Code redoes the total in cents.");
   await point(page, `One tap. Code works the total out again, in cents: ${before} became ${await phone.getByTestId("invoice-total").innerText()}.`, sendBar, BEAT_MS);
   await checkpoint("caught");
 
@@ -212,7 +249,7 @@ test("demo", async ({ browser }) => {
     console.log(`[demo] usually with: ${said}`);
     await bringIntoView(nudge.first());
     const item = usually ? `${/^[aeiou]/i.test(usually[2]) ? "an" : "a"} ${usually[2].toLowerCase()}` : "";
-    if (usually) narrate(6, `Your PayPal invoices usually add ${item} here, ${usually[4]} times in ${usually[5]}. One tap adds it.`);
+    if (usually) narrate(7, `Your invoices usually add ${item}: ${usually[4]} of ${usually[5]}. One tap.`);
     await held("usually-with", () =>
       point(page, usually ? `Your own PayPal invoices: ${item} on ${usually[4]} of ${usually[5]} with ${/^[aeiou]/i.test(usually[1]) ? "an" : "a"} ${usually[1]}. Nobody said one.` : said, nudge.first(), NUDGE_MS),
     );
@@ -227,14 +264,14 @@ test("demo", async ({ browser }) => {
   await sendBar.click();
   const prompt = phone.getByTestId("approval-prompt");
   await cut(expect(prompt).toBeVisible({ timeout: 30_000 }));
-  narrate(7, "The Guard holds it until you approve this exact amount.");
+  narrate(8, "The Guard holds it until you approve this exact amount.");
   await held("approval", () => point(page, "The Guard holds it. Nothing reaches the customer until you approve this exact amount.", prompt, HOLD_MS));
   await prompt.getByTestId("approve-button").click();
   await cut(expect(phone.getByTestId("result")).toBeVisible({ timeout: 60_000 }).then(() => expect(phone.getByText("Approved", { exact: true })).toBeHidden({ timeout: 15_000 })));
   const sentJob = (await (await page.request.get(`/api/jobs/${new URL(phone.url()).pathname.split("/").pop()}`)).json()) as { invoice: { id: string; number: string; status: string; totalCents: number }; lines: unknown[] };
   // For the main session to re-read from PayPal.
   console.log(`[demo] sent invoice ${sentJob.invoice.id} number ${sentJob.invoice.number} ${sentJob.invoice.status} $${(sentJob.invoice.totalCents / 100).toFixed(2)}, ${sentJob.lines.length} lines (PayPal ${status.paypal.mode})`);
-  narrate(8, sandbox ? "PayPal's Agent Toolkit created and sent it." : "Created and sent.");
+  narrate(9, sandbox ? "PayPal's Agent Toolkit created and sent it." : "Created and sent.");
   if (sandbox) await apiChips(page, ["Agent Toolkit", "create_invoice", "send_invoice"]);
   await point(page, sandbox ? "PayPal's Agent Toolkit created and sent it. Number and status are read back from PayPal." : "Created and sent. (PayPal isn't live in this take.)", phone.getByTestId("invoice-number"), BEAT_MS);
   await apiChips(page, []);
@@ -244,7 +281,7 @@ test("demo", async ({ browser }) => {
   if (await qr.count()) {
     const fromPayPal = (await qr.getAttribute("data-source")) === "paypal";
     console.log(`[demo] QR for ${sentJob.invoice.id}: ${fromPayPal ? "PayPal's own, from generate-qr-code" : `drawn here: ${await phone.getByTestId("pay-qr-source").innerText()}`}`);
-    narrate(9, fromPayPal ? "PayPal made the QR code. The customer scans and pays." : "The customer scans the QR code and pays.");
+    narrate(10, fromPayPal ? "PayPal made the QR code. The customer scans and pays." : "The customer scans the QR code and pays.");
     if (sandbox && fromPayPal) await apiChips(page, ["POST /v2/invoicing/invoices/{id}/generate-qr-code"]);
     await held("qr", () => point(page, fromPayPal ? "Pay now: PayPal's own QR code for this invoice, from generate-qr-code. The customer scans it before the van leaves." : "Pay now: a QR code drawn here from PayPal's link. PayPal's own QR code didn't come back this time.", qr, BEAT_MS));
     await apiChips(page, []);
@@ -253,7 +290,8 @@ test("demo", async ({ browser }) => {
   const payerView = phone.getByTestId("payer-view");
   if (await payerView.count()) {
     await bringIntoView(payerView);
-    narrate(10, "What the customer sees on PayPal: name, note, every line.");
+    narrate(11, "What the customer sees on PayPal: name, note, every line.");
+    timeline.holds.payerViewAtSec = Math.round(((at() - cutBefore(at(), timeline.cuts)) / 1000) * 10) / 10;
     if (sandbox) await apiChips(page, ["GET /v2/invoicing/invoices/{id}"]);
     await held("payer-view", () => point(page, sandbox ? "What the customer sees on PayPal, read back from PayPal: the trade's name, the note, every line with its description, the tax and the total." : "What the customer sees, as the app reads it back. (PayPal isn't live in this take.)", payerView, PAYER_VIEW_MS));
     await apiChips(page, []);
@@ -261,26 +299,37 @@ test("demo", async ({ browser }) => {
   const jobUrl = phone.url();
   await checkpoint("sent");
 
-  // The guard refusing, in two slow beats on the phone: the ask and the agent's draft happen off camera.
+  // The guard refusing, in one held beat on the phone. The ask, the agent's draft and the corrected reminder's approval
+  // all happen off camera first, so nothing (the approval card least of all) lands on top of the refusal while it's held.
   const refused = phone.getByTestId("reminder-refused");
   await cut(async () => {
     // Live, the model leaves late fees out as told; asked for a discount it writes the $25 in, and code refuses it.
     await phone.getByTestId("reminder-ask").fill("Add a $25 discount for paying early");
     await phone.getByTestId("ask-reminder").click();
     await expect(refused.first()).toBeVisible({ timeout: 60_000 });
-    // The corrected reminder's card lands above it; wait for it, so the beats are of the refusal.
     await expect(phone.getByTestId("approval-prompt")).toBeVisible({ timeout: 60_000 });
-  });
-  const reason = (await refused.first().getByTestId("reminder-refused-reason").innerText()).trim();
-  console.log(`[demo] refused: ${reason}`);
-  narrate(11, "The reminder agent wrote in a $25 discount. Code refused it.");
-  await bringIntoView(refused.first());
-  await held("refusal", () => point(page, `Refused: ${reason}`, refused.first().getByTestId("reminder-refused-reason"), REFUSAL_MS));
-  // The corrected reminder is approved off camera, so the job is tidy when the customer pays.
-  await cut(async () => {
     await phone.getByTestId("approval-prompt").getByTestId("approve-button").click();
     await expect(phone.getByTestId("reminder-sent")).toBeVisible({ timeout: 30_000 });
+    await expect(phone.getByTestId("approval-prompt")).toHaveCount(0);
+    // The "Approved" toast goes before the beat, so nothing sits over the reminder card.
+    await expect(phone.getByText("Approved", { exact: true })).toBeHidden({ timeout: 15_000 });
+    await bringIntoView(refused.first());
   }, { lead: 0, tail: 0 });
+  const refusedNote = (await refused.first().innerText()).replace(/\s+/g, " ");
+  const reason = (await refused.first().getByTestId("reminder-refused-reason").innerText()).trim();
+  console.log(`[demo] refused: ${reason} | ${refusedNote}`);
+  if (!/\$25/.test(refusedNote)) throw new Error(`The refused card doesn't show the $25 discount: ${refusedNote}`);
+  // On screen and on top: the card's middle is the card itself, not something covering it.
+  await expect(refused.first()).toBeInViewport();
+  const onTop = await refused.first().evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return !!hit && el.contains(hit);
+  });
+  if (!onTop) throw new Error("Something covers the refused reminder card.");
+  narrate(12, "The reminder agent wrote in a $25 discount. Code refused it.");
+  await held("refusal", () => point(page, `Refused: ${reason}`, refused.first(), REFUSAL_MS));
+  if (timeline.holds.refusal < 4_000) throw new Error(`The refusal was held ${timeline.holds.refusal} ms, under 4 s.`);
   await checkpoint("refused");
   await closePhoneStage(page);
 
@@ -304,8 +353,10 @@ test("demo", async ({ browser }) => {
       });
     })(),
   );
-  narrate(12, "The customer pays on PayPal's own page, as a guest with the test card.");
-  await caption(page, `The customer's PayPal invoice, from ${appConfig.tradeName}. They pay as a guest with PayPal's test card.`, { ms: BEAT_MS });
+  // PayPal's guest checkout, from its invoice page to its window closing: CHECKOUT_MAX_MS or less of the cut, then straight to Paid.
+  const checkoutFrom = at();
+  narrate(13, "The customer pays on PayPal, as a guest.");
+  await caption(page, `The customer's PayPal invoice, from ${appConfig.tradeName}. They pay as a guest with PayPal's test card.`, { ms: 1_000 });
   const cardButtons = () => page.frames().find((f) => f.url().includes("smart/buttons") && f.url().includes("style.color=black"));
   // Back to full size for the click (PayPal's buttons don't take a click through the zoom), out of sight.
   await cut(
@@ -324,13 +375,11 @@ test("demo", async ({ browser }) => {
   // Playwright fits a bigger window into the video size, so the finisher needs its size to cut the padding off.
   timeline.popups.at(-1)!.size = await checkout.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
   await caption(checkout, "Test card 4111 1111 1111 1111, on PayPal's own checkout.", { wait: false });
-  // Typed at a pace a viewer can follow: about 3.5 s of the test card going in.
-  await checkout.locator("#cardNumber").pressSequentially("4111111111111111", { delay: 140 });
-  await checkout.locator("#cardExpiry").pressSequentially("1230", { delay: 140 });
-  await checkout.locator("#cardCvv").pressSequentially("123", { delay: 140 });
-  // PayPal's contact and account form is filled off camera: at most CONTACT_FORM_MS of it stays in the cut.
-  const formFrom = at();
-  const cutsBefore = timeline.cuts.length;
+  // The test card going in, quickly: about 0.8 s.
+  await checkout.locator("#cardNumber").pressSequentially("4111111111111111", { delay: 30 });
+  await checkout.locator("#cardExpiry").pressSequentially("1230", { delay: 30 });
+  await checkout.locator("#cardCvv").pressSequentially("123", { delay: 30 });
+  // PayPal's contact and account form is filled off camera.
   // PayPal has labelled this button both "Pay now as guest" and, with the switch off, "Pay Now".
   const pay = checkout.getByRole("button", { name: /^pay now( as guest)?$/i });
   await cut(
@@ -347,11 +396,7 @@ test("demo", async ({ browser }) => {
     },
     { lead: 0, tail: 0 },
   );
-  await page.waitForTimeout(400);
   await pay.click();
-  const formShownMs = at() - formFrom - timeline.cuts.slice(cutsBefore).reduce((sum, c) => sum + (c.toMs - c.fromMs), 0);
-  console.log(`[demo] PayPal's contact form on screen ${(formShownMs / 1000).toFixed(1)}s`);
-  if (formShownMs > CONTACT_FORM_MS) throw new Error(`PayPal's contact form stayed on screen ${formShownMs} ms, over ${CONTACT_FORM_MS} ms.`);
   // PayPal closes its window once the card is taken; straight from there to the job, still Sent until PayPal says it's paid.
   await cut(
     (async () => {
@@ -363,6 +408,10 @@ test("demo", async ({ browser }) => {
     })(),
     { lead: 0, tail: 0 }, // no beat of PayPal's page behind the closing window
   );
+  const checkoutMs = at() - checkoutFrom - (cutBefore(at(), timeline.cuts) - cutBefore(checkoutFrom, timeline.cuts));
+  timeline.holds.checkout = checkoutMs;
+  console.log(`[demo] PayPal's guest checkout on screen ${(checkoutMs / 1000).toFixed(1)}s of the cut`);
+  if (checkoutMs > CHECKOUT_MAX_MS) throw new Error(`PayPal's guest checkout took ${checkoutMs} ms of the cut, over ${CHECKOUT_MAX_MS} ms.`);
   await checkpoint("paid on PayPal");
   await finish(page, jobUrl);
 
@@ -374,7 +423,7 @@ test("demo", async ({ browser }) => {
     // The payoff: the job turning Paid on camera, not behind a cut.
     if (await banner.isVisible()) console.log("[demo] the job was already Paid when its page loaded, so the turn to Paid is not on camera");
     else {
-      await point(page, sandbox ? "Back in the app, the job still says Sent: it turns Paid only when PayPal says so." : "Back in the app, the job still says Sent.", status, 2400);
+      await point(page, sandbox ? "Back in the app: Sent, until PayPal says Paid." : "Back in the app, the job still says Sent.", status, 1600);
       if (hosted) {
         // The hosted site hears PayPal's webhook; the job page re-reads every few seconds.
         await cut(expect(banner).toBeVisible({ timeout: 60_000 }).catch(async (e: Error) => {
@@ -393,7 +442,7 @@ test("demo", async ({ browser }) => {
     const viaWebhook = !!(await page.getByTestId("paid-source").getAttribute("title"))?.startsWith("PayPal event");
     if (sandbox && hosted && requireLive() && !viaWebhook) throw new Error("DEMO_REQUIRE_LIVE=1, but the hosted job turned Paid without PayPal's INVOICING.INVOICE.PAID webhook.");
     console.log(`[demo] paid ${viaWebhook ? "via the INVOICING.INVOICE.PAID webhook" : "read back with GET /v2/invoicing/invoices"}`);
-    narrate(13, !sandbox ? "Paid." : viaWebhook ? "Paid. PayPal's webhook marked it, with PayPal's transaction id." : "Paid, read back from PayPal, with its transaction id.");
+    narrate(14, !sandbox ? "Paid." : viaWebhook ? "Paid. PayPal's webhook marked it, with PayPal's transaction id." : "Paid, read back from PayPal, with its transaction id.");
     if (sandbox) await apiChips(page, [viaWebhook ? "webhook INVOICING.INVOICE.PAID" : `GET /v2/invoicing/invoices/${job?.invoice?.id ?? "{id}"}`]);
     await point(
       page,
@@ -405,7 +454,7 @@ test("demo", async ({ browser }) => {
     await checkpoint("paid");
 
     await cut(page.goto("/activity").then(() => expect(page.getByTestId("activity-job").first()).toBeVisible()));
-    narrate(14, "Activity shows every request and approval, job by job.");
+    narrate(15, "Activity shows every request and approval, job by job.");
     await point(page, "Activity, job by job: amount, PayPal status, and every request, approval and result in plain words.", page.getByTestId("activity-job").first(), BEAT_MS);
 
     // Day one: a trade with no PayPal history yet. The sound-alike check still asks.
@@ -419,14 +468,14 @@ test("demo", async ({ browser }) => {
     await bringIntoView(dayOneCatch);
     const dayOneAsks = (await dayOneCatch.locator("p").first().innerText()).replace(/^Line \d+, /, "");
     console.log(`[demo] day one: ${dayOneAsks}`);
-    narrate(15, "Day one, no PayPal history: a sound-alike price still gets asked.");
+    narrate(16, "Day one, no PayPal history: a sound-alike price still gets asked.");
     await held("day-one", () => point(page, `Day one, no PayPal history yet: ${dayOneAsks}`, dayOneCatch, DAY_ONE_MS));
     await checkpoint("day one");
     await closePhoneStage(page);
 
     // Who it's for, and where to try it.
     const who = appConfig.landing.who;
-    narrate(16, `Say-Voice, for one-person trades. Try it at ${SITE.replace(/\./g, " dot ")}.`);
+    narrate(17, `Say-Voice, for one-person trades. Try it at ${SITE.replace(/\./g, " dot ")}.`);
     await titleCard(
       page,
       "Say-Voice",
@@ -447,9 +496,22 @@ test("demo", async ({ browser }) => {
     fs.mkdirSync("videos", { recursive: true });
     fs.writeFileSync("videos/voiceover.json", JSON.stringify(voiceover, null, 2));
     const endSec = (timeline.endMs - cutBefore(timeline.endMs, timeline.cuts)) / 1000;
-    for (const [i, f] of fit(voiceover, endSec).entries()) console.log(`[demo] voiceover ${String(f.shot).padStart(2)} @${voiceover[i].at.toFixed(1)}s needs ${f.need}s of ${f.room}s${f.fits ? "" : "  TOO LONG, trim the line"}  ${voiceover[i].text}`);
+    // Each line where its frame is: how far after its own moment it was pushed by the line before or the spoken job.
+    const own = narration.map((line) => (line.rawMs - cutBefore(line.rawMs, timeline.cuts)) / 1000);
+    const fits = fit(voiceover, endSec);
+    for (const [i, f] of fits.entries()) console.log(`[demo] voiceover ${String(f.shot).padStart(2)} @${voiceover[i].at.toFixed(1)}s (frame @${own[i].toFixed(1)}s) needs ${f.need}s of ${f.room}s${f.fits ? "" : "  TOO LONG, trim the line"}  ${voiceover[i].text}`);
     console.log(`[demo] timeline ${JSON.stringify(timeline)}`);
-    console.log(`[demo] edited length ${endSec.toFixed(1)}s (PayPal's checkout window adds nothing: it plays in place of the page behind it)`);
-    if (endSec >= 105) throw new Error(`The edited demo is ${endSec.toFixed(1)}s, over 1:45.`);
+    console.log(`[demo] edited length ${endSec.toFixed(1)}s (PayPal's checkout window adds nothing: it plays in place of the page behind it); catch on screen at ${timeline.holds.catchOnScreenSec}s; payer view at ${timeline.holds.payerViewAtSec}s`);
+    // A line said before the record press is said before the voice starts.
+    const pressSec = (timeline.recordPressMs - cutBefore(timeline.recordPressMs, timeline.cuts)) / 1000;
+    const overVoice = voiceover.filter((line, i) => line.at < pressSec && line.at + fits[i].need > pressSec + 0.05);
+    if (overVoice.length) throw new Error(`Voiceover lines run into the spoken job: shots ${overVoice.map((l) => l.shot).join(", ")}`);
+    if (voiceover[0]?.at !== 0) throw new Error(`The first voiceover line starts at ${voiceover[0]?.at}s, not 0 s.`);
+    if (timeline.holds.catchOnScreenSec > 8) throw new Error(`The catch is first on screen at ${timeline.holds.catchOnScreenSec}s, after 0:08.`);
+    const long = fits.filter((f) => !f.fits);
+    if (long.length) throw new Error(`Voiceover lines too long for their room at 15 characters a second: shots ${long.map((f) => f.shot).join(", ")}`);
+    const drift = voiceover.filter((line, i) => line.at - own[i] > DRIFT_MAX_SEC && own[i] >= Math.max(QUIET_SEC, voiceEnd + 0.5));
+    if (drift.length) throw new Error(`Voiceover lines start after their frames: shots ${drift.map((l) => l.shot).join(", ")}`);
+    if (endSec >= 120) throw new Error(`The edited demo is ${endSec.toFixed(1)}s, over 2:00.`);
   }
 });

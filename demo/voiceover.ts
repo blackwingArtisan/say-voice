@@ -12,8 +12,8 @@ export interface VoiceoverLine {
   text: string;
 }
 
-/** The narrator's pace, as narrate.mjs estimates it. */
-export const WORDS_PER_SECOND = 2.6;
+/** The narrator's pace: every line must be said in its room at this many characters a second. */
+export const CHARS_PER_SECOND = 15;
 
 type Span = { fromMs: number; toMs: number };
 
@@ -33,11 +33,11 @@ export function toEdited(lines: { shot: number; rawMs: number; text: string }[],
 
 export const words = (text: string) => text.trim().split(/\s+/).filter(Boolean).length;
 
-/** Whether each line is said before the next one starts (or the video ends). */
+/** Whether each line is said, at 15 characters a second, before the next one starts (or the video ends). */
 export function fit(lines: VoiceoverLine[], endSec: number) {
   return lines.map((line, i) => {
     const room = (lines[i + 1]?.at ?? endSec) - line.at;
-    const need = words(line.text) / WORDS_PER_SECOND;
+    const need = line.text.trim().length / CHARS_PER_SECOND;
     return { shot: line.shot, need: Math.round(need * 10) / 10, room: Math.round(room * 10) / 10, fits: need <= room + 0.05 };
   });
 }
