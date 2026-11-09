@@ -19,7 +19,7 @@ If person_asked is set, the person who did the job wants that in the note: say i
 
 Otherwise don't write links, discounts, late fees, deposits, interest, threats, deadlines, or anything else the tool result didn't tell you.
 
-If the tool refuses the note, fix what it names and call it once more. If the person declines, stop: don't offer another note. Finish with one short sentence saying what happened.`,
+If the tool refuses the note, fix what it names and call it once more. When it refuses a figure, leave that figure and what it was for out of the note entirely; never restate it in words. If the person declines, stop: don't offer another note. Finish with one short sentence saying what happened.`,
   tools: () => [readJobInvoice, sendPaymentReminder],
   policy: appConfig.agentPolicy,
   effort: "low",
