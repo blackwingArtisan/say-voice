@@ -244,3 +244,11 @@ describe("a misheard quantity, held against the trade's PayPal invoices", () => 
     expect(findChecks({ ...base, transcript, flags: [], heardLines: lines, lines, book: paypalBook(ones) }).filter((check) => check.kind === "qty")).toEqual([]);
   });
 });
+
+describe("a day-one job", () => {
+  it("is checked against no book at all, while any other job gets the demo prices", async () => {
+    const { bookForJob } = await import("@/lib/say/price-store");
+    expect(bookForJob({ dayOne: true })).toEqual([]);
+    expect(bookForJob({}).map((entry) => entry.name)).toEqual(expect.arrayContaining(["Heating element", "Labor"]));
+  });
+});

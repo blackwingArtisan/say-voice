@@ -14,7 +14,8 @@ const Customer = z.object({ name: z.string().trim().min(1).max(140), email: z.st
 const Today = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("The browser's calendar day");
 
 const Body = z.discriminatedUnion("source", [
-  z.object({ source: z.literal("sample"), today: Today }),
+  /** dayOne: the same sample, checked as on a trade's first day, with no price history at all. */
+  z.object({ source: z.literal("sample"), today: Today, dayOne: z.boolean().optional() }),
   z.object({
     source: z.literal("mic"),
     today: Today,
@@ -46,7 +47,7 @@ export const POST = route(
     }
     const contact = contactById(SAMPLE_CONTACT_ID);
     if (!contact) throw new HttpError(500, "The sample customer is missing.");
-    return viewJob(await createJob({ source: "sample", visitor, saidAt: receivedAt.toISOString(), today: body.today, transcript: SAMPLE_TRANSCRIPT, customer: { name: contact.name, email: contact.email } }));
+    return viewJob(await createJob({ source: "sample", visitor, saidAt: receivedAt.toISOString(), today: body.today, transcript: SAMPLE_TRANSCRIPT, customer: { name: contact.name, email: contact.email }, ...(body.dayOne ? { dayOne: true } : {}) }));
   },
   { rateLimit: "ai" },
 );

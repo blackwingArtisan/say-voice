@@ -13,6 +13,9 @@ import type { Job } from "./types";
 
 const SEEDED_ON = "2026-11-01T00:00:00.000Z";
 
+/** The book a job is checked against. A day-one job has none: no demo prices, no PayPal history. */
+export const bookForJob = (job: Pick<Job, "visitor" | "dayOne">): PriceEntry[] => (job.dayOne ? [] : priceBook(job.visitor));
+
 export function priceBook(visitor?: string): PriceEntry[] {
   const book = new Map<string, PriceEntry>(SEED_PRICES.map(({ name, samples }) => [itemKey(name), { id: itemKey(name), name, samples, source: "seed", updatedAt: SEEDED_ON }]));
   // The trade's past PayPal invoices, if they asked for them. Their prices replace the demo ones for
