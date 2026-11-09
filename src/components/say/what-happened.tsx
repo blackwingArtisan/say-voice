@@ -6,6 +6,7 @@ import { ToolCallTimeline } from "@/components/agent/tool-call-timeline";
 import { cn } from "@/components/ui/cn";
 import type { TimelineStep } from "@/lib/events/types";
 import { plainSteps, type PlainTone } from "@/lib/say/plain-steps";
+import { ToolkitChip } from "./toolkit-chip";
 
 const ICON: Record<PlainTone, { icon: typeof Check; className: string }> = {
   done: { icon: Check, className: "bg-emerald-50 text-emerald-600 ring-emerald-200" },
@@ -34,7 +35,10 @@ export function WhatHappened({ steps }: { steps: TimelineStep[] }) {
         <span className={cn("mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full ring-1", className)}>
           <Icon className={cn("size-3", step.tone === "working" && "animate-spin")} />
         </span>
-        <span className="min-w-0 flex-1 break-words">{step.text}</span>
+        <span className="min-w-0 flex-1 break-words">
+          {step.text}
+          {step.toolkit ? <> <ToolkitChip tool={step.toolkit} /></> : null}
+        </span>
         <span className="shrink-0 text-xs tabular-nums text-zinc-400">{time(step.at)}</span>
       </li>
     );

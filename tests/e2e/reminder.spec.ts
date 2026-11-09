@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { auditedActions, expectPlainWords, jobId, keepToOneCall, kitStatus, proposeReminder, readJob, sentSample } from "./flow";
+import { auditedActions, expectPlainWords, jobId, keepToOneCall, kitStatus, openWhatHappened, proposeReminder, readJob, sentSample, showAllSteps } from "./flow";
 import { readInvoiceFromPayPal } from "./paypal-reread";
 
 /** What PayPal's email would show as raw symbols. */
@@ -139,5 +139,39 @@ test.describe("the reminder agent", () => {
     const actions = await auditedActions(request, "send_payment_reminder", done.reminderRunId);
     expect(actions).toContain("approval.denied");
     expect(actions).not.toContain("tool.executed");
+  });
+
+  test("the agent looks the invoice up through PayPal's Agent Toolkit, behind the Guard, and the reads show on What happened and Activity", async ({ page, request }) => {
+    test.setTimeout(150_000);
+    const { sandbox } = await kitStatus(request);
+    const sent = await sentSample(page, request);
+    await proposeReminder(page);
+    const runId = (await readJob(request, sent.id)).reminderRunId!;
+    // Each read went through the Guard and is on the record.
+    for (const tool of ["search_invoicing", "get_invoice"]) expect(await auditedActions(request, tool, runId)).toEqual(expect.arrayContaining(["tool.requested", "tool.executed"]));
+
+    await openWhatHappened(page);
+    const found = page.getByTestId("plain-step").filter({ hasText: "found the invoice on PayPal" });
+    await expect(found).toHaveCount(1);
+    await expect(found.getByTestId("toolkit-chip")).toHaveText("Agent Toolkit · search_invoicing");
+    await expect(page.getByTestId("plain-step").filter({ hasText: "read the invoice and the work on it from PayPal" }).getByTestId("toolkit-chip")).toHaveText("Agent Toolkit · get_invoice");
+    await page.screenshot({ path: `screenshots/reminder-toolkit-reads-${sandbox ? "sandbox" : "mock"}.png`, fullPage: true });
+    // On the sandbox the toolkit's own PayPalAPI made the calls, shown behind Details.
+    if (sandbox) await expectPlainWords(page, /Agent Toolkit · (search_invoicing|get_invoice)/);
+    await page.getByTestId("decline-button").click();
+
+    await page.goto("/activity");
+    const group = page.locator(`[data-testid="activity-job"][data-job="${sent.id}"]`);
+    await expect(group).toBeVisible();
+    await showAllSteps(page);
+    const read = group.getByTestId("activity-row").filter({ hasText: "found the invoice on PayPal, through PayPal's Agent Toolkit." });
+    await expect(read).toHaveCount(1);
+    await expect(read.getByTestId("toolkit-chip")).toHaveText("Agent Toolkit · search_invoicing");
+    await expect(group.getByTestId("activity-row").filter({ hasText: "read the invoice and the work on it from PayPal, through PayPal's Agent Toolkit." })).toHaveCount(1);
+    await page.screenshot({ path: `screenshots/activity-toolkit-reads-${sandbox ? "sandbox" : "mock"}.png`, fullPage: true });
+    if (sandbox) {
+      const invoice = await readInvoiceFromPayPal(sent.invoice!.id);
+      console.log(`Toolkit reads: run ${runId} on invoice ${invoice.id} number ${invoice.detail.invoice_number} ${invoice.status}`);
+    }
   });
 });

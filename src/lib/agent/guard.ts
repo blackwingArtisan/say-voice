@@ -80,6 +80,8 @@ export class Guard {
     if (tool.risk === "read") {
       try {
         const result = await tool.execute(input, { runId: ctx.runId, actor: ctx.actor, paypal: this.paypal, idempotencyKey: "", requestId: "" });
+        // A read that ran is on the record too, so the audit shows what the agent looked at.
+        this.audit.append({ ...base, action: "tool.executed", result: resultRef(result) });
         return { status: "executed", result, idempotencyKey: "", replayed: false };
       } catch (error) {
         this.audit.append({ ...base, action: "tool.failed", reason: errorMessage(error) });
