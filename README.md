@@ -8,21 +8,21 @@ The site is on free hosting, so the first visit can take a minute.
 
 **2.9 million US construction businesses have no employees, so the person who does the job also writes the bill** ([US Census Bureau, 2022 Nonemployer Statistics](https://www.census.gov/library/stories/2025/05/smallest-businesses.html)).
 
-**For one-person trades who bill from the van.** In testing, an AI model stated a wrong total on **6 of 20** spoken jobs ([how that was counted](docs/six-of-twenty.md)), so here code does every sum and the AI never states one. A working roofer's **$600** roof repair went out through it, with what was fixed on every line:
+**For one-person trades who bill from the van.** One wrong number on an invoice can cost you the customer, so every price you say is checked against your own past PayPal invoices before it goes out. In testing, an AI model stated a wrong total on **6 of 20** spoken jobs ([how that was counted](docs/six-of-twenty.md)), so code also does every sum. A working roofer's **$600** roof repair went out through it, with what was fixed on every line:
 
 ![A real roofer's $600 job on PayPal's sandbox, under the trade's name, as the customer's page shows it (customer and trade name illustrative)](public/proof/roofer-invoice.png)
 
-**Why not Housecall Pro or Jobber?** No suite to set up. Your words sit beside every number, a price book stops a wrong price whoever said it (you or the speech model), and nothing reaches a customer until you approve the exact amount.
+**Why not Housecall Pro or Jobber?** Both have a price list of their own. What's different here is where the prices come from: your own past PayPal invoices, read with `GET /v2/invoicing/invoices`, and a spoken price is checked against them, so fifty heard as fifteen stops before the customer sees it.
 
-### What the others don't do
+### How it compares
 
-| | Say-Voice | Housecall Pro ([source](https://contractingbusiness.com/industry-news/press-release/55316860/housecall-pro-brings-ai-powered-voice-activated-invoicing-to-the-trades)) | Jobber ([source](https://help.getjobber.com/en/articles/jobber-ai-voice-and-chat-beta/)) |
+| | Say-Voice | Housecall Pro | Jobber |
 |---|---|---|---|
+| **A price book** | Built from your own past PayPal invoices. A price you say that's far from them, like fifty heard as fifteen, stops the invoice until you pick one. | Has a built-in price book ([source](https://www.housecallpro.com/features/price-book/)). We couldn't find one built from your past PayPal invoices, or one that checks a spoken price against them. Its voice invoicing release names cards, Apple Pay and Google Pay, not PayPal ([source](https://contractingbusiness.com/industry-news/press-release/55316860/housecall-pro-brings-ai-powered-voice-activated-invoicing-to-the-trades)). | Has a Products & Services list, its "default price list" ([source](https://help.getjobber.com/en/articles/products-services-list/)). We couldn't find one built from your past PayPal invoices, one that checks a spoken price against them, or PayPal. |
+| **Nothing sent until you approve the exact amount** | Send waits for your tap on the exact total PayPal will bill. | We couldn't find an approval step. Its release says invoices are sent by voice ([source](https://contractingbusiness.com/industry-news/press-release/55316860/housecall-pro-brings-ai-powered-voice-activated-invoicing-to-the-trades)). | We couldn't find an approval step. It lists "Send invoice" as something the AI does ([source](https://help.getjobber.com/en/articles/jobber-ai-voice-and-chat-beta/)). |
 | **Sums done by code** | Code adds every cent. The AI never states a total. | We couldn't find whether code or the AI does the math. | We couldn't find whether code or the AI does the math. |
-| **A price book from your own PayPal invoices** | Reads your past PayPal invoices and stops a price far from them, like fifty heard as fifteen. | We couldn't find a price check. It names cards, Apple Pay and Google Pay, not PayPal. | We couldn't find a price check, or PayPal. |
-| **Nothing sent until you approve the exact amount** | Send waits for your tap on the exact total PayPal will bill. | We couldn't find an approval step. It says invoices are sent by voice. | We couldn't find an approval step. It lists "Send invoice" as something the AI does. |
 
-"We couldn't find" means the linked page doesn't say it, not that the product can't do it. Sources: Housecall Pro's voice invoicing press release (16 Sep 2025) and Jobber's AI Voice and Chat (Beta) help article (updated 28 Oct 2026), both re-read on 2026-11-08.
+"We couldn't find" means the linked page doesn't say it, not that the product can't do it. Sources: Housecall Pro's price book page and voice invoicing press release (16 Sep 2025), and Jobber's Products & Services List help article (updated 29 Oct 2026) and AI Voice and Chat (Beta) help article (updated 28 Oct 2026), all re-read on 2026-11-08.
 
 ![The confirm screen](docs/screenshot.png)
 

@@ -72,12 +72,12 @@ test("demo", async ({ browser }) => {
   const liveAi = status.ai.mode === "live";
   const liveSpeech = status.speech.mode === "live";
 
-  // Open: one card with who it's for and why code does the sums, then the headline.
+  // Open: billing accuracy. A wrong number costs the customer, and the trades don't trust AI with numbers.
   await cut(page.goto("/").then(() => expect(page.getByTestId("hero-lead")).toBeVisible()));
   await titleCard(
     page,
-    "2.9 million US construction businesses have no employees.",
-    "The person who does the job also writes the bill.<br><br>In testing, an AI model stated a wrong total on <b>6 of 20</b> spoken jobs. So here, code does every sum.<br><span style='font-size:15px;opacity:.7'>US Census Bureau, 2022 Nonemployer Statistics · 6 of 20: the method is in the README</span>",
+    "One wrong number on an invoice can cost you the customer.",
+    "<b>58%</b> of US residential contractors have little or no trust in the AI tools they use.<br><br>So here your own PayPal invoices check every price you say, and the AI only listens.<br><span style='font-size:15px;opacity:.7'>ServiceTitan 2026 State of AI in the Trades, via PHCP Pros (n&gt;1,000)</span>",
     5000,
   );
   await point(page, "Fifty heard as fifteen? A price book learned from your own PayPal invoices catches it.", page.getByRole("heading", { level: 1 }), 3600);

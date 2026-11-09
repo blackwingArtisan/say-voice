@@ -732,7 +732,7 @@ test("record first: the record button leads /jobs at phone and desktop width, Yo
   await page.screenshot({ path: "screenshots/landing-phone.png", fullPage: true });
   expect(landing).toBeLessThan(844 * 2.5);
   // Each section below the hero is one row on a phone, and a link into one opens it.
-  await expect(page.getByTestId("compare")).toBeHidden();
+  await expect(page.getByTestId("catch-proof-flag")).toBeVisible();
   await page.getByRole("link", { name: "How it works" }).first().click();
   await expect(page.getByTestId("fold-how")).toHaveAttribute("data-open", "true");
   await expect(page.locator("#how")).toBeInViewport();

@@ -25,11 +25,31 @@ export const appConfig = {
 
   landing: {
     eyebrow: "For one-person trades who bill from the van: plumbers, roofers, appliance techs",
-    /** The researched headline (round4/research/say-voice.md, section 1). Census counts the whole construction sector, so it says "construction businesses". */
+    /**
+     * The lead is billing accuracy: the trades' distrust of AI, from round4/research/say-voice.md,
+     * section 2, pain point 4 (ServiceTitan 2026, via PHCP Pros, n>1,000; the method isn't described,
+     * and ServiceTitan sells AI to the trades). The statement above it is ours, not a statistic.
+     */
     lead: {
+      statement: "One wrong number on an invoice can cost you the customer.",
+      figure: "58%",
+      body: "of US residential contractors have little or no trust in the AI tools they use. Only 11% trust them highly.",
+      source: { label: "ServiceTitan 2026 State of AI in the Trades, via PHCP Pros (n>1,000)", href: "https://www.phcppros.com/articles/24198-servicetitan-report-finds-ai-adoption-accelerating-across-the-trades" },
+    },
+    /** Who it's for (research section 1). Census counts the whole construction sector, so it says "construction businesses". */
+    who: {
       figure: "2.9 million",
       body: "US construction businesses have no employees, so the person who does the job also writes the bill.",
       source: { label: "US Census Bureau, 2022 Nonemployer Statistics", href: "https://www.census.gov/library/stories/2025/05/smallest-businesses.html" },
+    },
+    /** The catch, as the sample job's confirm screen shows it. */
+    catch: {
+      title: "Fifteen or fifty? Code checks it against your PayPal invoices.",
+      said: "New heating element, fifteen. No wait, make that fifteen dollars.",
+      item: "Heating element",
+      heardCents: 1500,
+      usualCents: 5000,
+      note: "As the sample job shows it. The usual price comes from the trade's past PayPal invoices, read with GET /v2/invoicing/invoices. Plain code compares them, not AI, and the invoice can't go until you pick one.",
     },
     /** The headline idea: a price book learned from your own PayPal invoices catches sound-alike numbers. */
     headline: "Fifty heard as fifteen? Your PayPal invoices catch it.",
@@ -39,34 +59,15 @@ export const appConfig = {
       { figure: "6 of 20", body: "test clips where an AI model stated a wrong total. Here code adds up every cent, and the AI never states one.", href: "#method" },
       { figure: "$600", body: "a real roofer's job, sent through PayPal's sandbox with what was fixed on every line (below, as the customer's PayPal page shows it)." },
     ],
-    whyNot: "Why not Housecall Pro or Jobber? No suite to set up. Your words sit beside every number, a price book stops a wrong price whoever said it, and nothing reaches a customer until you approve the exact amount.",
     /**
-     * What the others don't do. Each competitor cell is what its own page says, or "We couldn't find"
-     * when the page doesn't say. Pages from round4/research/say-voice.md, section 4, re-read 2026-11-08.
+     * Both have a price list of their own (their pages, re-read 2026-11-08). What's different here is
+     * where the prices come from, your past PayPal invoices, and that a spoken price is checked against them.
      */
-    compare: {
-      title: "What the others don't do",
-      note: "\u201cWe couldn't find\u201d means the page we link to for that product doesn't say it, not that the product can't do it.",
-      products: [
-        { name: "Housecall Pro", source: { label: "Voice invoicing press release, 16 Sep 2025", href: "https://contractingbusiness.com/industry-news/press-release/55316860/housecall-pro-brings-ai-powered-voice-activated-invoicing-to-the-trades" } },
-        { name: "Jobber", source: { label: "Jobber AI Voice and Chat (Beta) help, updated 28 Oct 2026", href: "https://help.getjobber.com/en/articles/jobber-ai-voice-and-chat-beta/" } },
-      ],
-      rows: [
-        {
-          label: "Sums done by code",
-          ours: "Code adds every cent. The AI never states a total.",
-          theirs: ["We couldn't find whether code or the AI does the math.", "We couldn't find whether code or the AI does the math."],
-        },
-        {
-          label: "A price book from your own PayPal invoices",
-          ours: "Reads your past PayPal invoices and stops a price far from them, like fifty heard as fifteen.",
-          theirs: ["We couldn't find a price check. It names cards, Apple Pay and Google Pay, not PayPal.", "We couldn't find a price check, or PayPal."],
-        },
-        {
-          label: "Nothing sent until you approve the exact amount",
-          ours: "Send waits for your tap on the exact total PayPal will bill.",
-          theirs: ["We couldn't find an approval step. It says invoices are sent by voice.", "We couldn't find an approval step. It lists \u201cSend invoice\u201d as something the AI does."],
-        },
+    whyNot: {
+      text: "Why not Housecall Pro or Jobber? Both have a price list of their own. We couldn't find one built from your past PayPal invoices, or one that checks a price you said against them.",
+      sources: [
+        { label: "Housecall Pro price book", href: "https://www.housecallpro.com/features/price-book/" },
+        { label: "Jobber Products & Services list", href: "https://help.getjobber.com/en/articles/products-services-list/" },
       ],
     },
     /**
@@ -103,28 +104,20 @@ export const appConfig = {
         },
       ],
     },
-    /** From round4/research/say-voice.md, section 2. Every figure was re-opened at its source. */
-    pains: [
+    /**
+     * Late payment, from round4/research/say-voice.md, section 2 (pain points 1 and 2). It is what the
+     * reminders answer, so it sits under them on a sent job, not at the top of the page.
+     */
+    latePayment: [
       {
         figure: "56%",
-        title: "Money sits in unpaid invoices",
-        body: "of US small businesses are owed money on unpaid invoices, $17.5K on average. 47% have invoices more than 30 days overdue.",
+        body: "of US small businesses are owed money on unpaid invoices, $17.5K on average.",
         source: { label: "QuickBooks Small Business Late Payments Report 2025 (n=2,487, all industries)", href: "https://quickbooks.intuit.com/r/small-business-data/small-business-late-payments-report-2025/" },
-        answer: "The invoice goes out at the end of the job, from the van, with a pay link the customer can use straight away.",
       },
       {
         figure: "49%",
-        title: "Construction gets paid late",
-        body: "of construction payments are not made on time, and 61% of firms report cash-flow problems.",
+        body: "of construction payments are not made on time.",
         source: { label: "Levelset with QuickBooks Time, 2019 (n=503, mostly contractors and subcontractors)", href: "https://levelset.com/blog/2019-national-construction-payments-report" },
-        answer: "It can't make a customer pay faster. It removes the wait on the trade's side: no invoice left for later.",
-      },
-      {
-        figure: "58%",
-        title: "The trades don't trust AI with the details",
-        body: "of US residential contractors have little or no trust in the AI tools they use. Only 11% trust them highly.",
-        source: { label: "ServiceTitan 2026 State of AI in the Trades, via PHCP Pros (n>1,000)", href: "https://www.phcppros.com/articles/24198-servicetitan-report-finds-ai-adoption-accelerating-across-the-trades" },
-        answer: "So the AI only listens. Code does every sum, a price book stops a wrong price, and nothing goes out until the person approves it.",
       },
     ],
     method:
@@ -135,11 +128,6 @@ export const appConfig = {
       { title: "Say the job", body: "Press record first and talk it through: hours, parts, prices, tax. AI turns it into line items." },
       { title: "Pick the customer", body: "Before or after, from your contacts or by typing the name. Speech can't be trusted for names, so it never picks one." },
       { title: "Check and send", body: "Every number sits next to what you said. You fix anything flagged, press send, and PayPal delivers the invoice." },
-    ],
-    features: [
-      { title: "You check every number", body: "The words you said sit beside each price, and anything doubtful is flagged by name. Nothing goes out on its own." },
-      { title: "It knows your prices from PayPal", body: "It learns your prices from your own past PayPal invoices. Fifty misheard as fifteen is caught by plain code, which stops the invoice and shows the usual price and how many PayPal invoices it came from." },
-      { title: "A real PayPal invoice", body: "The customer gets a PayPal invoice they can pay right away. The job turns paid by itself, and if it doesn't, an agent drafts a reminder for you to approve." },
     ],
   },
 
