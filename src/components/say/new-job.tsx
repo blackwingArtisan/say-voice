@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Mic, Sparkles, UserPlus } from "lucide-react";
+import { BookOpen, Loader2, Mic, Sparkles, UserPlus } from "lucide-react";
 import { ApiError, useKit } from "@/components/kit/kit-provider";
 import { PageHeader } from "@/components/shell/app-shell";
 import { useToast } from "@/components/toast";
@@ -14,6 +14,7 @@ import { localDay } from "@/lib/say/due";
 import { isOwed, owedFirst, owedSummary, owedText } from "@/lib/say/owed";
 import { computeTotals, formatCents } from "@/lib/say/money";
 import { explainSample, explainTake, limitSentence, RESTORED, type Refusal, type TakeProblem } from "@/lib/say/take-problem";
+import type { PriceEntry } from "@/lib/say/price-book";
 import type { JobCustomer, JobView } from "@/lib/say/types";
 import { KeptTake } from "./kept-take";
 import { Recorder } from "./recorder";
@@ -56,6 +57,16 @@ function JobRow({ job }: { job: JobView }) {
 }
 
 /** The first thing on Jobs once anything is sent: what's still due, as PayPal last said. */
+/** "Price book: 14 items from 25 of your PayPal invoices": what every price you say is checked against. */
+function PriceBookChip({ items, invoices }: { items: number; invoices: number }) {
+  return (
+    <p className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[13px] font-medium text-sky-900" data-testid="price-book-chip">
+      <BookOpen className="size-3.5 text-sky-700" />
+      Price book: {items === 1 ? "1 item" : `${items} items`} from {invoices} of your PayPal invoices
+    </p>
+  );
+}
+
 function OwedLine({ owed }: { owed: ReturnType<typeof owedSummary> }) {
   return (
     <a href="#recent-jobs" className={cn("mb-6 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-xl px-5 py-4 transition", owed.invoices ? "bg-zinc-950 text-white hover:bg-zinc-800" : "bg-emerald-50 text-emerald-900")} data-testid="owed">
@@ -85,6 +96,7 @@ export function NewJob() {
   const [problem, setProblem] = useState<TakeProblem | null>(null);
   const [sampleWait, setSampleWait] = useState<{ until: number; text: string } | null>(null);
   const [now, setNow] = useState(0);
+  const [book, setBook] = useState<{ items: number; invoices: number } | null>(null);
 
   useEffect(() => {
     if (!sampleWait) return;
@@ -127,6 +139,10 @@ export function NewJob() {
         setJobs(r.jobs);
         setExample(r.example);
       })
+      .catch(() => undefined);
+    // What the price book stands on, from the trade's own PayPal invoices.
+    kitFetch<{ prices: PriceEntry[]; history: { invoices: number } | null }>("/api/prices")
+      .then((r) => setBook(r.history ? { items: r.prices.filter((p) => p.paypal).length, invoices: r.history.invoices } : null))
       .catch(() => undefined);
   }, [kitFetch, toast]);
 
@@ -262,6 +278,11 @@ export function NewJob() {
                   </p>
                 </>
               )}
+              {book && book.items ? (
+                <div className="flex justify-center">
+                  <PriceBookChip items={book.items} invoices={book.invoices} />
+                </div>
+              ) : null}
             </CardBody>
           </Card>
           <Card className="order-3">
