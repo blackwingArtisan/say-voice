@@ -134,7 +134,7 @@ export function JobScreen() {
       {sent ? null : <div ref={setPinSlot} className="sticky top-[var(--app-bar,57px)] z-20 -mx-4 mb-4 empty:hidden sm:-mx-6 lg:hidden" />}
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         {/* On a phone the items come straight after the words, and the timeline goes to the bottom. */}
-        <div className="contents lg:sticky lg:top-6 lg:block lg:space-y-6">
+        <div className="contents lg:block lg:space-y-6">
           <Card className="order-1">
             <CardHeader title="What you said" description={sourceLine(job)} />
             <CardBody>
