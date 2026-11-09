@@ -419,6 +419,28 @@ async function readQr(page: Page, qr: Locator): Promise<string | null> {
   }, shot);
 }
 
+test("said to sent: the result and Activity say how long from the words to PayPal sending, by the audit log", async ({ page, request }) => {
+  test.skip(keepToOneCall((await kitStatus(request)).live), "spends on the one mic clip only");
+  const sent = await sentSample(page, request);
+  const shown = page.getByTestId("said-to-sent");
+  await expect(shown).toHaveText(/^Said to sent: (\d+ s|\d+ min( \d+ s)?)$/);
+  // The figure is the audit log's send minus when the words reached the app, worked out by code.
+  const audit = (await (await request.get("/api/audit")).json()) as { entries: { ts: string; runId?: string; tool?: string; action: string }[] };
+  const sentAt = audit.entries.find((e) => e.runId === sent.runId && e.tool === "send_job_invoice" && e.action === "tool.executed")!.ts;
+  const seconds = Math.max(0, Math.round((Date.parse(sentAt) - Date.parse(sent.saidAt!)) / 1000));
+  expect(sent.saidToSentSec).toBe(seconds);
+  expect(Date.parse(sent.saidAt!)).toBeLessThanOrEqual(Date.parse(sent.createdAt));
+  const text = await shown.innerText();
+  console.log(`${text} (job ${sent.id}, invoice ${sent.invoice!.id} number ${sent.invoice!.number}, said ${sent.saidAt}, sent ${sentAt})`);
+  await expect(page.getByText("Approved", { exact: true })).toBeHidden({ timeout: 15_000 }); // the toast covers the result
+  await page.screenshot({ path: "screenshots/said-to-sent-result.png" });
+
+  await page.goto("/activity");
+  const group = page.locator(`[data-testid="activity-job"][data-job="${sent.id}"]`);
+  await expect(group.getByTestId("activity-said-to-sent")).toHaveText(text);
+  await page.screenshot({ path: "screenshots/said-to-sent-activity.png" });
+});
+
 test("pay now: a QR of PayPal's own page for the invoice and a link to copy, readable at phone width", async ({ page, request, context }) => {
   const { live, sandbox } = await kitStatus(request);
   test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");

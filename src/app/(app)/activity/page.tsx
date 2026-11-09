@@ -15,6 +15,7 @@ import type { AuditEntry } from "@/lib/agent/audit";
 import type { LedgerEntry } from "@/lib/paypal/ledger";
 import type { WebhookEventEnvelope } from "@/lib/paypal/types";
 import { computeTotals, formatCents } from "@/lib/say/money";
+import { saidToSentText } from "@/lib/say/said-to-sent";
 import type { JobView } from "@/lib/say/types";
 
 interface Step {
@@ -79,6 +80,7 @@ function JobCard({ group }: { group: JobGroup }) {
         <span className="min-w-0 truncate font-semibold text-zinc-900">{job.customer.name}</span>
         {job.example ? <Badge tone="neutral">Sample</Badge> : null}
         {job.invoice?.number ? <span className="text-zinc-500">Invoice {job.invoice.number}</span> : null}
+        {job.saidToSentSec !== undefined ? <span className="text-zinc-500" data-testid="activity-said-to-sent">{saidToSentText(job.saidToSentSec)}</span> : null}
         <span className="ml-auto font-mono tabular-nums text-zinc-900" data-testid="activity-job-amount">
           {formatCents(total)}
         </span>

@@ -88,6 +88,8 @@ export interface SpeechMeta {
 export interface Job {
   id: string;
   createdAt: string;
+  /** When the words reached the app (the recording's arrival, or the sample's start). Missing on older jobs. */
+  saidAt?: string;
   status: JobStatus;
   source: JobSource;
   transcript: string;
@@ -152,4 +154,6 @@ export interface JobView extends Job {
   reminderRun: ReminderRun | null;
   /** Why no reminder can go right now. Null when one can. */
   noReminderBecause: string | null;
+  /** Seconds from the words reaching the app to PayPal sending the invoice, from the audit log. */
+  saidToSentSec?: number;
 }

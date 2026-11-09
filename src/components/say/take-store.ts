@@ -10,6 +10,8 @@ export interface Heard {
   mocked: boolean;
   durationSec?: number;
   audioBytes: number;
+  /** The server's stamp of when the recording arrived. */
+  heardAt?: string;
 }
 
 export interface Take {
