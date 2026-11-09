@@ -61,7 +61,7 @@ export const SAMPLE_DESCRIPTION = {
 
 /**
  * A made-up job for the tax tests on mock AI: tax said with no rate, after one item only, and the
- * state heard as "lowa" the way speech to text writes it. Pump $85 taxed, labor 1.5 h at $70 not.
+ * state written "lowa", the way speech to text wrote it. Pump $85 taxed, labor 1.5 h at $70 not.
  */
 export const PLUS_TAX_TRANSCRIPT =
   "Swapped the drain pump on the washer at 12 Oak Lane on October 30th. The pump was eighty-five dollars plus tax for lowa, and labor was an hour and a half at seventy an hour.";

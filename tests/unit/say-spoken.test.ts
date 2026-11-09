@@ -64,7 +64,7 @@ describe("the words beside each price", () => {
     expect(heard).toContain("make that fifteen dollars");
   });
 
-  it("shows the trap: a sixty heard as 16", () => {
+  it("shows the trap: sixty written as 16", () => {
     expect(heardFor("Two hours at 16 hour for the leak.", line(2, 16))).toContain("at 16 hour");
     expect(heardFor("Two hours at 16 hour for the leak.", line(2, 60))).toBeNull();
   });

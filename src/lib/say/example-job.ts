@@ -1,6 +1,6 @@
 /**
  * A finished sample job, so a first visit doesn't open on empty screens. It's the sample job, with
- * the misheard $15 put right, sent through the same approval gate as any job and then paid: on
+ * the spoken $15 set to the usual $50, sent through the same approval gate as any job and then paid: on
  * mock PayPal by its simulated payer, on the sandbox recorded as paid by check (only a buyer can
  * pay through PayPal itself). Every visitor sees it, labelled Sample. Made once, when the server
  * starts (the host's health check is the first request). Server only.

@@ -126,7 +126,7 @@ export function JobScreen() {
   const title = !sent ? "Check the invoice" : isPaid(job.invoice) ? "Invoice paid" : "Invoice sent";
   return (
     <>
-      <PageHeader title={title} description={job.example ? "A sample job: the sample recording, with the misheard price put right, sent through PayPal and paid. Every visitor sees this one." : sent ? undefined : "Your words sit beside every number. Nothing goes out until you approve it."} />
+      <PageHeader title={title} description={job.example ? "A sample job: the sample recording, with the $15 element set to the trade's usual $50, sent through PayPal and paid. Every visitor sees this one." : sent ? undefined : "Your words sit beside every number. Nothing goes out until you approve it."} />
       {job.example ? (
         <p className="-mt-2 mb-4" data-testid="example-badge">
           <Badge tone="neutral">Sample</Badge>

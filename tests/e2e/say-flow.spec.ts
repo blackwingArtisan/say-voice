@@ -1,11 +1,11 @@
 /**
  * The sample job in a real browser: a judge with no mic. `npm run test:e2e` runs it on mock PayPal;
  * `npm run test:e2e:sandbox` sends a real sandbox invoice and re-reads it straight from PayPal.
- * The job is the known trap: "fifty" heard as "fifteen". The confirm screen has to catch it.
+ * The job is the known trap: "fifteen" said for a part the trade's PayPal invoices always billed at fifty. The confirm screen has to catch it.
  */
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { checkCount, fixElementPrice, totalOnScreen, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, sentSample, settleAiNotes, startSample, tradeHistoryReady, visitorHeaders, openNewJob, settleChecks, showLineDetails, showAllSteps, openWhatHappened } from "./flow";
+import { WHOLE_RECORD, checkCount, fixElementPrice, totalOnScreen, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, sentSample, settleAiNotes, startSample, tradeHistoryReady, visitorHeaders, openNewJob, settleChecks, showLineDetails, showAllSteps, openWhatHappened } from "./flow";
 import { PLUS_TAX_AMOUNTS, PLUS_TAX_TRANSCRIPT, QUANTITY_AMOUNTS, QUANTITY_TRANSCRIPT, SAMPLE_AMOUNTS, ROOFER_AMOUNTS, ROOFER_CUSTOMER, ROOFER_DESCRIPTION, ROOFER_TRANSCRIPT } from "../../src/lib/say/sample";
 import { listInvoiceIdsFromPayPal, readInvoiceFromPayPal } from "./paypal-reread";
 import { PAST_JOBS } from "../../src/lib/demo/past-invoices";
@@ -17,7 +17,7 @@ const priceCount = async (page: Page) => {
   return prices.find((entry) => entry.name === "Heating element")!.samples.length;
 };
 
-test("sample job: catch the misheard price, fix it, approve, invoice sent", async ({ page, request }) => {
+test("sample job: catch the off price, fix it, approve, invoice sent", async ({ page, request }) => {
   const { live, paypal } = await kitStatus(request);
   test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
   const fromPayPal = await tradeHistoryReady(request);
@@ -465,7 +465,7 @@ test("a price or quantity that can't be read is named on its line, holds the tot
   await expect(send).toBeDisabled();
   await page.getByTestId("customer-email").fill("derek.evans@example.com");
   await expect(page.getByTestId("input-problem")).toHaveCount(0);
-  await expect(page.getByTestId("next-check")).toBeVisible(); // the misheard element is still there to check
+  await expect(page.getByTestId("next-check")).toBeVisible(); // the off element price is still there to check
   expect((await readJob(request, jobId(page))).status).toBe("review");
 });
 
@@ -494,7 +494,7 @@ test("said to sent: the result and Activity say how long from the words to PayPa
   const shown = page.getByTestId("said-to-sent");
   await expect(shown).toHaveText(/^Said to sent: (\d+ s|\d+ min( \d+ s)?)$/);
   // The figure is the audit log's send minus when the words reached the app, worked out by code.
-  const audit = (await (await request.get("/api/audit")).json()) as { entries: { ts: string; runId?: string; tool?: string; action: string }[] };
+  const audit = (await (await request.get("/api/audit", { headers: WHOLE_RECORD })).json()) as { entries: { ts: string; runId?: string; tool?: string; action: string }[] };
   const sentAt = audit.entries.find((e) => e.runId === sent.runId && e.tool === "send_job_invoice" && e.action === "tool.executed")!.ts;
   const seconds = Math.max(0, Math.round((Date.parse(sentAt) - Date.parse(sent.saidAt!)) / 1000));
   expect(sent.saidToSentSec).toBe(seconds);
@@ -699,7 +699,7 @@ test("learn from my PayPal invoices: the book fills from PayPal, each price says
   const elementCount = await page.getByTestId("price-row").filter({ hasText: "Heating element" }).getByTestId("price-count").innerText();
   expect(Number(/from (\d+) PayPal/.exec(elementCount)?.[1])).toBeLessThanOrEqual(pastElements);
 
-  // The misheard $15 is stopped against what PayPal says this trade charges.
+  // The $15 said for the element is stopped against what PayPal says this trade charges.
   await startSample(page);
   const element = page.getByTestId("invoice-line").nth(1);
   await expect(element.getByTestId("line-usual")).toContainText(/from \d+ PayPal invoices?, last \$\d+\.\d\d/);
@@ -810,7 +810,7 @@ test("activity reads job by job: each job with its amount and status, its steps 
   for (const id of shown) expect([...mine, "job_sample"], `job ${id} on Activity`).toContain(id);
   await expect(page.getByTestId("activity-others-toggle")).toHaveCount(0);
   await expect(page.locator("main")).not.toContainText("other visitors");
-  const { entries } = (await (await request.get("/api/audit")).json()) as { entries: { runId?: string }[] };
+  const { entries } = (await (await request.get("/api/audit", { headers: WHOLE_RECORD })).json()) as { entries: { runId?: string }[] };
   console.log(`Activity: ${shown.length} jobs shown; the record holds ${new Set(entries.map((e) => e.runId).filter(Boolean)).size} runs in all`);
 
   // The ledger and the webhooks are still one tap away.
@@ -1021,7 +1021,7 @@ test("compact confirm: the total, the checks and the lines first; heard words be
   expect(open - height).toBeGreaterThan(200);
 });
 
-test("the price book catches a misheard quantity against the trade's PayPal invoices, and Prices says where each price came from", async ({ page, request }) => {
+test("the price book catches an off quantity against the trade's PayPal invoices, and Prices says where each price came from", async ({ page, request }) => {
   test.setTimeout(240_000);
   const { live, paypal } = await kitStatus(request);
   test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");

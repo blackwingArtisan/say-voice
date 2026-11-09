@@ -1,6 +1,6 @@
 # Say-Voice
 
-> **Fifty heard as fifteen? Your PayPal invoices catch it.** Tradespeople say the job out loud in the van. A price book learned from their own past PayPal invoices stops a sound-alike number before the customer sees it, code does every sum, and the invoice goes out once they approve the exact amount.
+> **Said fifteen, usually fifty? Your PayPal invoices catch it.** Tradespeople say the job out loud in the van. When a price they said is far from what their own past PayPal invoices charged for that item, misheard or misspoken, the invoice waits and they pick the price. Code does every sum, and the invoice goes out once they approve the exact amount.
 
 **Live demo:** https://say-voice.onrender.com · **Video:** link added at submission · **License:** MIT
 
@@ -12,19 +12,19 @@ The site is on free hosting, so the first visit can take a minute.
 
 ![A real roofer's $600 job on PayPal's sandbox, under the trade's name, as the customer's page shows it (customer and trade name illustrative)](public/proof/roofer-invoice.png)
 
-**Why not Housecall Pro or Jobber?** Both have a price list of their own. What's different here is where the prices come from: your own past PayPal invoices, read with `GET /v2/invoicing/invoices`, and a spoken price is checked against them, so fifty heard as fifteen stops before the customer sees it.
+**Why not Housecall Pro or Jobber?** Both have a price list of their own. What's different here is where the prices come from: your own past PayPal invoices, read with `GET /v2/invoicing/invoices`, and a spoken price is checked against them, so fifteen said for a part that's always been fifty stops before the customer sees it, whichever way it went wrong.
 
 ### How it compares
 
 | | Say-Voice | Housecall Pro | Jobber |
 |---|---|---|---|
-| **A price book** | Built from your own past PayPal invoices. A price you say that's far from them, like fifty heard as fifteen, stops the invoice until you pick one. | Has a built-in price book, set up by hand or imported from a file, QuickBooks or Profit Rhino, and compares your prices with similar businesses ([source](https://www.housecallpro.com/features/price-book/)). We couldn't find one built from your past PayPal invoices, or one that checks a spoken price against them. Its voice invoicing release names cards, Apple Pay and Google Pay, not PayPal ([source](https://contractingbusiness.com/industry-news/press-release/55316860/housecall-pro-brings-ai-powered-voice-activated-invoicing-to-the-trades)). | Has a Products & Services list, its "default price list" ([source](https://help.getjobber.com/en/articles/products-services-list/)). We couldn't find one built from your past PayPal invoices, one that checks a spoken price against them, or PayPal. |
+| **A price book** | Built from your own past PayPal invoices. A price you say that's far from them, like fifteen for a part that's always been fifty, stops the invoice until you pick one. | Has a built-in price book, set up by hand or imported from a file, QuickBooks or Profit Rhino, and compares your prices with similar businesses ([source](https://www.housecallpro.com/features/price-book/)). We couldn't find one built from your past PayPal invoices, or one that checks a spoken price against them. Its voice invoicing release names cards, Apple Pay and Google Pay, not PayPal ([source](https://contractingbusiness.com/industry-news/press-release/55316860/housecall-pro-brings-ai-powered-voice-activated-invoicing-to-the-trades)). | Has a Products & Services list, its "default price list" ([source](https://help.getjobber.com/en/articles/products-services-list/)). We couldn't find one built from your past PayPal invoices, one that checks a spoken price against them, or PayPal. |
 | **Nothing sent until you approve the exact amount** | Send waits for your tap on the exact total. Before sending, code compares PayPal's own total on the draft with the one you approved, and deletes the draft if they differ by a cent. | Has a final review before you send ([source](https://www.housecallpro.com/features/ai-team/invoices-by-hcp/)). We couldn't find a check that the total the customer is billed is the one you approved. | We couldn't find an approval step. It lists "Send invoice" as something the AI does ([source](https://help.getjobber.com/en/articles/jobber-ai-voice-and-chat-beta/)). |
 | **Sums done by code** | Code adds every cent. The AI never states a total. | We couldn't find whether code or the AI does the math. | We couldn't find whether code or the AI does the math. |
 
 "We couldn't find" means the linked page doesn't say it, not that the product can't do it. Sources: Housecall Pro's price book page, its Invoices by HCP page and its voice invoicing press release (16 Sep 2025), and Jobber's Products & Services List help article (updated 29 Oct 2026) and AI Voice and Chat (Beta) help article (updated 28 Oct 2026), all re-read on 2026-11-09.
 
-**What's new next to other PayPal-invoicing entries.** Other entries in this hackathon also create, send and remind with PayPal Invoicing behind an approval step, and some flag a price the AI made up. What this one adds, as far as the pages we read show: you say the job out loud, the price book comes from your own past PayPal invoices with no setup, and a sound-alike number (fifty heard as fifteen) is caught against it.
+**What's new next to other PayPal-invoicing entries.** Other entries in this hackathon also create, send and remind with PayPal Invoicing behind an approval step, and some flag a price the AI made up. What this one adds, as far as the pages we read show: you say the job out loud, the price book comes from your own past PayPal invoices with no setup, and a spoken price far from it (fifteen where it's always been fifty) is caught against it, with you deciding.
 
 ![The confirm screen](docs/screenshot.png)
 
@@ -55,7 +55,7 @@ Say-Voice keeps the AI to listening. Code does the math, a price book catches wr
 - ElevenLabs Scribe v2 writes it down and Claude pulls out the line items.
 - Check the invoice. Your words sit beside every number, and everything is editable.
 - The invoice says what the job was, where and when, with a description on every line, so the customer knows exactly what they paid for (see **Clear invoices and tax** below).
-- The app holds the send until each worry is settled: a price far from what that item usually costs (fifty heard as fifteen shows "Usually $50.00, from 6 PayPal invoices, last $50.00", from the trade's own PayPal history), a doubt the AI flagged, or a spoken amount with no line item. Each takes one tap. On day one, with no history for an item yet, a price said as one of the pairs speech mixes up (fifteen/fifty, thirteen/thirty, up to nineteen/ninety) still gets "Check this amount" with both readings, and no claim about a usual price.
+- The app holds the send until each worry is settled: a price far from what that item usually costs (fifteen said for a heating element shows "Usually $50.00, from 6 PayPal invoices, last $50.00", from the trade's own PayPal history; misheard or misspoken, the trade picks), a doubt the AI flagged, or a spoken amount with no line item. Each takes one tap. On day one, with no history for an item yet, a price said as one of the pairs speech mixes up (fifteen/fifty, thirteen/thirty, up to nineteen/ninety) still gets "Check this amount" with both readings, and no claim about a usual price.
 - Press send, then approve the exact amount. Nothing reaches the customer before that.
 - PayPal creates and sends the invoice. The result screen shows the real number and status, read back from PayPal.
 - If it's unpaid, an agent drafts a reminder from what PayPal says is owed. You can ask it to add something; it writes what you ask, and code refuses any figure PayPal's invoice doesn't have (a "$25 late fee", say) before an approval card ever appears, and shows you what it refused. You read the corrected words and approve them before PayPal sends it.
@@ -66,7 +66,7 @@ The **Prices** page is the price book: demo items, then the trade's past PayPal 
 
 If the app can't read a recording yet, you keep it. A refused upload, a lost signal or an empty AI or speech balance leaves the take in your browser with a clear message and **Try again**, even after a reload. Speech that was already heard isn't paid for twice. A recording with no words in it asks for a new one.
 
-No mic? **Try a sample job** runs a real recorded job through the same screens, including a mishearing to catch.
+No mic? **Try a sample job** runs a real recorded job through the same screens, including a spoken price far from the trade's usual, to catch.
 
 The trade's screens carry no developer chrome. Which PayPal (sandbox or mock), which models and today's AI spend sit behind one small **For judges** disclosure (the sidebar, or the phone's menu); the PayPal calls with their debug ids are under **Details** on each job and on **Activity**.
 
@@ -191,8 +191,8 @@ Render Blueprint (`render.yaml`): New → Blueprint → this repo, then enter th
 - The word check matches spelling, not meaning: a rewording of what you said (like "tear-off" for "remove") is flagged for a look even when it's fair.
 - Sales tax is worked out per line, as PayPal does, so it can differ by a cent from tax on the whole sum.
 - Recording is capped at two minutes, and the audio is uploaded when you stop, not streamed.
-- Speech can still mishear a price. The confirm screen is what catches that, so a person has to read it.
-- The price book needs two invoices for an item before it speaks up, and it checks prices, not quantities. A misheard quantity only gets caught by an AI flag or by reading it, and the confirm screen says so.
+- A price can be misheard by speech to text or misspoken by the trade. The app can't tell which: it holds a price far from the trade's PayPal history and the trade decides, so a person still has to read the confirm screen.
+- The price book needs two invoices for an item before it speaks up, and it checks prices, not quantities. A wrong quantity only gets caught by an AI flag or by reading it, and the confirm screen says so.
 - There's no login. Jobs and learned prices belong to the browser that made them, so another device starts from the demo prices. Clearing site data does the same.
 - A recording that couldn't be read stays in that browser only, one at a time. In a private window it lasts until the page closes.
 - Local JSON storage: data resets on redeploy (fine for a demo, not for production).

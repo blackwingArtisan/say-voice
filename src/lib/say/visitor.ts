@@ -10,3 +10,6 @@ export function visitorOf(req: Request): string | undefined {
   const id = req.headers.get(VISITOR_HEADER);
   return id && /^v_[a-z0-9]{6,40}$/.test(id) ? id : undefined;
 }
+
+/** Set by opening "For judges": /api/audit and /api/paypal/ledger then show the whole record, not only this browser's jobs. */
+export const JUDGES_COOKIE = "say-judges";

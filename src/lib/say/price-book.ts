@@ -1,7 +1,7 @@
 /**
  * The price book's rules. Plain code, no AI, shared by the browser and the server. It learns what
  * a person really charges from invoices that went out, then says when a price is far from that.
- * A misheard "fifty" sent as $15 is the case it exists for: the extraction can't know the usual
+ * A "fifty" sent as $15, misheard or misspoken, is the case it exists for: the extraction can't know the usual
  * price, and recognizer confidence told us nothing in testing.
  */
 import { formatCents, formatQuantity } from "./money";

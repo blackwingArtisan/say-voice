@@ -51,10 +51,10 @@ export const appConfig = {
       usualCents: 5000,
       note: "As the sample job shows it. The usual price comes from the trade's past PayPal invoices, read with GET /v2/invoicing/invoices. Plain code compares them, not AI, and the invoice can't go until you pick one.",
     },
-    /** The headline idea: a price book learned from your own PayPal invoices catches sound-alike numbers. */
-    headline: "Fifty heard as fifteen? Your PayPal invoices catch it.",
+    /** The headline idea: a price far from your own PayPal invoices waits for you, whether misheard or misspoken. */
+    headline: "Said fifteen, usually fifty? Your PayPal invoices catch it.",
     subheadline:
-      "Say the job in the van. A price book learned from your own past PayPal invoices stops a sound-alike number before the customer sees it, code does every sum, and the invoice goes out once you approve the exact amount.",
+      "Say the job in the van. When a price you said is far from what your own past PayPal invoices charged for it, misheard or misspoken, the invoice waits and you pick. Code does every sum, and the invoice goes out once you approve the exact amount.",
     proof: [
       { figure: "6 of 20", body: "test clips where an AI model stated a wrong total. Here code adds up every cent, and the AI never states one.", href: "#method" },
       { figure: "$600", body: "a real roofer's job, sent through PayPal's sandbox with what was fixed on every line, as the customer's PayPal page shows it on the home page." },
