@@ -7,7 +7,7 @@ import { AlertTriangle, ArrowDown, Check as CheckIcon, ChevronDown, Plus, Send, 
 import { Button, Card, CardBody, CardHeader, Field, Input, MoneyInput, Textarea } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 import { isTestAddress, TEST_ADDRESS_RULE } from "@/lib/say/contacts";
-import { canSettle, findChecks, openChecks, placesToCheck, type Check } from "@/lib/say/checks";
+import { canSettle, findChecks, openChecks, placesToCheck, rowAsks, type Check } from "@/lib/say/checks";
 import { computeTotals, formatCents, formatQuantity, formatRate, parseDollars, parsePercent, parseQuantity } from "@/lib/say/money";
 import { inputProblems, priceProblem, quantityProblem, sendBlockedBy, type InputProblem } from "@/lib/say/line-input";
 import { learnedDifference, usuallyWith, usuallyWithText, type PriceEntry } from "@/lib/say/price-book";
@@ -125,13 +125,15 @@ function FieldError({ problem, testId }: { problem?: InputProblem; testId: strin
 
 const INVALID = "border-red-400 bg-red-50/50 focus:border-red-500 focus:ring-red-100";
 
-function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineTotal, lineTax, disabled, book, phone, onChange, onRemove, onSettle, onSettleWords }: {
+function ItemRow({ line, number, problems, heardLine, checks, unsettled, open, heard, lineTotal, lineTax, disabled, book, phone, onChange, onRemove, onSettle, onSettleWords }: {
   line: EditLine;
   number: number;
   problems: InputProblem[];
   book: PriceEntry[];
   heardLine?: JobLine;
   checks: Check[];
+  /** The ids of this row's checks that aren't settled yet. */
+  unsettled: string[];
   open: boolean;
   heard: string | null;
   lineTotal: number | null;
@@ -141,7 +143,7 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
   phone: boolean;
   onChange: (patch: Partial<EditLine>) => void;
   onRemove: () => void;
-  onSettle: () => void;
+  onSettle: (ids: string[]) => void;
   onSettleWords: () => void;
 }) {
   const parsedCents = parseDollars(line.price);
@@ -153,7 +155,6 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
   // A count far from the one the trade's PayPal invoices always had.
   const count = checks.find((check) => check.kind === "qty");
   const learnedNote = parsedCents === null ? null : learnedDifference({ name: line.name, unitCents: parsedCents }, book);
-  const settleable = checks.some((check) => canSettle(check) && check.kind !== "words");
   const applyPrice = (cents: number) => onChange({ price: (cents / 100).toFixed(2) });
   const problemOn = (field: InputProblem["field"]) => problems.find((p) => p.field === field);
   const bad = problems.length > 0;
@@ -163,7 +164,10 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
   const forced = bad || (open && !phone);
   const showMore = more || forced;
   // On a phone an open price-book catch is answered in its card under your words, one at a time, so the row doesn't ask again.
-  const asked = (check: Check) => phone && open && (check.kind === "far" || check.kind === "alike" || check.kind === "qty");
+  // Another check on the row (an AI note) still gets its own tap, but never the catch's answers.
+  const asks = rowAsks(checks, unsettled, phone);
+  const asked = asks.inCard;
+  const priceShown = (far && !asked(far)) || (alike && !asked(alike));
   return (
     <li id={`line-${line.key}`} data-testid="invoice-line" data-invalid={bad || undefined} data-open={open || undefined} className={cn("scroll-mt-20 space-y-2 rounded-xl border p-3", bad ? "border-red-300 bg-red-50/30" : open ? "border-amber-400 bg-amber-50/40" : "border-zinc-200")}>
       <div className="flex items-center gap-2">
@@ -224,25 +228,25 @@ function ItemRow({ line, number, problems, heardLine, checks, open, heard, lineT
           </RowFlag>
         ),
       )}
-      {open && settleable && !disabled && !checks.every((check) => asked(check) || !canSettle(check) || check.kind === "words") ? (
+      {asks.group && !disabled ? (
         <div className="flex flex-wrap gap-2">
-          {far?.usualCents ? (
+          {far?.usualCents && !asked(far) ? (
             <Button className={cn(TAP, "flex-1")} onClick={() => applyPrice(far.usualCents!)} data-testid="use-usual">
               Use {formatCents(far.usualCents)}
             </Button>
           ) : null}
-          {count?.usualQuantityMilli ? (
+          {count?.usualQuantityMilli && !asked(count) ? (
             <Button className={cn(TAP, "flex-1")} onClick={() => onChange({ quantity: formatQuantity(count.usualQuantityMilli!) })} data-testid="use-usual-qty">
               Make it {formatQuantity(count.usualQuantityMilli)}
             </Button>
           ) : null}
-          {(far ?? alike)?.alikeCents ? (
+          {(far ?? alike)?.alikeCents && !asked(far ?? alike) ? (
             <Button variant="secondary" className={cn(TAP, "flex-1")} onClick={() => applyPrice((far ?? alike)!.alikeCents!)} data-testid="use-alike">
               Use {formatCents((far ?? alike)!.alikeCents!)}
             </Button>
           ) : null}
-          <Button variant="secondary" className={cn(TAP, "flex-1")} icon={<CheckIcon className="size-4" />} onClick={onSettle} data-testid="keep-line">
-            {count && !far && !alike ? `Keep ${line.quantity}` : parsedCents ? `Keep ${formatCents(parsedCents)}` : "Looks right"}
+          <Button variant="secondary" className={cn(TAP, "flex-1")} icon={<CheckIcon className="size-4" />} onClick={() => onSettle(asks.settles)} data-testid="keep-line">
+            {phone && !priceShown && !(count && !asked(count)) ? "Looks right" : count && !far && !alike ? `Keep ${line.quantity}` : parsedCents ? `Keep ${formatCents(parsedCents)}` : "Looks right"}
           </Button>
         </div>
       ) : null}
@@ -535,6 +539,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
                   heardLine={heardLine}
                   // A words note goes once it's kept; the other notes stay on the row as a record of what was let stand.
                   checks={onRow.filter((check) => check.kind !== "words" || openOnRow.includes(check))}
+                  unsettled={openOnRow.map((check) => check.id)}
                   open={openOnRow.length > 0}
                   heard={heardFor(job.transcript, heardLine ?? { quantityMilli: row.quantityMilli, unitCents: row.unitCents })}
                   lineTotal={row.valid ? totals.lines[i].lineCents : null}
@@ -544,7 +549,7 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
                   phone={phone}
                   onChange={(patch) => updateLine(line.key, patch)}
                   onRemove={() => setDraft({ ...draft, lines: draft.lines.filter((l) => l.key !== line.key) })}
-                  onSettle={() => settle(openOnRow.filter(canSettle).map((check) => check.id))}
+                  onSettle={settle}
                   onSettleWords={() => settle(openOnRow.filter((check) => check.kind === "words").map((check) => check.id))}
                 />
               );

@@ -206,6 +206,27 @@ export function findChecks({ transcript, heardLines, flags, lines, taxRateMilli,
 
 export const canSettle = (check: Check) => !MUST_FIX.includes(check.kind);
 
+/** The checks a phone asks in their own card under your words, one at a time, not on the line's row. */
+export const CARD_KINDS: readonly CheckKind[] = ["far", "alike", "qty"];
+
+/**
+ * What a line's row asks. On a phone an open line's price-book catch is the card's question, so the row
+ * never offers its answers again, even when another check (an AI note, say) keeps the row asking; the
+ * row's own tap settles only what the card doesn't. On a desktop the row asks everything, as before.
+ */
+export function rowAsks(checks: Check[], unsettled: readonly string[], phone: boolean) {
+  const open = checks.some((check) => unsettled.includes(check.id));
+  const inCard = (check: Check | undefined) => !!check && phone && open && CARD_KINDS.includes(check.kind);
+  const own = checks.filter((check) => !inCard(check) && canSettle(check) && check.kind !== "words");
+  return {
+    inCard,
+    /** Whether the row shows its settle buttons. */
+    group: open && (phone ? own.some((check) => unsettled.includes(check.id)) : own.length > 0),
+    /** What its keep tap settles. */
+    settles: phone ? own.filter((check) => unsettled.includes(check.id)).map((check) => check.id) : checks.filter((check) => unsettled.includes(check.id) && canSettle(check)).map((check) => check.id),
+  };
+}
+
 export const openChecks = (checks: Check[], acknowledged: readonly string[]) => checks.filter((check) => !canSettle(check) || !acknowledged.includes(check.id));
 
 /** A row counts once, however many checks sit on it: one tap settles them all. */

@@ -28,8 +28,11 @@ export async function readInvoiceFromPayPal(invoiceId: string): Promise<PayPalIn
   return (await res.json()) as PayPalInvoice;
 }
 
-/** Every invoice id GET /v2/invoicing/invoices lists for the sandbox account, newest first, up to `pages` pages of 100. */
-export async function listInvoiceIdsFromPayPal(pages = 10): Promise<Set<string>> {
+/**
+ * Every invoice id GET /v2/invoicing/invoices lists for the sandbox account, newest first, up to `pages` pages of 100.
+ * Read to the end: the shared sandbox holds well over 1,000 invoices, and the trade's history is the oldest of them.
+ */
+export async function listInvoiceIdsFromPayPal(pages = 50): Promise<Set<string>> {
   const bearer = await token();
   const ids = new Set<string>();
   for (let page = 1; page <= pages; page++) {
