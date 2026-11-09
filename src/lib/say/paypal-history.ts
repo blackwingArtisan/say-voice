@@ -42,7 +42,7 @@ const GENERIC = /^(materials?|parts?|supplies|labou?r|misc(ellaneous)?|other|ite
 export const isPricedItem = (name: string) => !OWNER_LINES.has(name.trim().toLowerCase()) && !GENERIC.test(name.trim());
 
 /** Bumped when what counts as history changes, so a history read under the old rules is read again. */
-export const HISTORY_RULES = 3;
+export const HISTORY_RULES = 4;
 
 export interface PayPalHistory {
   id: string;
@@ -51,8 +51,8 @@ export interface PayPalHistory {
   visitor?: string;
   learnedAt: string;
   invoiceIds: string[];
-  /** quantityMilli: missing on a history read before quantities were kept. */
-  lines: { name: string; unitCents: number; quantityMilli?: number; invoicedAt: string }[];
+  /** quantityMilli: missing on a history read before quantities were kept; invoiceId, before ids were. */
+  lines: { name: string; unitCents: number; quantityMilli?: number; invoicedAt: string; invoiceId?: string }[];
 }
 
 const histories = () => collection<PayPalHistory>("paypal-history");
@@ -134,6 +134,6 @@ export async function learnFromPayPal(visitor?: string): Promise<PayPalHistory> 
     visitor,
     learnedAt: new Date().toISOString(),
     invoiceIds: kept.map((inv) => inv.id),
-    lines: kept.flatMap((inv) => (inv.items ?? []).filter((item) => isPricedItem(item.name)).map((item) => ({ name: item.name, unitCents: toMinor(item.unit_amount.value, "USD"), quantityMilli: quantityMilli(item.quantity), invoicedAt: dateOf(inv) }))),
+    lines: kept.flatMap((inv) => (inv.items ?? []).filter((item) => isPricedItem(item.name)).map((item) => ({ name: item.name, unitCents: toMinor(item.unit_amount.value, "USD"), quantityMilli: quantityMilli(item.quantity), invoicedAt: dateOf(inv), invoiceId: inv.id }))),
   });
 }

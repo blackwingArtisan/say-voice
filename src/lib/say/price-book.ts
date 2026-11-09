@@ -4,7 +4,7 @@
  * A misheard "fifty" sent as $15 is the case it exists for: the extraction can't know the usual
  * price, and recognizer confidence told us nothing in testing.
  */
-import { formatCents } from "./money";
+import { formatCents, formatQuantity } from "./money";
 
 export interface PriceEntry {
   /** The normalized item name. */
@@ -15,7 +15,14 @@ export interface PriceEntry {
   source: "seed" | "learned";
   updatedAt: string;
   /** Read from the trade's past PayPal invoices: how many had it, and the newest price. */
-  paypal?: { invoices: number; lastCents: number; lastAt: string; quantities?: number[] };
+  paypal?: {
+    invoices: number;
+    lastCents: number;
+    lastAt: string;
+    quantities?: number[];
+    /** Which of those invoices had it, so the book knows what's usually billed together. Missing on a history read before ids were kept. */
+    invoiceIds?: string[];
+  };
   /** How many of this browser's sent invoices had it. */
   sentHere?: number;
 }
@@ -166,4 +173,65 @@ export function learnedDifference(line: { name: string; unitCents: number }, boo
   const entry = findEntry(line.name, book);
   if (!entry?.paypal || line.unitCents <= 0 || line.unitCents === entry.paypal.lastCents) return null;
   return `Your PayPal invoices had this at ${formatCents(entry.paypal.lastCents)} last time (${invoiceCount(entry.paypal.invoices)}). This says ${formatCents(line.unitCents)}.`;
+}
+
+/**
+ * What the trade usually bills with an item on this job, from their own PayPal invoices: a thermal
+ * fuse on 8 of the 10 invoices that had a heating element. Plain code, no AI. Conservative, because
+ * a wrong nudge would annoy a real trade: the item must be on at least TOGETHER_MIN of those invoices
+ * and at least TOGETHER_SHARE of them, and must not already be on the job. Labor and the generic
+ * names never reach the book from PayPal, so they never count. It never holds the send: one tap
+ * adds the line at the usual price, one tap leaves it out.
+ */
+export const TOGETHER_MIN = 3;
+export const TOGETHER_SHARE = 0.75;
+
+export interface UsuallyWith {
+  /** Stable, so "Leave it out" can be remembered: "with:<item>". */
+  id: string;
+  /** The item on the job that its invoices share. */
+  withName: string;
+  name: string;
+  cents: number;
+  quantityMilli: number;
+  /** On this many of the `of` PayPal invoices that had `withName`. */
+  together: number;
+  of: number;
+}
+
+const idsOf = (entry: PriceEntry | undefined) => entry?.paypal?.invoiceIds ?? [];
+
+/** The strongest item the trade's PayPal invoices bill with `trigger`, or null below the thresholds. */
+function companion(trigger: PriceEntry, other: PriceEntry): { together: number; of: number } | null {
+  const of = idsOf(trigger);
+  if (other.id === trigger.id || of.length < TOGETHER_MIN || !idsOf(other).length) return null;
+  const mine = new Set(idsOf(other));
+  const together = of.filter((id) => mine.has(id)).length;
+  return together >= TOGETHER_MIN && together / of.length >= TOGETHER_SHARE ? { together, of: of.length } : null;
+}
+
+export function usuallyWith(names: string[], book: PriceEntry[]): UsuallyWith[] {
+  const onJob = names.map((name) => findEntry(name, book));
+  const onJobIds = new Set(names.map((name, i) => onJob[i]?.id ?? itemKey(name)));
+  const best = new Map<string, UsuallyWith>();
+  for (const trigger of onJob) {
+    if (!trigger) continue;
+    for (const other of book) {
+      if (onJobIds.has(other.id) || !other.samples.length) continue;
+      const pair = companion(trigger, other);
+      if (!pair) continue;
+      const known = best.get(other.id);
+      if (known && known.together / known.of >= pair.together / pair.of) continue;
+      best.set(other.id, { id: `with:${other.id}`, withName: trigger.name, name: other.name, cents: usualCents(other.samples), quantityMilli: steadyQuantity(other) ?? 1000, ...pair });
+    }
+  }
+  return [...best.values()].sort((a, b) => b.together / b.of - a.together / a.of || b.together - a.together);
+}
+
+const withArticle = (name: string) => `${/^[aeiou]/i.test(name) ? "an" : "a"} ${name.toLowerCase()}`;
+
+/** "Usually with a heating element: Thermal fuse $18.00, on 8 of your 10 PayPal invoices with a heating element. You didn't say one." */
+export function usuallyWithText(u: UsuallyWith): string {
+  const count = u.quantityMilli === 1000 ? "" : `${formatQuantity(u.quantityMilli)} × `;
+  return `Usually with ${withArticle(u.withName)}: ${u.name} ${count}${formatCents(u.cents)}, on ${u.together} of your ${u.of} PayPal invoices with ${withArticle(u.withName)}. You didn't say one.`;
 }

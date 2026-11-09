@@ -9,7 +9,7 @@ import { isTestAddress, TEST_ADDRESS_RULE } from "@/lib/say/contacts";
 import { canSettle, findChecks, openChecks, placesToCheck, type Check } from "@/lib/say/checks";
 import { computeTotals, formatCents, formatQuantity, formatRate, parseDollars, parsePercent, parseQuantity } from "@/lib/say/money";
 import { inputProblems, priceProblem, quantityProblem, sendBlockedBy, type InputProblem } from "@/lib/say/line-input";
-import { learnedDifference, type PriceEntry } from "@/lib/say/price-book";
+import { learnedDifference, usuallyWith, usuallyWithText, type PriceEntry } from "@/lib/say/price-book";
 import { findNumbers, heardFor } from "@/lib/say/spoken";
 import type { JobCustomer, JobDetails, JobLine, JobView } from "@/lib/say/types";
 import { MAX_DESCRIPTION, MAX_SITE, MAX_SUMMARY } from "@/lib/say/wording";
@@ -306,7 +306,14 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
   };
   const updateLine = (key: string, patch: Partial<EditLine>) => setDraft({ ...draft, lines: draft.lines.map((line) => (line.key === key ? { ...line, ...patch } : line)) });
   const settle = (ids: string[]) => setDraft({ ...draft, acknowledged: [...new Set([...draft.acknowledged, ...ids])] });
-  const addLine = (price = "") => setDraft({ ...draft, lines: [...draft.lines, { key: `new-${Date.now().toString(36)}`, name: "", quantity: "1", price, description: "", taxed: true }] });
+  const freeKey = () => {
+    let n = draft.lines.length + 1;
+    while (draft.lines.some((line) => line.key === `new-${n}`)) n++;
+    return `new-${n}`;
+  };
+  const addLine = (price = "", more: Partial<EditLine> = {}) => setDraft({ ...draft, lines: [...draft.lines, { key: freeKey(), name: "", quantity: "1", price, description: "", taxed: true, ...more }] });
+  // What the trade's PayPal invoices usually bill with an item on this job, not said this time. It never holds the send.
+  const nudges = sending ? [] : usuallyWith(draft.lines.map((line) => line.name), job.priceBook).filter((nudge) => !draft.acknowledged.includes(nudge.id));
 
   function goToProblem() {
     const first = problems[0];
@@ -455,6 +462,22 @@ export function Confirm({ job, draft, setDraft, sending, busy, onSend, pinSlot }
           )}
         </div>
       ) : null}
+      {nudges.map((nudge) => (
+        <div key={nudge.id} className="space-y-2 rounded-xl border border-sky-200 bg-sky-50/60 p-3" data-testid="usually-with">
+          <p className="flex items-start gap-2 text-[15px] text-sky-950">
+            <Plus className="mt-0.5 size-4 shrink-0 text-sky-700" />
+            <span data-testid="usually-with-text">{usuallyWithText(nudge)}</span>
+          </p>
+          <div className="flex gap-2">
+            <Button className={cn(TAP, "flex-1")} icon={<Plus className="size-4" />} onClick={() => addLine((nudge.cents / 100).toFixed(2), { name: nudge.name, quantity: formatQuantity(nudge.quantityMilli) })} data-testid="add-usual">
+              Add {formatCents(nudge.cents)}
+            </Button>
+            <Button variant="secondary" className={cn(TAP, "flex-1")} onClick={() => settle([nudge.id])} data-testid="leave-out">
+              Leave it out
+            </Button>
+          </div>
+        </div>
+      ))}
       {jobChecks.length > openJobChecks.length ? (
         <p className="text-sm text-zinc-500" data-testid="settled-note">You let {jobChecks.length - openJobChecks.length === 1 ? "1 warning" : `${jobChecks.length - openJobChecks.length} warnings`} stand.</p>
       ) : null}
