@@ -21,6 +21,36 @@ export async function kitStatus(request: APIRequestContext) {
  * book says where its prices came from. A test that counts invoices waits for that read first, so
  * the count can't change under it. False if PayPal didn't answer in time.
  */
+/**
+ * A sample job opened with one tap (`go` taps it). On the hosted site a live AI read can be slow, and a
+ * run of tests can still reach the per-minute AI limit (60 in a local suite, far fewer there) if another
+ * run shares the address: then the page counts down instead of opening a job, so this waits the count out
+ * and taps once more. Up to 120 s a try.
+ */
+export async function openSample(page: Page, go: () => Promise<unknown>) {
+  const job = /\/jobs\/job_[\w-]+$/;
+  for (let attempt = 1; ; attempt++) {
+    // Spaced like every other AI call on the hosted site; these taps used to skip it.
+    await paceAiCalls();
+    const started = Date.now();
+    await go();
+    const outcome = await Promise.race([
+      page.waitForURL(job, { timeout: 120_000 }).then(() => "job" as const, () => "slow" as const),
+      page.getByTestId("sample-wait").waitFor({ timeout: 120_000 }).then(() => "limited" as const, () => "slow" as const),
+    ]);
+    const took = Math.round((Date.now() - started) / 1000);
+    if (outcome === "job") {
+      if (took > 30) console.log(`Sample job took ${took}s to open`);
+      return;
+    }
+    if (outcome === "slow") throw new Error(`No sample job and no rate-limit countdown after ${took}s`);
+    const seconds = Number(await page.getByTestId("sample-wait-seconds").textContent());
+    console.log(`Sample job rate limited (try ${attempt}): waiting ${seconds}s, then tapping again`);
+    if (attempt >= 2) throw new Error("The sample job was rate limited twice in a row");
+    await expect(page.getByTestId("sample-wait")).toBeHidden({ timeout: (seconds + 5) * 1000 });
+  }
+}
+
 export async function tradeHistoryReady(request: APIRequestContext, timeoutMs = 90_000) {
   const until = Date.now() + timeoutMs;
   while (Date.now() < until) {

@@ -5,7 +5,7 @@
  */
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { WHOLE_RECORD, checkCount, fixElementPrice, totalOnScreen, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, sentSample, settleAiNotes, startSample, tradeHistoryReady, visitorHeaders, openNewJob, settleChecks, showLineDetails, showAllSteps, openWhatHappened } from "./flow";
+import { WHOLE_RECORD, checkCount, openSample, fixElementPrice, totalOnScreen, keepToOneCall, kitStatus, money, paceAiCalls, readJob, jobId, sendAndVerify, sentSample, settleAiNotes, startSample, tradeHistoryReady, visitorHeaders, openNewJob, settleChecks, showLineDetails, showAllSteps, openWhatHappened } from "./flow";
 import { PLUS_TAX_AMOUNTS, PLUS_TAX_TRANSCRIPT, QUANTITY_AMOUNTS, QUANTITY_TRANSCRIPT, SAMPLE_AMOUNTS, ROOFER_AMOUNTS, ROOFER_CUSTOMER, ROOFER_DESCRIPTION, ROOFER_TRANSCRIPT } from "../../src/lib/say/sample";
 import { listInvoiceIdsFromPayPal, readInvoiceFromPayPal } from "./paypal-reread";
 import { PAST_JOBS } from "../../src/lib/demo/past-invoices";
@@ -737,9 +737,12 @@ test("day one, one tap from the landing: no PayPal history, and the sound-alike 
   const { live } = await kitStatus(request);
   test.skip(keepToOneCall(live), "Keeps a local live run to the one mic clip");
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
-  await page.getByTestId("catch-try-day-one").click();
-  await page.waitForURL(/\/jobs\/job_[\w-]+$/, { timeout: 60_000 });
+  // Two sample jobs back to back: on the hosted site that can meet the per-minute AI limit.
+  test.setTimeout(420_000);
+  await openSample(page, async () => {
+    await page.goto("/");
+    await page.getByTestId("catch-try-day-one").click();
+  });
   const id = jobId(page);
   await expect(page.getByTestId("day-one")).toContainText("Day one: no PayPal history yet");
   const element = page.getByTestId("invoice-line").nth(1);
@@ -764,9 +767,10 @@ test("day one, one tap from the landing: no PayPal history, and the sound-alike 
   await expect(page.getByRole("button", { name: "Learn from my PayPal invoices" })).toBeVisible();
 
   // The other tap on the landing is the same job with the trade's prices: the usual price speaks.
-  await page.goto("/");
-  await page.getByTestId("catch-try").click();
-  await page.waitForURL(/\/jobs\/job_[\w-]+$/, { timeout: 60_000 });
+  await openSample(page, async () => {
+    await page.goto("/");
+    await page.getByTestId("catch-try").click();
+  });
   expect(jobId(page)).not.toBe(id);
   await expect(page.getByTestId("day-one")).toHaveCount(0);
   await expect(page.getByTestId("catch-card")).toContainText("Usually $50.00");
@@ -1133,8 +1137,7 @@ const coverage = (page: Page, testId: string) =>
 
 /** A day-one job with a third thing to check: a bare "Parts" line, which needs a description. */
 async function threeChecks(page: Page) {
-  await page.goto("/jobs?try=day-one");
-  await page.waitForURL(/\/jobs\/job_[\w-]+$/, { timeout: 60_000 });
+  await openSample(page, () => page.goto("/jobs?try=day-one"));
   await expect(page.getByTestId("invoice-line")).toHaveCount(2);
   await page.getByTestId("add-line").click();
   const parts = page.getByTestId("invoice-line").nth(2);
@@ -1152,7 +1155,11 @@ test("one decision at a time on a phone; on a desktop the Send bar never covers 
   // A phone with three things to check: one count at the top, one decision on screen, and the next once that one is settled.
   await page.setViewportSize({ width: 390, height: 844 });
   await threeChecks(page);
-  await expect(page.getByTestId("pinned-checks")).toHaveText("3 to check");
+  // Three here; a live AI read on the hosted site can add a note of its own, so it counts from what's on screen.
+  const places = Number((await page.getByTestId("pinned-checks").innerText()).match(/\d+/)?.[0]);
+  if (process.env.E2E_BASE_URL) expect(places).toBeGreaterThanOrEqual(3);
+  else expect(places).toBe(3);
+  await expect(page.getByTestId("pinned-checks")).toHaveText(`${places} to check`);
   const shown = page.locator(decisions).filter({ visible: true });
   await expect(shown).toHaveCount(1);
   await expect(shown).toContainText("Line 1, Labor");
@@ -1170,14 +1177,16 @@ test("one decision at a time on a phone; on a desktop the Send bar never covers 
   const phoneHeight = await page.evaluate(() => document.documentElement.scrollHeight);
 
   await shown.getByTestId("catch-keep").click();
-  await expect(page.getByTestId("pinned-checks")).toHaveText("2 to check");
+  await expect(page.getByTestId("pinned-checks")).toHaveText(`${places - 1} to check`);
   await expect(shown).toHaveCount(1);
   await expect(shown).toContainText("Line 2, Heating element");
   await shown.getByTestId("catch-use-alike").click();
-  await expect(page.getByTestId("pinned-checks")).toHaveText("1 to check");
-  // The last one is on its row, and the panel points there.
-  await expect(shown).toHaveCount(0);
-  await expect(page.getByTestId("look-below")).toBeVisible();
+  await expect(page.getByTestId("pinned-checks")).toHaveText(`${places - 2} to check`);
+  // The last one is on its row, and the panel points there (an AI note of its own comes up first, in its card).
+  if (places === 3) {
+    await expect(shown).toHaveCount(0);
+    await expect(page.getByTestId("look-below")).toBeVisible();
+  } else await expect(shown).toHaveCount(1);
   console.log(`Phone confirm, 3 checks: ${phoneHeight}px tall, ${(phoneHeight / 844).toFixed(2)} screens; one decision shown at a time`);
 
   // The sample job on a phone: what usually goes with the element waits until the price is answered.
@@ -1193,7 +1202,7 @@ test("one decision at a time on a phone; on a desktop the Send bar never covers 
   // sits whole beside the Send bar, nothing drawn over it.
   await page.setViewportSize({ width: 1440, height: 900 });
   await threeChecks(page);
-  await expect(page.getByTestId("next-check")).toContainText("3 things to check first");
+  await expect(page.getByTestId("next-check")).toContainText(process.env.E2E_BASE_URL ? /\b([3-9]|\d\d) things to check first/ : /\b3 things to check first/);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: "screenshots/confirm-3-checks-1440.png" });
   const max = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);

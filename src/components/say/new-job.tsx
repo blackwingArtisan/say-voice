@@ -123,8 +123,9 @@ export function NewJob() {
     const ask = new URLSearchParams(window.location.search).get("try");
     if (tried.current || (ask !== "sample" && ask !== "day-one")) return;
     tried.current = true;
-    // Back from the job comes to a plain New job, not a second sample.
-    window.history.replaceState(null, "", "/jobs");
+    // The address keeps ?try= until the job exists (trySample drops it then), so if the page reloads while the
+    // job is read it starts the sample again instead of sitting on a plain New job. Rewriting it here, while
+    // Next is still finishing the tap's navigation, could reload the page and drop the job on the floor.
     void trySample(ask === "day-one");
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
   }, []);
@@ -241,6 +242,8 @@ export function NewJob() {
     try {
       const job = await kitFetch<JobView>("/api/jobs", { json: { source: "sample", today: localDay(), ...(dayOne ? { dayOne: true } : {}) } });
       onLeave.current = () => setPhase("ready");
+      // Back from the job comes to a plain New job, not a second sample.
+      if (window.location.search.includes("try=")) window.history.replaceState(window.history.state, "", "/jobs");
       router.push(`/jobs/${job.id}`);
     } catch (e) {
       const refusal = refusalFrom(e);
