@@ -540,6 +540,7 @@ test("learn from my PayPal invoices: the book fills from PayPal, each price says
   await expect(pump.getByTestId("price-count")).toHaveText(mock ? "from 3 PayPal invoices, last $85.00" : /^from \d+ PayPal invoices?, last \$\d+\.\d\d/);
   await expect(pump).toContainText("PayPal");
   await expect(page.getByTestId("price-row").filter({ hasText: "Heating element" }).getByTestId("price-count")).toContainText("PayPal invoices, last $");
+  await expect(page.getByTestId("history-illustrative")).toContainText("illustrative");
   await page.screenshot({ path: `screenshots/learned-${paypal}.png`, fullPage: true });
   // Only the trade's own items: no late fee or deposit the person added here, no lump of "Material",
   // and none of this app's sends (the sample job sent over and over isn't history).

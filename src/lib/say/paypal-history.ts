@@ -16,7 +16,7 @@ import { sentByApp, sentByAppBeforeMemo } from "./app-memo";
 import { OWNER_LINE_NAME } from "./reminder-rules";
 import type { Job } from "./types";
 
-export const HISTORY_LIMIT = 20;
+export const HISTORY_LIMIT = 25;
 /**
  * PayPal lists the newest invoices first, a page at a time. Every invoice this app sends sits on
  * top of the trade's history (and is skipped), so after a few hundred sends the history is pages
@@ -24,8 +24,13 @@ export const HISTORY_LIMIT = 20;
  */
 const PAGE_SIZE = 100;
 export const MAX_PAGES = 20;
-/** At most this many full reads per click. */
-const MAX_READS = 40;
+/**
+ * At most this many full reads per click. The shared sandbox has well over a hundred unmarked sends
+ * (other apps, and this one's before the memo) on top of the trade's history, and PayPal's list
+ * doesn't say whose an invoice is, so it reads that far, ten at a time, and stops once it has enough.
+ */
+const MAX_READS = 240;
+const READ_BATCH = 10;
 const COUNTED = new Set(["SENT", "UNPAID", "PARTIALLY_PAID", "PAID", "MARKED_AS_PAID"]);
 
 /**
@@ -37,7 +42,7 @@ const GENERIC = /^(materials?|parts?|supplies|labou?r|misc(ellaneous)?|other|ite
 export const isPricedItem = (name: string) => !OWNER_LINES.has(name.trim().toLowerCase()) && !GENERIC.test(name.trim());
 
 /** Bumped when what counts as history changes, so a history read under the old rules is read again. */
-export const HISTORY_RULES = 2;
+export const HISTORY_RULES = 3;
 
 export interface PayPalHistory {
   id: string;
@@ -117,8 +122,8 @@ export async function learnFromPayPal(visitor?: string): Promise<PayPalHistory> 
   // PayPal's list has no items or invoicer, so each one is read in full, a few at a time, newest first.
   const ours: Invoice[] = [];
   const candidates = listed.slice(0, MAX_READS);
-  for (let i = 0; i < candidates.length && ours.length < HISTORY_LIMIT; i += 8) {
-    const read = await Promise.all(candidates.slice(i, i + 8).map((summary) => (summary.items?.length && summary.invoicer ? summary : paypal.invoicing.get(summary.id))));
+  for (let i = 0; i < candidates.length && ours.length < HISTORY_LIMIT; i += READ_BATCH) {
+    const read = await Promise.all(candidates.slice(i, i + READ_BATCH).map((summary) => (summary.items?.length && summary.invoicer ? summary : paypal.invoicing.get(summary.id))));
     ours.push(...read.filter((invoice) => invoice.invoicer?.business_name === appConfig.tradeName && !sentByApp(invoice) && !sentByAppBeforeMemo(invoice)));
   }
   // The newest by the invoice's own date, then oldest first, so the newest price is the last sample.

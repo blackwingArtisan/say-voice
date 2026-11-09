@@ -5,16 +5,16 @@ import { PAST_JOBS, pastInvoiceRequest, seedPastInvoices } from "@/lib/demo/past
 import { MockPayPal } from "@/lib/paypal/mock";
 import { APP_MEMO, sentByApp } from "@/lib/say/app-memo";
 import { findChecks } from "@/lib/say/checks";
-import { learnedDifference, provenance, type PriceEntry, steadyQuantity } from "@/lib/say/price-book";
+import { learnedDifference, provenance, type PriceEntry, steadyQuantity, usualCents } from "@/lib/say/price-book";
 import { SAMPLE_TRANSCRIPT } from "@/lib/say/sample";
 import type { JobLine } from "@/lib/say/types";
 
 const usd = (value: string) => ({ currency_code: "USD", value });
 
 describe("the demo trade's past PayPal invoices", () => {
-  it("are 15 to 20 jobs from the past, to example.com customers, all from this trade", () => {
+  it("are 15 to 25 jobs from the past, to example.com customers, all from this trade", () => {
     expect(PAST_JOBS.length).toBeGreaterThanOrEqual(15);
-    expect(PAST_JOBS.length).toBeLessThanOrEqual(20);
+    expect(PAST_JOBS.length).toBeLessThanOrEqual(25);
     const now = new Date("2026-11-08T12:00:00Z");
     for (const job of PAST_JOBS) {
       const request = pastInvoiceRequest(job, now);
@@ -23,6 +23,18 @@ describe("the demo trade's past PayPal invoices", () => {
       expect(request.detail.invoice_date! < "2026-11-08").toBe(true);
       expect(request.detail.memo).toBeUndefined();
     }
+  });
+
+  it("vary like real jobs: a heating element's price moves around $50, its usual price, and the newest one is $50", () => {
+    const elements = [...PAST_JOBS].sort((a, b) => b.daysAgo - a.daysAgo).flatMap((j) => j.lines.filter(([name]) => name === "Heating element")).map(([, , price]) => Math.round(Number(price) * 100));
+    expect(new Set(elements).size).toBeGreaterThanOrEqual(4);
+    expect(Math.min(...elements)).toBeGreaterThanOrEqual(4_500);
+    expect(Math.max(...elements)).toBeLessThanOrEqual(5_500);
+    expect(usualCents(elements)).toBe(5_000);
+    expect(elements.at(-1)).toBe(5_000);
+    // Not one every seven days.
+    const gaps = new Set([...PAST_JOBS].sort((a, b) => b.daysAgo - a.daysAgo).map((j, i, all) => (i ? all[i - 1].daysAgo - j.daysAgo : 0)).slice(1));
+    expect(gaps.size).toBeGreaterThan(3);
   });
 
   it("are seeded once: a second run reuses every one, sent, and the paid ones paid by check", async () => {
@@ -69,7 +81,7 @@ describe("learn from my PayPal invoices", () => {
 
     // PayPal's prices replace the demo ones for the same item.
     const element = book.find((e) => e.name === "Heating element")!;
-    const pastElements = PAST_JOBS.flatMap((j) => j.lines.filter(([name]) => name === "Heating element")).map(([, , price]) => Math.round(Number(price) * 100));
+    const pastElements = [...PAST_JOBS].sort((a, b) => b.daysAgo - a.daysAgo).flatMap((j) => j.lines.filter(([name]) => name === "Heating element")).map(([, , price]) => Math.round(Number(price) * 100));
     expect(element.samples).toEqual(pastElements);
     expect(element.paypal?.lastCents).toBe(5_000);
     // Each invoice's count too, for the quantity check: every past heating element was one.
