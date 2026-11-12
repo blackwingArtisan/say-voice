@@ -4,7 +4,6 @@
 
 **Live demo:** https://say-voice.onrender.com · **Video:** https://youtu.be/eiHics6TfTc · **License:** MIT
 
-
 **2.9 million US construction businesses have no employees, so the person who does the job also writes the bill** ([US Census Bureau, 2022 Nonemployer Statistics](https://www.census.gov/library/stories/2025/05/smallest-businesses.html)).
 
 **For one-person trades who bill from the van.** One wrong number on an invoice can cost you the customer, so every price you say is checked against your own past PayPal invoices before it goes out. In testing, an AI model stated a wrong total on **6 of 20** spoken jobs ([how that was counted](docs/six-of-twenty.md)), so code also does every sum. A working roofer's **$600** roof repair went out through it, with what was fixed on every line:
