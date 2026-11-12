@@ -2,9 +2,7 @@
 
 > **Said fifteen, usually fifty? Your PayPal invoices catch it.** Tradespeople say the job out loud in the van. When a price they said is far from what their own past PayPal invoices charged for that item, misheard or misspoken, the invoice waits and they pick the price. Code does every sum, and the invoice goes out once they approve the exact amount.
 
-**Live demo:** https://say-voice.onrender.com · **Video:** link added at submission · **License:** MIT
-
-The site is on free hosting, so the first visit can take a minute.
+**Live demo:** https://say-voice.onrender.com · **Video:** https://youtu.be/eiHics6TfTc · **License:** MIT
 
 **2.9 million US construction businesses have no employees, so the person who does the job also writes the bill** ([US Census Bureau, 2022 Nonemployer Statistics](https://www.census.gov/library/stories/2025/05/smallest-businesses.html)).
 
@@ -199,4 +197,4 @@ Render Blueprint (`render.yaml`): New → Blueprint → this repo, then enter th
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). Third-party notice: [NOTICE](NOTICE).
